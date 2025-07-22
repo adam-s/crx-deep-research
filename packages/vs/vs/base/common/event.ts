@@ -39,7 +39,11 @@ const _enableSnapshotPotentialLeakWarning = false;
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
  */
 export interface Event<T> {
-  (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
+  (
+    listener: (e: T) => any,
+    thisArgs?: any,
+    disposables?: IDisposable[] | DisposableStore,
+  ): IDisposable;
 }
 
 export namespace Event {
@@ -128,9 +132,14 @@ export namespace Event {
    * @param map The mapping function.
    * @param disposable A disposable store to add the new EventEmitter to.
    */
-  export function map<I, O>(event: Event<I>, map: (i: I) => O, disposable?: DisposableStore): Event<O> {
+  export function map<I, O>(
+    event: Event<I>,
+    map: (i: I) => O,
+    disposable?: DisposableStore,
+  ): Event<O> {
     return snapshot(
-      (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables),
+      (listener, thisArgs = null, disposables?) =>
+        event(i => listener.call(thisArgs, map(i)), null, disposables),
       disposable,
     );
   }
@@ -146,7 +155,11 @@ export namespace Event {
    * @param each The function to perform on the event object.
    * @param disposable A disposable store to add the new EventEmitter to.
    */
-  export function forEach<I>(event: Event<I>, each: (i: I) => void, disposable?: DisposableStore): Event<I> {
+  export function forEach<I>(
+    event: Event<I>,
+    each: (i: I) => void,
+    disposable?: DisposableStore,
+  ): Event<I> {
     return snapshot(
       (listener, thisArgs = null, disposables?) =>
         event(
@@ -178,13 +191,21 @@ export namespace Event {
     filter: (e: T | U) => e is T,
     disposable?: DisposableStore,
   ): Event<T>;
-  export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T>;
+  export function filter<T>(
+    event: Event<T>,
+    filter: (e: T) => boolean,
+    disposable?: DisposableStore,
+  ): Event<T>;
   export function filter<T, R>(
     event: Event<T | R>,
     filter: (e: T | R) => e is R,
     disposable?: DisposableStore,
   ): Event<R>;
-  export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T> {
+  export function filter<T>(
+    event: Event<T>,
+    filter: (e: T) => boolean,
+    disposable?: DisposableStore,
+  ): Event<T> {
     return snapshot(
       (listener, thisArgs = null, disposables?) =>
         event(e => filter(e) && listener.call(thisArgs, e), null, disposables),
@@ -206,7 +227,9 @@ export namespace Event {
   export function any(...events: Event<any>[]): Event<void>;
   export function any<T>(...events: Event<T>[]): Event<T> {
     return (listener, thisArgs = null, disposables?) => {
-      const disposable = combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e))));
+      const disposable = combinedDisposable(
+        ...events.map(event => event(e => listener.call(thisArgs, e))),
+      );
       return addAndReturnDisposable(disposable, disposables);
     };
   }
@@ -261,7 +284,10 @@ export namespace Event {
    * Adds the IDisposable to the store if it's set, and returns it. Useful to
    * Event function implementation.
    */
-  function addAndReturnDisposable<T extends IDisposable>(d: T, store: DisposableStore | IDisposable[] | undefined): T {
+  function addAndReturnDisposable<T extends IDisposable>(
+    d: T,
+    store: DisposableStore | IDisposable[] | undefined,
+  ): T {
     if (store instanceof Array) {
       store.push(d);
     } else if (store) {
@@ -383,7 +409,11 @@ export namespace Event {
    * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
    * returned event causes this utility to leak a listener on the original event.
    */
-  export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+  export function accumulate<T>(
+    event: Event<T>,
+    delay: number = 0,
+    disposable?: DisposableStore,
+  ): Event<T[]> {
     return Event.debounce<T, T[]>(
       event,
       (last, e) => {
@@ -461,7 +491,10 @@ export namespace Event {
     isT: (e: T | U) => e is T,
     disposable?: DisposableStore,
   ): [Event<T>, Event<U>] {
-    return [Event.filter(event, isT, disposable), Event.filter(event, e => !isT(e), disposable) as Event<U>];
+    return [
+      Event.filter(event, isT, disposable),
+      Event.filter(event, e => !isT(e), disposable) as Event<U>,
+    ];
   }
 
   /**
@@ -736,9 +769,20 @@ export namespace Event {
    * runAndSubscribe(dataChangeEvent, () => this._updateUI());
    * ```
    */
-  export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
-  export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
-  export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+  export function runAndSubscribe<T>(
+    event: Event<T>,
+    handler: (e: T) => any,
+    initial: T,
+  ): IDisposable;
+  export function runAndSubscribe<T>(
+    event: Event<T>,
+    handler: (e: T | undefined) => any,
+  ): IDisposable;
+  export function runAndSubscribe<T>(
+    event: Event<T>,
+    handler: (e: T | undefined) => any,
+    initial?: T,
+  ): IDisposable {
     handler(initial);
     return event(e => handler(e));
   }
@@ -1049,7 +1093,10 @@ const compactionThreshold = 2;
 type ListenerContainer<T> = UniqueContainer<(data: T) => void>;
 type ListenerOrListeners<T> = (ListenerContainer<T> | undefined)[] | ListenerContainer<T>;
 
-const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerContainer<T>) => void) => {
+const forEachListener = <T>(
+  listeners: ListenerOrListeners<T>,
+  fn: (c: ListenerContainer<T>) => void,
+) => {
   if (listeners instanceof UniqueContainer) {
     fn(listeners);
   } else {
@@ -1147,7 +1194,9 @@ export class Emitter<T> {
             this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold,
           )
         : undefined;
-    this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
+    this._perfMon = this._options?._profName
+      ? new EventProfiling(this._options._profName)
+      : undefined;
     this._deliveryQueue = this._options?.deliveryQueue as EventDeliveryQueuePrivate | undefined;
   }
 
@@ -1189,7 +1238,11 @@ export class Emitter<T> {
    * to events from this Emitter
    */
   get event(): Event<T> {
-    this._event ??= (callback: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
+    this._event ??= (
+      callback: (e: T) => any,
+      thisArgs?: any,
+      disposables?: IDisposable[] | DisposableStore,
+    ) => {
       if (this._leakageMon && this._size > this._leakageMon.threshold ** 2) {
         const message = `[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far (${this._size} vs ${this._leakageMon.threshold})`;
         console.warn(message);
@@ -1432,7 +1485,9 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
       this._asyncDeliveryQueue = new LinkedList();
     }
 
-    forEachListener(this._listeners, listener => this._asyncDeliveryQueue!.push([listener.value, data]));
+    forEachListener(this._listeners, listener =>
+      this._asyncDeliveryQueue!.push([listener.value, data]),
+    );
 
     while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
       const [listener, data] = this._asyncDeliveryQueue.shift()!;
@@ -1666,7 +1721,9 @@ export class EventMultiplexer<T> implements IDisposable {
 export interface IDynamicListEventMultiplexer<TEventType> extends IDisposable {
   readonly event: Event<TEventType>;
 }
-export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicListEventMultiplexer<TEventType> {
+export class DynamicListEventMultiplexer<TItem, TEventType>
+  implements IDynamicListEventMultiplexer<TEventType>
+{
   private readonly _store = new DisposableStore();
 
   readonly event: Event<TEventType>;
@@ -1736,8 +1793,16 @@ export class EventBufferer {
 
   wrapEvent<T>(event: Event<T>): Event<T>;
   wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
-  wrapEvent<T, O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
-  wrapEvent<T, O>(event: Event<T>, reduce?: (last: T | O | undefined, event: T) => T | O, initial?: O): Event<O | T> {
+  wrapEvent<T, O>(
+    event: Event<T>,
+    reduce: (last: O | undefined, event: T) => O,
+    initial: O,
+  ): Event<O>;
+  wrapEvent<T, O>(
+    event: Event<T>,
+    reduce?: (last: T | O | undefined, event: T) => T | O,
+    initial?: O,
+  ): Event<O | T> {
     return (listener, thisArgs?, disposables?) => {
       return event(
         i => {

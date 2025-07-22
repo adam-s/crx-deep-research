@@ -20,12 +20,10 @@ import { renderSidePanel } from '@src/side-panel/index';
 import { IConnectionManager, ConnectionManager } from '@shared/ipc/message/ConnectionManger';
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { IMathService } from '@shared/services/math.service';
-import { IAlgoliaSearchService } from '@shared/services/algolia-search.service';
 import { parseDocumentId } from '@shared/utils/utils';
-import {
-  ISubmissionDetectionService,
-  SubmissionDetectionService,
-} from '@src/services/submission-detection.service';
+
+import { ICordycepsService, CordycepsService } from '@src/services/cordyceps/cordyceps.service';
+import { CordycepsPlaygroundService } from '@src/services/cordyceps/cordyceps-playground.service';
 
 export interface ISidePanelConfiguration {}
 
@@ -112,30 +110,10 @@ export class SidePanelApp extends Disposable {
       console.log('Math service result:', result);
     });
 
-    const algoliaRouter = new StaticRouter(async ctx => {
-      const parsedDocument = parseDocumentId(ctx);
-      if (!parsedDocument?.tabId) return false;
-      const tabs = await chrome.tabs.query({ currentWindow: true });
-      const isMatchingTab = tabs.some(
-        tab =>
-          tab.id === parsedDocument.tabId &&
-          typeof tab.url === 'string' &&
-          tab.url.startsWith('https://hn.algolia.com/'),
-      );
-      return isMatchingTab;
-    });
+    const cordycepsService = instantiationService.createInstance(CordycepsService);
+    serviceCollection.set(ICordycepsService, cordycepsService);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const algoliaSearchService = ProxyChannel.toService<IAlgoliaSearchService>(
-      server.getChannel('algoliaSearchService', algoliaRouter),
-    );
-
-    serviceCollection.set(IAlgoliaSearchService, algoliaSearchService);
-
-    const submissionDetectionService = this._register(
-      instantiationService.createInstance(SubmissionDetectionService),
-    );
-    serviceCollection.set(ISubmissionDetectionService, submissionDetectionService);
+    this._register(instantiationService.createInstance(CordycepsPlaygroundService));
 
     return instantiationService;
   }
@@ -163,9 +141,7 @@ export class SidePanelApp extends Disposable {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         sendResponse: (response?: any) => void,
       ) => {
-        if (
-          message.type === `crx-deep-research:sidePanelVisibilityChangeTest:${this.windowId}`
-        ) {
+        if (message.type === `crx-deep-research:sidePanelVisibilityChangeTest:${this.windowId}`) {
           setTimeout(() => {
             sendResponse();
           }, 100);

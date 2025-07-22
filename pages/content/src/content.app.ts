@@ -8,7 +8,6 @@ import { createDocumentId, requestInformation, requestWindowId } from '@shared/u
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server } from '@shared/ipc/server';
 import { IMathService } from '@shared/services/math.service';
-import { IAlgoliaSearchService } from '@shared/services/algolia-search.service';
 import { createPortEvent } from '@shared/ipc/createPortEvent';
 
 export interface IContentConfiguration {}
@@ -92,7 +91,6 @@ export class ContentApp extends Disposable {
 
     // Create client for main content
     const onCreateMessageChannel = createPortEvent('MAIN');
-    const onCreateAlgoliaMessageChannel = createPortEvent('Algolia');
 
     const MAINServer = this._register(new Server(onCreateMessageChannel));
     const mainContentRouter = new StaticRouter(() => true);
@@ -103,16 +101,6 @@ export class ContentApp extends Disposable {
     sidePanelMessageClient.registerChannel(
       'mathService',
       ProxyChannel.fromService(mathService, disposables),
-    );
-
-    // AlgoliaServer wiring
-    const AlgoliaServer = this._register(new Server(onCreateAlgoliaMessageChannel));
-    const algoliaSearchService = ProxyChannel.toService<IAlgoliaSearchService>(
-      AlgoliaServer.getChannel('algoliaSearchService', mainContentRouter),
-    );
-    sidePanelMessageClient.registerChannel(
-      'algoliaSearchService',
-      ProxyChannel.fromService(algoliaSearchService, disposables),
     );
 
     return sidePanelInstantiationService as InstantiationService;

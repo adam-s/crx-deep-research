@@ -5,18 +5,18 @@ export const ICordycepsService = createDecorator<ICordycepsService>('cordycepsSe
 
 export interface ICordycepsService {
   readonly _serviceBrand: undefined;
-  readonly browser: BrowserWindow;
+  readonly getBrowser: () => Promise<BrowserWindow>;
 }
 
 export class CordycepsService implements ICordycepsService {
   public readonly _serviceBrand: undefined;
-  private _browser: BrowserWindow;
+  private _browser: Promise<BrowserWindow>;
 
   constructor() {
-    this._browser = new BrowserWindow();
+    this._browser = BrowserWindow.create();
   }
 
-  public get browser(): BrowserWindow {
+  public getBrowser(): Promise<BrowserWindow> {
     return this._browser;
   }
 }

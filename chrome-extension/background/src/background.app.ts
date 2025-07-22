@@ -13,6 +13,7 @@ import {
   CRX_DEEP_RESEARCH_MESSAGE,
   CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE,
   CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD,
+  CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED,
 } from '@shared/utils/message';
 import { MessageServer } from '@shared/ipc/message/MessageServer';
 import { MessageServerManagerService } from './services/messageServerManager.service';
@@ -101,6 +102,7 @@ export class BackgroundApp extends Disposable {
           case CRX_DEEP_RESEARCH_DISCONNECT:
           case CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE:
           case CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD:
+          case CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED:
             return false;
 
           default:

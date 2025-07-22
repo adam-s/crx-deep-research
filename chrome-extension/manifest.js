@@ -60,12 +60,21 @@ const manifest = Object.assign(
         js: ['content/index.iife.js', 'content-main/index.iife.js'],
         all_frames: false,
         runAt: 'document_start',
+        world: 'ISOLATED',
       },
       {
-        matches: ['https://hn.algolia.com/*'],
-        js: ['content-algolia/index.iife.js'],
-        all_frames: false,
+        matches: ['<all_urls>'],
+        js: ['content-cordyceps/index.iife.js'],
+        all_frames: true,
         runAt: 'document_start',
+        world: 'ISOLATED',
+      },
+      {
+        matches: ['<all_urls>'],
+        js: ['content-cordyceps-main/index.iife.js'],
+        all_frames: true,
+        runAt: 'document_start',
+        world: 'MAIN',
       },
     ],
     web_accessible_resources: [
@@ -74,7 +83,7 @@ const manifest = Object.assign(
         matches: ['*://*/*'],
       },
     ],
-    host_permissions: ['https://hn.algolia.com/*'],
+    host_permissions: [],
   },
   !isFirefox && { side_panel: { ...sidePanelConfig.side_panel } },
 );

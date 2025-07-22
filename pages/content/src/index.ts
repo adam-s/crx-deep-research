@@ -1,5 +1,4 @@
 import { IContentConfiguration, ContentApp } from '@src/content.app';
-import '@src/utils/expose-markers';
 
 const configuration: IContentConfiguration = {};
 

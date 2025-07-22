@@ -20,7 +20,8 @@ export interface ICreateMAINPortMessage extends IBaseMessage {
   id: string;
 }
 
-export const CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE = 'crx-deep-research:sidePanelVisibilityChange';
+export const CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE =
+  'crx-deep-research:sidePanelVisibilityChange';
 export interface ISidePanelVisibilityChangeMessage extends IBaseMessage {
   type: typeof CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE;
   open: boolean;
@@ -31,6 +32,15 @@ export const CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD = 'crx-deep-research:sidePanelR
 export interface ISidePanelReloadMessage extends IBaseMessage {
   type: typeof CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD;
   windowId: number;
+}
+export interface IContentScriptReloadPostMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD;
+  source: string;
+}
+
+export const CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED = 'crx-deep-research:contentScriptLoaded';
+export interface IContentScriptLoadedMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED;
 }
 
 export interface IInformationResponse {
@@ -48,6 +58,8 @@ export type DocumentMessage =
   | ICreateMAINPortMessage
   | ISidePanelVisibilityChangeMessage
   | ISidePanelReloadMessage
+  | IContentScriptLoadedMessage
+  | IContentScriptReloadPostMessage
   | { type: 'crx-deep-research:requestInformation' }
   | IIPCMessageTypes;
 
