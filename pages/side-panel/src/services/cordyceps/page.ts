@@ -2,81 +2,67 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { FrameManager } from './frame-manager';
 import { Frame } from './frame';
 import { Progress, ProgressController } from './progress';
+import { Session } from './session';
+import { FrameExecutionContext } from './frame-execution-context';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
   readonly frameManager: FrameManager;
-  readonly tabId?: number;
+  readonly tabId: number;
+  readonly session: Session;
 
-  constructor(tabId?: number) {
+  constructor(tabId: number, session: Session) {
     super();
-    this.frameManager = this._register(new FrameManager());
+    this.frameManager = this._register(new FrameManager(tabId, session));
     this.tabId = tabId;
-
-    if (this.tabId) {
-      this._setupWebNavigationListeners();
-    }
+    this.session = session;
+    this._setupContentScriptListener();
+    console.log(`✅ Page created for tab ${tabId}`);
   }
 
-  private _setupWebNavigationListeners(): void {
-    const frameStartedListener = (
-      details: chrome.webNavigation.WebNavigationParentedCallbackDetails,
-    ) => {
-      if (details.tabId !== this.tabId) {
-        return;
-      }
-      this.frameManager.frameAttached(details.frameId, details.parentFrameId);
-    };
+  dispose(): void {
+    console.log(`🗑️ Disposing Page for tab ${this.tabId}`);
+    console.log(`🗑️ Page disposing FrameManager with ${this.frameManager.frames().length} frames`);
 
-    const frameCommittedListener = (
-      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
-    ) => {
-      if (details.tabId !== this.tabId) {
-        return;
-      }
-      const parentFrameId = details.frameId === 0 ? null : 0;
-      this.frameManager.frameAttached(details.frameId, parentFrameId);
-    };
+    if (this._ownedContext) {
+      console.log(`🗑️ Page disposing owned context for tab ${this.tabId}`);
+    }
 
-    const frameCompletedListener = (
-      details: chrome.webNavigation.WebNavigationFramedCallbackDetails,
-    ) => {
-      if (details.tabId !== this.tabId) {
-        return;
-      }
-      const parentFrameId = details.frameId === 0 ? null : 0;
-      this.frameManager.frameAttached(details.frameId, parentFrameId);
-    };
+    super.dispose();
+    console.log(`✅ Page for tab ${this.tabId} disposed successfully`);
+  }
 
-    const frameErrorListener = (
-      details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails,
-    ) => {
-      if (details.tabId !== this.tabId) {
-        return;
-      }
-      const parentFrameId = details.frameId === 0 ? null : 0;
-      this.frameManager.frameAttached(details.frameId, parentFrameId);
-    };
+  private _setupContentScriptListener(): void {
+    // Create a tab-specific event for content script loads
+    const onContentScriptLoadedForTab = Session.forTabContentScript(
+      this.session.onContentScriptLoaded,
+      this.tabId,
+    );
 
-    const tabReplacedListener = () => {
-      // This is where we would want to do something with the page.
-    };
+    this._register(
+      onContentScriptLoadedForTab(sender => {
+        const { frameId } = sender;
+        if (frameId === undefined) {
+          console.warn('Content script loaded without frameId:', sender);
+          return;
+        }
 
-    chrome.webNavigation.onBeforeNavigate.addListener(frameStartedListener);
-    chrome.webNavigation.onCommitted.addListener(frameCommittedListener);
-    chrome.webNavigation.onCompleted.addListener(frameCompletedListener);
-    chrome.webNavigation.onErrorOccurred.addListener(frameErrorListener);
-    chrome.webNavigation.onTabReplaced.addListener(tabReplacedListener);
+        const frame = this.frameManager.frame(frameId);
+        if (!frame) {
+          console.warn(`Frame ${frameId} not found when content script loaded.`);
+          return;
+        }
 
-    this._register({
-      dispose: () => {
-        chrome.webNavigation.onBeforeNavigate.removeListener(frameStartedListener);
-        chrome.webNavigation.onCommitted.removeListener(frameCommittedListener);
-        chrome.webNavigation.onCompleted.removeListener(frameCompletedListener);
-        chrome.webNavigation.onErrorOccurred.removeListener(frameErrorListener);
-        chrome.webNavigation.onTabReplaced.removeListener(tabReplacedListener);
-      },
-    });
+        this._createExecutionContext(frame);
+      }),
+    );
+  }
+
+  private _createExecutionContext(frame: Frame): void {
+    console.log(`🚀 Creating execution context for frame ${frame.frameId} in tab ${this.tabId}`);
+    const context = new FrameExecutionContext(frame);
+    frame._setContext(context);
+    console.log(`✅ Execution context created for frame ${frame.frameId} in tab ${this.tabId}`);
   }
 
   async waitForMainFrame(progress?: Progress): Promise<Frame> {

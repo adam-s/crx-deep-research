@@ -1,6 +1,6 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED } from '@shared/utils/message';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class Session extends Disposable {
   private readonly _onContentScriptLoaded = this._register(
@@ -21,6 +21,30 @@ export class Session extends Disposable {
   readonly onTabRemoved: Event<{ tabId: number; removeInfo: chrome.tabs.TabRemoveInfo }> =
     this._onTabRemoved.event;
 
+  private readonly _onBeforeNavigate = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationParentedCallbackDetails>(),
+  );
+  readonly onBeforeNavigate: Event<chrome.webNavigation.WebNavigationParentedCallbackDetails> =
+    this._onBeforeNavigate.event;
+
+  private readonly _onCommitted = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+  );
+  readonly onCommitted: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
+    this._onCommitted.event;
+
+  private readonly _onCompleted = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>(),
+  );
+  readonly onCompleted: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails> =
+    this._onCompleted.event;
+
+  private readonly _onErrorOccurred = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails>(),
+  );
+  readonly onErrorOccurred: Event<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails> =
+    this._onErrorOccurred.event;
+
   readonly windowId: number;
 
   constructor(windowId: number) {
@@ -28,6 +52,16 @@ export class Session extends Disposable {
     this.windowId = windowId;
     this._setupMessageListener();
     this._setupTabListeners();
+    this._setupWebNavigationListeners();
+    console.log(`✅ Session created for window ${windowId}`);
+  }
+
+  dispose(): void {
+    console.log(`🗑️ Disposing Session for window ${this.windowId}`);
+    console.log(`🗑️ Session removing Chrome API listeners`);
+
+    super.dispose();
+    console.log(`✅ Session for window ${this.windowId} disposed successfully`);
   }
 
   private _setupMessageListener(): void {
@@ -40,6 +74,32 @@ export class Session extends Disposable {
     chrome.runtime.onMessage.addListener(messageListener);
     this._register({
       dispose: () => chrome.runtime.onMessage.removeListener(messageListener),
+    });
+  }
+
+  private _setupWebNavigationListeners(): void {
+    const onBeforeNavigate = (details: chrome.webNavigation.WebNavigationParentedCallbackDetails) =>
+      this._onBeforeNavigate.fire(details);
+    const onCommitted = (details: chrome.webNavigation.WebNavigationTransitionCallbackDetails) =>
+      this._onCommitted.fire(details);
+    const onCompleted = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) =>
+      this._onCompleted.fire(details);
+    const onErrorOccurred = (
+      details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails,
+    ) => this._onErrorOccurred.fire(details);
+
+    chrome.webNavigation.onBeforeNavigate.addListener(onBeforeNavigate);
+    chrome.webNavigation.onCommitted.addListener(onCommitted);
+    chrome.webNavigation.onCompleted.addListener(onCompleted);
+    chrome.webNavigation.onErrorOccurred.addListener(onErrorOccurred);
+
+    this._register({
+      dispose: () => {
+        chrome.webNavigation.onBeforeNavigate.removeListener(onBeforeNavigate);
+        chrome.webNavigation.onCommitted.removeListener(onCommitted);
+        chrome.webNavigation.onCompleted.removeListener(onCompleted);
+        chrome.webNavigation.onErrorOccurred.removeListener(onErrorOccurred);
+      },
     });
   }
 
@@ -61,5 +121,42 @@ export class Session extends Disposable {
         chrome.tabs.onRemoved.removeListener(tabRemovedListener);
       },
     });
+  }
+
+  /**
+   * Creates a new event that only fires for events that have a specific tabId.
+   */
+  public static forTab<T extends { tabId: number }>(
+    event: Event<T>,
+    tabId: number,
+    disposables?: DisposableStore,
+  ): Event<T> {
+    return Event.filter(event, (e: T) => e.tabId === tabId, disposables);
+  }
+
+  /**
+   * Creates a new event that only fires for content script loads in a specific tab.
+   */
+  public static forTabContentScript(
+    event: Event<chrome.runtime.MessageSender>,
+    tabId: number,
+    disposables?: DisposableStore,
+  ): Event<chrome.runtime.MessageSender> {
+    return Event.filter(
+      event,
+      (sender: chrome.runtime.MessageSender) => sender.tab?.id === tabId,
+      disposables,
+    );
+  }
+
+  /**
+   * Creates a new event that only fires for events that have a specific frameId.
+   */
+  public static forFrame<T extends { frameId: number }>(
+    event: Event<T>,
+    frameId: number,
+    disposables?: DisposableStore,
+  ): Event<T> {
+    return Event.filter(event, (e: T) => e.frameId === frameId, disposables);
   }
 }
