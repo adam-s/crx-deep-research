@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import type { SelectorEngine, SelectorRoot } from './selectorEngine';
+import { parseAttributeSelector } from './isomorphic/selectorParser';
+
 import { isInsideScope } from './domUtils';
 import { matchesComponentAttribute } from './selectorUtils';
-import { parseAttributeSelector } from './utils/isomorphic/selectorParser';
+
+import type { SelectorEngine, SelectorRoot } from './selectorEngine';
 
 type ComponentNode = {
   key?: any;
@@ -178,7 +180,9 @@ function findReactRoots(root: Document | ShadowRoot, roots: ReactVNode[] = []): 
     // React 17+
     // React sets rootKey when mounting
     // @see https://github.com/facebook/react/blob/a724a3b578dce77d427bef313102a4d0e978d9b4/packages/react-dom/src/client/ReactDOMComponentTree.js#L62-L64
-    const rootKey = Object.keys(reactNode).find(key => key.startsWith('__reactContainer') && reactNode[key] !== null);
+    const rootKey = Object.keys(reactNode).find(
+      key => key.startsWith('__reactContainer') && reactNode[key] !== null,
+    );
     if (rootKey) {
       roots.push(reactNode[rootKey].stateNode.current);
     } else {
@@ -209,7 +213,7 @@ function findReactRoots(root: Document | ShadowRoot, roots: ReactVNode[] = []): 
   return roots;
 }
 
-export const ReactEngine: SelectorEngine = {
+export const createReactEngine = (): SelectorEngine => ({
   queryAll(scope: SelectorRoot, selector: string): Element[] {
     const { name, attributes } = parseAttributeSelector(selector, false);
 
@@ -247,4 +251,4 @@ export const ReactEngine: SelectorEngine = {
     }
     return [...allRootElements];
   },
-};
+});

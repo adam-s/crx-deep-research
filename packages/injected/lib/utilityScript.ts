@@ -14,17 +14,58 @@
  * limitations under the License.
  */
 
-import { serializeAsCallArgument, parseEvaluationResultValue } from './isomorphic/utilityScriptSerializers';
+import {
+  parseEvaluationResultValue,
+  serializeAsCallArgument,
+} from './isomorphic/utilityScriptSerializers';
+
+// Keep in sync with eslint.config.mjs
+export type Builtins = {
+  setTimeout: Window['setTimeout'];
+  clearTimeout: Window['clearTimeout'];
+  setInterval: Window['setInterval'];
+  clearInterval: Window['clearInterval'];
+  requestAnimationFrame: Window['requestAnimationFrame'];
+  cancelAnimationFrame: Window['cancelAnimationFrame'];
+  requestIdleCallback: Window['requestIdleCallback'];
+  cancelIdleCallback: Window['cancelIdleCallback'];
+  performance: Window['performance'];
+
+  Intl: (typeof window)['Intl'];
+
+  Date: (typeof window)['Date'];
+};
 
 export class UtilityScript {
-  constructor(isUnderTest: boolean) {
-    if (isUnderTest) {
-      this._setBuiltins();
+  readonly global: typeof globalThis;
+  // Builtins protect injected code from clock emulation.
+  readonly builtins: Builtins;
+  readonly isUnderTest: boolean;
+
+  constructor(global: typeof globalThis, isUnderTest: boolean) {
+    this.global = global;
+    this.isUnderTest = isUnderTest;
+    if ((global as any).__pwClock) {
+      this.builtins = (global as any).__pwClock.builtins;
+    } else {
+      this.builtins = {
+        setTimeout: global.setTimeout?.bind(global),
+        clearTimeout: global.clearTimeout?.bind(global),
+        setInterval: global.setInterval?.bind(global),
+        clearInterval: global.clearInterval?.bind(global),
+        requestAnimationFrame: global.requestAnimationFrame?.bind(global),
+        cancelAnimationFrame: global.cancelAnimationFrame?.bind(global),
+        requestIdleCallback: global.requestIdleCallback?.bind(global),
+        cancelIdleCallback: global.cancelIdleCallback?.bind(global),
+        performance: global.performance,
+        Intl: global.Intl,
+        Date: global.Date,
+      } satisfies Builtins;
+    }
+    if (this.isUnderTest) {
+      (global as any).builtins = this.builtins;
     }
   }
-
-  serializeAsCallArgument = serializeAsCallArgument;
-  parseEvaluationResultValue = parseEvaluationResultValue;
 
   evaluate(
     isFunction: boolean | undefined,
@@ -35,13 +76,12 @@ export class UtilityScript {
   ) {
     const args = argsAndHandles.slice(0, argCount);
     const handles = argsAndHandles.slice(argCount);
-    const parameters = [];
+    const parameters: any[] = [];
     for (let i = 0; i < args.length; i++) {
-      parameters[i] = this.parseEvaluationResultValue(args[i], handles);
+      parameters[i] = parseEvaluationResultValue(args[i], handles);
     }
 
-    // eslint-disable-next-line no-restricted-globals
-    let result = globalThis.eval(expression);
+    let result = this.global.eval(expression);
     if (isFunction === true) {
       result = result(...parameters);
     } else if (isFunction === false) {
@@ -57,7 +97,7 @@ export class UtilityScript {
 
   jsonValue(returnByValue: true, value: any) {
     // Special handling of undefined to work-around multi-step returnByValue handling in WebKit.
-    if (Object.is(value, undefined)) {
+    if (value === undefined) {
       return undefined;
     }
     return serializeAsCallArgument(value, (value: any) => ({ fallThrough: value }));
@@ -83,54 +123,5 @@ export class UtilityScript {
       })();
     }
     return safeJson(value);
-  }
-
-  private _setBuiltins() {
-    // eslint-disable-next-line no-restricted-globals
-    const window = globalThis as any;
-    window.builtinSetTimeout = (callback: Function, timeout: number) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.setTimeout(callback, timeout);
-      }
-      return setTimeout(callback, timeout);
-    };
-
-    window.builtinClearTimeout = (id: number) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.clearTimeout(id);
-      }
-      return clearTimeout(id);
-    };
-
-    window.builtinSetInterval = (callback: Function, timeout: number) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.setInterval(callback, timeout);
-      }
-      return setInterval(callback, timeout);
-    };
-
-    window.builtinClearInterval = (id: number) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.clearInterval(id);
-      }
-      return clearInterval(id);
-    };
-
-    window.builtinRequestAnimationFrame = (callback: FrameRequestCallback) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.requestAnimationFrame(callback);
-      }
-      return requestAnimationFrame(callback);
-    };
-
-    window.builtinCancelAnimationFrame = (id: number) => {
-      if (window.__pwClock?.builtin) {
-        return window.__pwClock.builtin.cancelAnimationFrame(id);
-      }
-      return cancelAnimationFrame(id);
-    };
-
-    window.builtinDate = window.__pwClock?.builtin.Date || Date;
-    window.builtinPerformance = window.__pwClock?.builtin.performance || performance;
   }
 }

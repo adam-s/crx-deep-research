@@ -10,26 +10,14 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-export type ClockMethods = {
-  Date: DateConstructor;
-  setTimeout: Window['setTimeout'];
-  clearTimeout: Window['clearTimeout'];
-  setInterval: Window['setInterval'];
-  clearInterval: Window['clearInterval'];
-  requestAnimationFrame?: Window['requestAnimationFrame'];
-  cancelAnimationFrame?: (id: number) => void;
-  requestIdleCallback?: Window['requestIdleCallback'];
-  cancelIdleCallback?: (id: number) => void;
-  Intl?: typeof Intl;
-  performance?: Window['performance'];
-};
+import type { Builtins } from './utilityScript';
 
 export type ClockConfig = {
-  now?: number | Date;
+  now?: number;
 };
 
 export type InstallConfig = ClockConfig & {
-  toFake?: (keyof ClockMethods)[];
+  toFake?: (keyof Builtins)[];
 };
 
 enum TimerType {
@@ -69,12 +57,19 @@ type Time = {
   origin: WallTime;
 };
 
-type LogEntryType = 'fastForward' | 'install' | 'pauseAt' | 'resume' | 'runFor' | 'setFixedTime' | 'setSystemTime';
+type LogEntryType =
+  | 'fastForward'
+  | 'install'
+  | 'pauseAt'
+  | 'resume'
+  | 'runFor'
+  | 'setFixedTime'
+  | 'setSystemTime';
 
 export class ClockController {
   readonly _now: Time;
   private _duringTick = false;
-  private _timers = new Map<number, Timer>();
+  private _timers: Map<number, Timer>;
   private _uniqueTimerId = idCounterStart;
   private _embedder: Embedder;
   readonly disposables: (() => void)[] = [];
@@ -83,7 +78,13 @@ export class ClockController {
   private _currentRealTimeTimer: { callAt: Ticks; dispose: () => void } | undefined;
 
   constructor(embedder: Embedder) {
-    this._now = { time: asWallTime(0), isFixedTime: false, ticks: 0 as Ticks, origin: asWallTime(-1) };
+    this._timers = new Map();
+    this._now = {
+      time: asWallTime(0),
+      isFixedTime: false,
+      ticks: 0 as Ticks,
+      origin: asWallTime(-1),
+    };
     this._embedder = embedder;
   }
 
@@ -94,6 +95,7 @@ export class ClockController {
 
   now(): number {
     this._replayLogOnce();
+    this._syncRealTime();
     return this._now.time;
   }
 
@@ -114,7 +116,20 @@ export class ClockController {
 
   performanceNow(): DOMHighResTimeStamp {
     this._replayLogOnce();
+    this._syncRealTime();
     return this._now.ticks;
+  }
+
+  private _syncRealTime() {
+    if (!this._realTime) {
+      return;
+    }
+    const now = this._embedder.performanceNow();
+    const sinceLastSync = now - this._realTime.lastSyncTicks;
+    if (sinceLastSync > 0) {
+      this._advanceNow(shiftTicks(this._now.ticks, sinceLastSync));
+      this._realTime.lastSyncTicks = now;
+    }
   }
 
   private _innerSetTime(time: WallTime) {
@@ -221,12 +236,10 @@ export class ClockController {
     this._currentRealTimeTimer = {
       callAt,
       dispose: this._embedder.setTimeout(() => {
-        const now = this._embedder.performanceNow();
         this._currentRealTimeTimer = undefined;
-        const sinceLastSync = now - this._realTime!.lastSyncTicks;
-        this._realTime!.lastSyncTicks = now;
+        this._syncRealTime();
         // eslint-disable-next-line no-console
-        void this._runTo(shiftTicks(this._now.ticks, sinceLastSync))
+        void this._runTo(this._now.ticks)
           .catch(e => console.error(e))
           .then(() => this._updateRealTimeTimer());
       }, callAt - this._now.ticks),
@@ -250,7 +263,12 @@ export class ClockController {
     await this._runTo(to);
   }
 
-  addTimer(options: { func: TimerHandler; type: TimerType; delay?: number | string; args?: any[] }): number {
+  addTimer(options: {
+    func: TimerHandler;
+    type: TimerType;
+    delay?: number | string;
+    args?: any[];
+  }): number {
     this._replayLogOnce();
 
     if (options.type === TimerType.AnimationFrame && !options.func) {
@@ -323,7 +341,9 @@ export class ClockController {
     return timer;
   }
 
-  private async _callFirstTimer(beforeTick: number): Promise<{ timerFound: boolean; error?: Error }> {
+  private async _callFirstTimer(
+    beforeTick: number,
+  ): Promise<{ timerFound: boolean; error?: Error }> {
     const timer = this._takeFirstTimer(beforeTick);
     if (!timer) {
       return { timerFound: false };
@@ -341,8 +361,8 @@ export class ClockController {
           (() => {
             globalThis.eval(timer.func);
           })();
-        } catch (e: any) {
-          error = e;
+        } catch (e) {
+          error = e instanceof Error ? e : new Error(String(e));
         }
         await new Promise<void>(f => this._embedder.setTimeout(f));
         return { timerFound: true, error };
@@ -358,8 +378,8 @@ export class ClockController {
       let error: Error | undefined;
       try {
         timer.func.apply(null, args);
-      } catch (e: any) {
-        error = e;
+      } catch (e) {
+        error = e instanceof Error ? e : new Error(String(e));
       }
       await new Promise<void>(f => this._embedder.setTimeout(f));
       return { timerFound: true, error };
@@ -403,7 +423,9 @@ export class ClockController {
       } else {
         const clear = getClearHandler(type);
         const schedule = getScheduleHandler(timer.type);
-        throw new Error(`Cannot clear timer: timer created with ${schedule}() but cleared with ${clear}()`);
+        throw new Error(
+          `Cannot clear timer: timer created with ${schedule}() but cleared with ${clear}()`,
+        );
       }
     }
   }
@@ -448,7 +470,7 @@ export class ClockController {
   }
 }
 
-function mirrorDateProperties(target: any, source: typeof Date): DateConstructor & Date {
+function mirrorDateProperties(target: any, source: Builtins['Date']): Builtins['Date'] {
   for (const prop in source) {
     if (source.hasOwnProperty(prop)) {
       target[prop] = (source as any)[prop];
@@ -463,7 +485,8 @@ function mirrorDateProperties(target: any, source: typeof Date): DateConstructor
   return target;
 }
 
-function createDate(clock: ClockController, NativeDate: typeof Date): DateConstructor & Date {
+function createDate(clock: ClockController, NativeDate: Builtins['Date']): Builtins['Date'] {
+  // eslint-disable-next-line no-restricted-globals
   function ClockDate(
     this: typeof ClockDate,
     year: number,
@@ -514,18 +537,19 @@ function createDate(clock: ClockController, NativeDate: typeof Date): DateConstr
  * but we need to take control of those that have a
  * dependency on the current clock.
  */
-function createIntl(clock: ClockController, NativeIntl: typeof Intl): typeof Intl {
+function createIntl(clock: ClockController, NativeIntl: Builtins['Intl']): Builtins['Intl'] {
   const ClockIntl: any = {};
   /*
    * All properties of Intl are non-enumerable, so we need
    * to do a bit of work to get them out.
    */
-  for (const key of Object.getOwnPropertyNames(NativeIntl) as (keyof typeof Intl)[]) {
+  for (const key of Object.getOwnPropertyNames(NativeIntl) as (keyof Builtins['Intl'])[]) {
     ClockIntl[key] = NativeIntl[key];
   }
 
   ClockIntl.DateTimeFormat = function (...args: any[]) {
     const realFormatter = new NativeIntl.DateTimeFormat(...args);
+    // eslint-disable-next-line no-restricted-globals
     const formatter: Intl.DateTimeFormat = {
       formatRange: realFormatter.formatRange.bind(realFormatter),
       formatRangeToParts: realFormatter.formatRangeToParts.bind(realFormatter),
@@ -578,14 +602,17 @@ function compareTimers(a: Timer, b: Timer) {
   }
 
   // As timer ids are unique, no fallback `0` is necessary
-  return 0; // Ensure all code paths return a value
+  return 0;
 }
 
 const maxTimeout = Math.pow(2, 31) - 1; // see https://heycam.github.io/webidl/#abstract-opdef-converttoint
 const idCounterStart = 1e12; // arbitrarily large number to avoid collisions with native timer IDs
 
-function platformOriginals(globalObject: WindowOrWorkerGlobalScope): { raw: ClockMethods; bound: ClockMethods } {
-  const raw: ClockMethods = {
+function platformOriginals(globalObject: WindowOrWorkerGlobalScope): {
+  raw: Builtins;
+  bound: Builtins;
+} {
+  const raw: Builtins = {
     setTimeout: globalObject.setTimeout,
     clearTimeout: globalObject.clearTimeout,
     setInterval: globalObject.setInterval,
@@ -599,13 +626,15 @@ function platformOriginals(globalObject: WindowOrWorkerGlobalScope): { raw: Cloc
     requestIdleCallback: (globalObject as any).requestIdleCallback
       ? (globalObject as any).requestIdleCallback
       : undefined,
-    cancelIdleCallback: (globalObject as any).cancelIdleCallback ? (globalObject as any).cancelIdleCallback : undefined,
+    cancelIdleCallback: (globalObject as any).cancelIdleCallback
+      ? (globalObject as any).cancelIdleCallback
+      : undefined,
     Date: (globalObject as any).Date,
     performance: globalObject.performance,
     Intl: (globalObject as any).Intl,
   };
   const bound = { ...raw };
-  for (const key of Object.keys(bound) as (keyof ClockMethods)[]) {
+  for (const key of Object.keys(bound) as (keyof Builtins)[]) {
     if (key !== 'Date' && typeof bound[key] === 'function') {
       bound[key] = (bound[key] as any).bind(globalObject);
     }
@@ -624,7 +653,7 @@ function getScheduleHandler(type: TimerType) {
   return `set${type}`;
 }
 
-function createApi(clock: ClockController, originals: ClockMethods): ClockMethods {
+function createApi(clock: ClockController, originals: Builtins): Builtins {
   return {
     setTimeout: (func: TimerHandler, timeout?: number | undefined, ...args: any[]) => {
       const delay = timeout ? +timeout : timeout;
@@ -666,7 +695,10 @@ function createApi(clock: ClockController, originals: ClockMethods): ClockMethod
         return clock.clearTimer(timerId, TimerType.AnimationFrame);
       }
     },
-    requestIdleCallback: (callback: IdleRequestCallback, options?: IdleRequestOptions | undefined): number => {
+    requestIdleCallback: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions | undefined,
+    ): number => {
       let timeToNextIdlePeriod = 0;
 
       if (clock.countTimers() > 0) {
@@ -675,7 +707,9 @@ function createApi(clock: ClockController, originals: ClockMethods): ClockMethod
       return clock.addTimer({
         type: TimerType.IdleCallback,
         func: callback,
-        delay: options?.timeout ? Math.min(options?.timeout, timeToNextIdlePeriod) : timeToNextIdlePeriod,
+        delay: options?.timeout
+          ? Math.min(options?.timeout, timeToNextIdlePeriod)
+          : timeToNextIdlePeriod,
       });
     },
     cancelIdleCallback: (timerId: number): void => {
@@ -683,9 +717,13 @@ function createApi(clock: ClockController, originals: ClockMethods): ClockMethod
         return clock.clearTimer(timerId, TimerType.IdleCallback);
       }
     },
-    Intl: originals.Intl ? createIntl(clock, originals.Intl) : undefined,
+    Intl: originals.Intl
+      ? createIntl(clock, originals.Intl)
+      : (undefined as unknown as Builtins['Intl']),
     Date: createDate(clock, originals.Date),
-    performance: originals.performance ? fakePerformance(clock, originals.performance) : undefined,
+    performance: originals.performance
+      ? fakePerformance(clock, originals.performance)
+      : (undefined as unknown as Builtins['performance']),
   };
 }
 
@@ -697,7 +735,10 @@ function getClearHandler(type: TimerType) {
   return `clear${type}`;
 }
 
-function fakePerformance(clock: ClockController, performance: Performance): Performance {
+function fakePerformance(
+  clock: ClockController,
+  performance: Builtins['performance'],
+): Builtins['performance'] {
   const result: any = {
     now: () => clock.performanceNow(),
   };
@@ -718,8 +759,8 @@ function fakePerformance(clock: ClockController, performance: Performance): Perf
 
 export function createClock(globalObject: WindowOrWorkerGlobalScope): {
   clock: ClockController;
-  api: ClockMethods;
-  originals: ClockMethods;
+  api: Builtins;
+  originals: Builtins;
 } {
   const originals = platformOriginals(globalObject);
   const embedder: Embedder = {
@@ -743,7 +784,7 @@ export function createClock(globalObject: WindowOrWorkerGlobalScope): {
 export function install(
   globalObject: WindowOrWorkerGlobalScope,
   config: InstallConfig = {},
-): { clock: ClockController; api: ClockMethods; originals: ClockMethods } {
+): { clock: ClockController; api: Builtins; originals: Builtins } {
   if ((globalObject as any).Date?.isFake) {
     // Timers are already faked; this is a problem.
     // Make the user reset timers before continuing.
@@ -751,7 +792,9 @@ export function install(
   }
 
   const { clock, api, originals } = createClock(globalObject);
-  const toFake = config.toFake?.length ? config.toFake : (Object.keys(originals) as (keyof ClockMethods)[]);
+  const toFake = config.toFake?.length
+    ? config.toFake
+    : (Object.keys(originals) as (keyof Builtins)[]);
 
   for (const method of toFake) {
     if (method === 'Date') {
@@ -783,12 +826,12 @@ export function install(
 }
 
 export function inject(globalObject: WindowOrWorkerGlobalScope) {
-  const builtin = platformOriginals(globalObject).bound;
+  const builtins = platformOriginals(globalObject).bound;
   const { clock: controller } = install(globalObject);
   controller.resume();
   return {
     controller,
-    builtin,
+    builtins,
   };
 }
 

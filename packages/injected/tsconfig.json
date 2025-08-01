@@ -18,6 +18,8 @@
   "include": [
     "index.ts",
     "lib",
-    "./global.d.ts"
+    "src",
+    "./global.d.ts",
+    "./src/vite-env.d.ts"
   ]
 }

@@ -14,51 +14,86 @@
  * limitations under the License.
  */
 
-import { escapeWithQuotes } from './utils/isomorphic/stringUtils';
 import {
-  beginAriaCaches,
-  endAriaCaches,
-  getAriaRole,
-  getElementAccessibleName,
-  isElementIgnoredForAria,
-} from './roleUtils';
-import { isElementVisible, isElementStyleVisibilityVisible } from './domUtils';
+  escapeRegExp,
+  longestCommonSubstring,
+  normalizeWhiteSpace,
+} from './isomorphic/stringUtils';
 
-// Defines the structure of an ARIA node in the accessibility tree
-type AriaNode = {
-  role: string;
-  name?: string;
-  children?: (AriaNode | string)[];
+import { box, getElementComputedStyle, isElementVisible, type Box } from './domUtils';
+import * as roleUtils from './roleUtils';
+import { yamlEscapeKeyIfNeeded, yamlEscapeValueIfNeeded } from './yaml';
+
+import type {
+  AriaProps,
+  AriaRegex,
+  AriaRole,
+  AriaTemplateNode,
+  AriaTemplateRoleNode,
+  AriaTemplateTextNode,
+} from './isomorphic/ariaSnapshot';
+
+export type AriaNode = AriaProps & {
+  role: AriaRole | 'fragment' | 'iframe' | string;
+  name: string;
+  ref?: string;
+  children: (AriaNode | string)[];
+  element: Element;
+  box: Box;
+  receivesPointerEvents: boolean;
+  props: Record<string, string>;
 };
 
-// Defines the structure of an ARIA template node for matching
-export type AriaTemplateNode = {
-  role: string;
-  name?: RegExp | string;
-  children?: (AriaTemplateNode | string | RegExp)[];
+export type AriaSnapshot = {
+  root: AriaNode;
+  elements: Map<string, Element>;
+  refs: Map<Element, string>;
 };
 
-// Generates an ARIA tree from the root HTML element
-export function generateAriaTree(rootElement: Element): AriaNode {
-  const toAriaNode = (element: Element): { ariaNode: AriaNode; isLeaf: boolean } | null => {
-    const role = getAriaRole(element);
-    if (!role) {
-      return null;
-    }
+type AriaRef = {
+  role: string;
+  name: string;
+  ref: string;
+};
 
-    const name = role ? getElementAccessibleName(element, false) || undefined : undefined;
-    const isLeaf = leafRoles.has(role);
-    const result: AriaNode = { role, name };
-    if (isLeaf && !name && element.textContent) {
-      result.children = [element.textContent];
-    }
-    return { isLeaf, ariaNode: result };
+let lastRef = 0;
+
+export function generateAriaTree(
+  rootElement: Element,
+  options?: { forAI?: boolean; refPrefix?: string },
+): AriaSnapshot {
+  const visited = new Set<Node>();
+
+  const snapshot: AriaSnapshot = {
+    root: {
+      role: 'fragment',
+      name: '',
+      children: [],
+      element: rootElement,
+      props: {},
+      box: box(rootElement),
+      receivesPointerEvents: true,
+    },
+    elements: new Map<string, Element>(),
+    refs: new Map<Element, string>(),
   };
 
-  const visit = (ariaNode: AriaNode, node: Node) => {
+  const visit = (ariaNode: AriaNode, node: Node, parentElementVisible: boolean) => {
+    if (visited.has(node)) {
+      return;
+    }
+    visited.add(node);
+
     if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-      ariaNode.children = ariaNode.children || [];
-      ariaNode.children.push(node.nodeValue);
+      if (!parentElementVisible) {
+        return;
+      }
+
+      const text = node.nodeValue;
+      // <textarea>AAA</textarea> should not report AAA as a child of the textarea.
+      if (ariaNode.role !== 'textbox' && text) {
+        ariaNode.children.push(node.nodeValue || '');
+      }
       return;
     }
 
@@ -67,70 +102,224 @@ export function generateAriaTree(rootElement: Element): AriaNode {
     }
 
     const element = node as Element;
-    if (isElementIgnoredForAria(element)) {
+    const isElementHiddenForAria = roleUtils.isElementHiddenForAria(element);
+    if (isElementHiddenForAria && !options?.forAI) {
       return;
     }
 
-    const visible = isElementVisible(element);
-    const hasVisibleChildren = isElementStyleVisibilityVisible(element);
-
-    if (!hasVisibleChildren) {
-      return;
+    const ariaChildren: Element[] = [];
+    if (element.hasAttribute('aria-owns')) {
+      const ids = element.getAttribute('aria-owns')!.split(/\s+/);
+      for (const id of ids) {
+        const ownedElement = rootElement.ownerDocument.getElementById(id);
+        if (ownedElement) {
+          ariaChildren.push(ownedElement);
+        }
+      }
     }
 
-    if (visible) {
-      const childAriaNode = toAriaNode(element);
-      const isHiddenContainer = childAriaNode && hiddenContainerRoles.has(childAriaNode.ariaNode.role);
-      if (childAriaNode && !isHiddenContainer) {
-        ariaNode.children = ariaNode.children || [];
-        ariaNode.children.push(childAriaNode.ariaNode);
+    const visible = !isElementHiddenForAria || isElementVisible(element);
+    const childAriaNode = visible ? toAriaNode(element, options) : null;
+    if (childAriaNode) {
+      if (childAriaNode.ref) {
+        snapshot.elements.set(childAriaNode.ref, element);
+        snapshot.refs.set(element, childAriaNode.ref);
       }
-      if (isHiddenContainer || !childAriaNode?.isLeaf) {
-        processChildNodes(childAriaNode?.ariaNode || ariaNode, element);
-      }
-    } else {
-      processChildNodes(ariaNode, element);
+      ariaNode.children.push(childAriaNode);
     }
+    processElement(childAriaNode || ariaNode, element, ariaChildren, visible);
   };
 
-  // Processes child nodes, including shadow DOM if present
-  function processChildNodes(ariaNode: AriaNode, element: Element) {
-    // Process light DOM children
-    for (let child = element.firstChild; child; child = child.nextSibling) {
-      visit(ariaNode, child);
+  function processElement(
+    ariaNode: AriaNode,
+    element: Element,
+    ariaChildren: Element[],
+    parentElementVisible: boolean,
+  ) {
+    // Surround every element with spaces for the sake of concatenated text nodes.
+    const display = getElementComputedStyle(element)?.display || 'inline';
+    const treatAsBlock = display !== 'inline' || element.nodeName === 'BR' ? ' ' : '';
+    if (treatAsBlock) {
+      ariaNode.children.push(treatAsBlock);
     }
-    // Process shadow DOM children, if any
-    if (element.shadowRoot) {
-      for (let child = element.shadowRoot.firstChild; child; child = child.nextSibling) {
-        visit(ariaNode, child);
+
+    ariaNode.children.push(roleUtils.getCSSContent(element, '::before') || '');
+    const assignedNodes =
+      element.nodeName === 'SLOT' ? (element as HTMLSlotElement).assignedNodes() : [];
+    if (assignedNodes.length) {
+      for (const child of assignedNodes) {
+        visit(ariaNode, child, parentElementVisible);
+      }
+    } else {
+      for (let child = element.firstChild; child; child = child.nextSibling) {
+        if (!(child as Element | Text).assignedSlot) {
+          visit(ariaNode, child, parentElementVisible);
+        }
+      }
+      if (element.shadowRoot) {
+        for (let child = element.shadowRoot.firstChild; child; child = child.nextSibling) {
+          visit(ariaNode, child, parentElementVisible);
+        }
       }
     }
+
+    for (const child of ariaChildren) {
+      visit(ariaNode, child, parentElementVisible);
+    }
+
+    ariaNode.children.push(roleUtils.getCSSContent(element, '::after') || '');
+
+    if (treatAsBlock) {
+      ariaNode.children.push(treatAsBlock);
+    }
+
+    if (ariaNode.children.length === 1 && ariaNode.name === ariaNode.children[0]) {
+      ariaNode.children = [];
+    }
+
+    if (ariaNode.role === 'link' && element.hasAttribute('href')) {
+      const href = element.getAttribute('href')!;
+      ariaNode.props['url'] = href;
+    }
   }
 
-  beginAriaCaches();
-  const ariaRoot: AriaNode = { role: '' };
+  roleUtils.beginAriaCaches();
   try {
-    visit(ariaRoot, rootElement);
+    visit(snapshot.root, rootElement, true);
   } finally {
-    endAriaCaches();
+    roleUtils.endAriaCaches();
   }
 
-  normalizeStringChildren(ariaRoot);
-  return ariaRoot;
+  normalizeStringChildren(snapshot.root);
+  normalizeGenericRoles(snapshot.root);
+  return snapshot;
 }
 
-// Converts the ARIA tree to a rendered string
-export function renderedAriaTree(rootElement: Element): string {
-  return renderAriaTree(generateAriaTree(rootElement));
+function ariaRef(
+  element: Element,
+  role: string,
+  name: string,
+  options?: { forAI?: boolean; refPrefix?: string },
+): string | undefined {
+  if (!options?.forAI) {
+    return undefined;
+  }
+
+  let ariaRef: AriaRef | undefined;
+  ariaRef = (element as any)._ariaRef;
+  if (!ariaRef || ariaRef.role !== role || ariaRef.name !== name) {
+    ariaRef = { role, name, ref: (options?.refPrefix ?? '') + 'e' + ++lastRef };
+    (element as any)._ariaRef = ariaRef;
+  }
+  return ariaRef.ref;
 }
 
-// Normalizes string children by trimming and combining whitespace
+function toAriaNode(
+  element: Element,
+  options?: { forAI?: boolean; refPrefix?: string },
+): AriaNode | null {
+  const active = element.ownerDocument.activeElement === element;
+  if (element.nodeName === 'IFRAME') {
+    return {
+      role: 'iframe',
+      name: '',
+      ref: ariaRef(element, 'iframe', '', options),
+      children: [],
+      props: {},
+      element,
+      box: box(element),
+      receivesPointerEvents: true,
+      active,
+    };
+  }
+
+  const defaultRole = options?.forAI ? 'generic' : null;
+  const role = roleUtils.getAriaRole(element) ?? defaultRole;
+  if (!role || role === 'presentation' || role === 'none') {
+    return null;
+  }
+
+  const name = normalizeWhiteSpace(roleUtils.getElementAccessibleName(element, false) || '');
+  const receivesPointerEvents = roleUtils.receivesPointerEvents(element);
+
+  const result: AriaNode = {
+    role,
+    name,
+    ref: ariaRef(element, role, name, options),
+    children: [],
+    props: {},
+    element,
+    box: box(element),
+    receivesPointerEvents,
+    active,
+  };
+
+  if (roleUtils.kAriaCheckedRoles.includes(role)) {
+    result.checked = roleUtils.getAriaChecked(element);
+  }
+
+  if (roleUtils.kAriaDisabledRoles.includes(role)) {
+    result.disabled = roleUtils.getAriaDisabled(element);
+  }
+
+  if (roleUtils.kAriaExpandedRoles.includes(role)) {
+    result.expanded = roleUtils.getAriaExpanded(element);
+  }
+
+  if (roleUtils.kAriaLevelRoles.includes(role)) {
+    result.level = roleUtils.getAriaLevel(element);
+  }
+
+  if (roleUtils.kAriaPressedRoles.includes(role)) {
+    result.pressed = roleUtils.getAriaPressed(element);
+  }
+
+  if (roleUtils.kAriaSelectedRoles.includes(role)) {
+    result.selected = roleUtils.getAriaSelected(element);
+  }
+
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    if (element.type !== 'checkbox' && element.type !== 'radio' && element.type !== 'file') {
+      result.children = [element.value];
+    }
+  }
+
+  return result;
+}
+
+function normalizeGenericRoles(node: AriaNode) {
+  const normalizeChildren = (node: AriaNode) => {
+    const result: (AriaNode | string)[] = [];
+    for (const child of node.children || []) {
+      if (typeof child === 'string') {
+        result.push(child);
+        continue;
+      }
+      const normalized = normalizeChildren(child);
+      result.push(...normalized);
+    }
+
+    // Only remove generic that encloses one element, logical grouping still makes sense, even if it is not ref-able.
+    const removeSelf =
+      node.role === 'generic' &&
+      result.length <= 1 &&
+      result.every(c => typeof c !== 'string' && receivesPointerEvents(c));
+    if (removeSelf) {
+      return result;
+    }
+    node.children = result;
+    return [node];
+  };
+
+  normalizeChildren(node);
+}
+
 function normalizeStringChildren(rootA11yNode: AriaNode) {
   const flushChildren = (buffer: string[], normalizedChildren: (AriaNode | string)[]) => {
     if (!buffer.length) {
       return;
     }
-    const text = normalizeWhitespaceWithin(buffer.join('')).trim();
+    const text = normalizeWhiteSpace(buffer.join(''));
     if (text) {
       normalizedChildren.push(text);
     }
@@ -150,60 +339,15 @@ function normalizeStringChildren(rootA11yNode: AriaNode) {
       }
     }
     flushChildren(buffer, normalizedChildren);
-    ariaNode.children = normalizedChildren.length ? normalizedChildren : undefined;
+    ariaNode.children = normalizedChildren.length ? normalizedChildren : [];
+    if (ariaNode.children.length === 1 && ariaNode.children[0] === ariaNode.name) {
+      ariaNode.children = [];
+    }
   };
   visit(rootA11yNode);
 }
 
-// Set of roles that are considered hidden containers
-const hiddenContainerRoles = new Set(['none', 'presentation']);
-
-// Set of roles that are considered leaf nodes in the ARIA tree
-const leafRoles = new Set([
-  'alert',
-  'blockquote',
-  'button',
-  'caption',
-  'checkbox',
-  'code',
-  'columnheader',
-  'definition',
-  'deletion',
-  'emphasis',
-  'generic',
-  'heading',
-  'img',
-  'insertion',
-  'link',
-  'menuitem',
-  'menuitemcheckbox',
-  'menuitemradio',
-  'meter',
-  'option',
-  'progressbar',
-  'radio',
-  'rowheader',
-  'scrollbar',
-  'searchbox',
-  'separator',
-  'slider',
-  'spinbutton',
-  'strong',
-  'subscript',
-  'superscript',
-  'switch',
-  'tab',
-  'term',
-  'textbox',
-  'time',
-  'tooltip',
-]);
-
-// Normalizes whitespace within a string by replacing multiple spaces and newlines with a single space
-const normalizeWhitespaceWithin = (text: string) => text.replace(/[\s\n]+/g, ' ');
-
-// Checks if the text matches the template, which can be a string or regex
-function matchesText(text: string | undefined, template: RegExp | string | undefined) {
+function matchesText(text: string, template: AriaRegex | string | undefined): boolean {
   if (!template) {
     return true;
   }
@@ -213,46 +357,114 @@ function matchesText(text: string | undefined, template: RegExp | string | undef
   if (typeof template === 'string') {
     return text === template;
   }
-  return !!text.match(template);
+  return !!text.match(new RegExp(template.pattern));
 }
 
-// Checks if the ARIA tree matches the given template
+function matchesTextNode(text: string, template: AriaTemplateTextNode) {
+  return matchesText(text, template.text);
+}
+
+function matchesName(text: string, template: AriaTemplateRoleNode) {
+  return matchesText(text, template.name);
+}
+
+export type MatcherReceived = {
+  raw: string;
+  regex: string;
+};
+
 export function matchesAriaTree(
   rootElement: Element,
   template: AriaTemplateNode,
-): { matches: boolean; received: string } {
-  const root = generateAriaTree(rootElement);
-  const matches = nodeMatches(root, template);
-  return { matches, received: renderAriaTree(root) };
+): { matches: AriaNode[]; received: MatcherReceived } {
+  const snapshot = generateAriaTree(rootElement);
+  const matches = matchesNodeDeep(snapshot.root, template, false, false);
+  return {
+    matches,
+    received: {
+      raw: renderAriaTree(snapshot, { mode: 'raw' }),
+      regex: renderAriaTree(snapshot, { mode: 'regex' }),
+    },
+  };
 }
 
-// Recursively checks if a node matches the template
-function matchesNode(node: AriaNode | string, template: AriaTemplateNode | RegExp | string, depth: number): boolean {
-  if (typeof node === 'string' && (typeof template === 'string' || template instanceof RegExp)) {
-    return matchesText(node, template);
-  }
-
-  if (typeof node === 'object' && typeof template === 'object' && !(template instanceof RegExp)) {
-    if (template.role && template.role !== node.role) {
-      return false;
-    }
-    if (!matchesText(node.name, template.name)) {
-      return false;
-    }
-    if (!containsList(node.children || [], template.children || [], depth)) {
-      return false;
-    }
-    return true;
-  }
-  return false;
+export function getAllByAria(rootElement: Element, template: AriaTemplateNode): Element[] {
+  const root = generateAriaTree(rootElement).root;
+  const matches = matchesNodeDeep(root, template, true, false);
+  return matches.map(n => n.element);
 }
 
-// Checks if the list of children contains the template sequence
-function containsList(
-  children: (AriaNode | string)[],
-  template: (AriaTemplateNode | RegExp | string)[],
-  depth: number,
+function matchesNode(
+  node: AriaNode | string,
+  template: AriaTemplateNode,
+  isDeepEqual: boolean,
 ): boolean {
+  if (typeof node === 'string' && template.kind === 'text') {
+    return matchesTextNode(node, template);
+  }
+
+  if (node === null || typeof node !== 'object' || template.kind !== 'role') {
+    return false;
+  }
+
+  if (template.role !== 'fragment' && template.role !== node.role) {
+    return false;
+  }
+  if (template.checked !== undefined && template.checked !== node.checked) {
+    return false;
+  }
+  if (template.disabled !== undefined && template.disabled !== node.disabled) {
+    return false;
+  }
+  if (template.expanded !== undefined && template.expanded !== node.expanded) {
+    return false;
+  }
+  if (template.level !== undefined && template.level !== node.level) {
+    return false;
+  }
+  if (template.pressed !== undefined && template.pressed !== node.pressed) {
+    return false;
+  }
+  if (template.selected !== undefined && template.selected !== node.selected) {
+    return false;
+  }
+  if (!matchesName(node.name, template)) {
+    return false;
+  }
+  if (!matchesText(node.props.url, template.props?.url)) {
+    return false;
+  }
+
+  // Proceed based on the container mode.
+  if (template.containerMode === 'contain') {
+    return containsList(node.children || [], template.children || []);
+  }
+  if (template.containerMode === 'equal') {
+    return listEqual(node.children || [], template.children || [], false);
+  }
+  if (template.containerMode === 'deep-equal' || isDeepEqual) {
+    return listEqual(node.children || [], template.children || [], true);
+  }
+  return containsList(node.children || [], template.children || []);
+}
+
+function listEqual(
+  children: (AriaNode | string)[],
+  template: AriaTemplateNode[],
+  isDeepEqual: boolean,
+): boolean {
+  if (template.length !== children.length) {
+    return false;
+  }
+  for (let i = 0; i < template.length; ++i) {
+    if (!matchesNode(children[i], template[i], isDeepEqual)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function containsList(children: (AriaNode | string)[], template: AriaTemplateNode[]): boolean {
   if (template.length > children.length) {
     return false;
   }
@@ -261,7 +473,7 @@ function containsList(
   for (const t of tt) {
     let c = cc.shift();
     while (c) {
-      if (matchesNode(c, t, depth + 1)) {
+      if (matchesNode(c, t, false)) {
         break;
       }
       c = cc.shift();
@@ -273,92 +485,210 @@ function containsList(
   return true;
 }
 
-// Recursively checks if the ARIA tree matches the template starting from the root
-function nodeMatches(root: AriaNode, template: AriaTemplateNode): boolean {
-  const results: (AriaNode | string)[] = [];
-  const visit = (node: AriaNode | string): boolean => {
-    if (matchesNode(node, template, 0)) {
-      results.push(node);
-      return true;
+function matchesNodeDeep(
+  root: AriaNode,
+  template: AriaTemplateNode,
+  collectAll: boolean,
+  isDeepEqual: boolean,
+): AriaNode[] {
+  const results: AriaNode[] = [];
+  const visit = (node: AriaNode | string, parent: AriaNode | null): boolean => {
+    if (matchesNode(node, template, isDeepEqual)) {
+      const result = typeof node === 'string' ? parent : node;
+      if (result) {
+        results.push(result);
+      }
+      return !collectAll;
     }
     if (typeof node === 'string') {
       return false;
     }
     for (const child of node.children || []) {
-      if (visit(child)) {
+      if (visit(child, node)) {
         return true;
       }
     }
     return false;
   };
-  visit(root);
-  return !!results.length;
+  visit(root, null);
+  return results;
 }
 
-// Renders the ARIA tree into a YAML formatted string
-export function renderAriaTree(ariaNode: AriaNode): string {
+export function renderAriaTree(
+  ariaSnapshot: AriaSnapshot,
+  options?: { mode?: 'raw' | 'regex'; forAI?: boolean },
+): string {
   const lines: string[] = [];
-  const visit = (ariaNode: AriaNode | string, indent: string) => {
+  const includeText = options?.mode === 'regex' ? textContributesInfo : () => true;
+  const renderString = options?.mode === 'regex' ? convertToBestGuessRegex : (str: string) => str;
+  const visit = (ariaNode: AriaNode | string, parentAriaNode: AriaNode | null, indent: string) => {
     if (typeof ariaNode === 'string') {
-      lines.push(indent + '- text: ' + escapeYamlString(ariaNode));
-      return;
-    }
-    let line = `${indent}- ${ariaNode.role}`;
-    if (ariaNode.name) {
-      line += ` ${escapeWithQuotes(ariaNode.name, '"')}`;
-    }
-    const noChild = !ariaNode.name && !ariaNode.children?.length;
-    const oneChild = !ariaNode.name && ariaNode.children?.length === 1 && typeof ariaNode.children[0] === 'string';
-    if (noChild || oneChild) {
-      if (oneChild) {
-        line += ': ' + escapeYamlString(ariaNode.children?.[0] as string);
+      if (parentAriaNode && !includeText(parentAriaNode, ariaNode)) {
+        return;
       }
-      lines.push(line);
+      const text = yamlEscapeValueIfNeeded(renderString(ariaNode));
+      if (text) {
+        lines.push(indent + '- text: ' + text);
+      }
       return;
     }
-    lines.push(line + (ariaNode.children ? ':' : ''));
-    for (const child of ariaNode.children || []) {
-      visit(child, indent + '  ');
+
+    let key = ariaNode.role;
+    // Yaml has a limit of 1024 characters per key, and we leave some space for role and attributes.
+    if (ariaNode.name && ariaNode.name.length <= 900) {
+      const name = renderString(ariaNode.name);
+      if (name) {
+        const stringifiedName =
+          name.startsWith('/') && name.endsWith('/') ? name : JSON.stringify(name);
+        key += ' ' + stringifiedName;
+      }
+    }
+    if (ariaNode.checked === 'mixed') {
+      key += ` [checked=mixed]`;
+    }
+    if (ariaNode.checked === true) {
+      key += ` [checked]`;
+    }
+    if (ariaNode.disabled) {
+      key += ` [disabled]`;
+    }
+    if (ariaNode.expanded) {
+      key += ` [expanded]`;
+    }
+    if (ariaNode.active && options?.forAI) {
+      key += ` [active]`;
+    }
+    if (ariaNode.level) {
+      key += ` [level=${ariaNode.level}]`;
+    }
+    if (ariaNode.pressed === 'mixed') {
+      key += ` [pressed=mixed]`;
+    }
+    if (ariaNode.pressed === true) {
+      key += ` [pressed]`;
+    }
+    if (ariaNode.selected === true) {
+      key += ` [selected]`;
+    }
+    if (options?.forAI && receivesPointerEvents(ariaNode)) {
+      const ref = ariaNode.ref;
+      const cursor = hasPointerCursor(ariaNode) ? ' [cursor=pointer]' : '';
+      if (ref) {
+        key += ` [ref=${ref}]${cursor}`;
+      }
+    }
+
+    const escapedKey = indent + '- ' + yamlEscapeKeyIfNeeded(key);
+    const hasProps = !!Object.keys(ariaNode.props).length;
+    if (!ariaNode.children.length && !hasProps) {
+      lines.push(escapedKey);
+    } else if (
+      ariaNode.children.length === 1 &&
+      typeof ariaNode.children[0] === 'string' &&
+      !hasProps
+    ) {
+      const text = includeText(ariaNode, ariaNode.children[0])
+        ? renderString(ariaNode.children[0] as string)
+        : null;
+      if (text) {
+        lines.push(escapedKey + ': ' + yamlEscapeValueIfNeeded(text));
+      } else {
+        lines.push(escapedKey);
+      }
+    } else {
+      lines.push(escapedKey + ':');
+      for (const [name, value] of Object.entries(ariaNode.props)) {
+        lines.push(indent + '  - /' + name + ': ' + yamlEscapeValueIfNeeded(value));
+      }
+      for (const child of ariaNode.children || []) {
+        visit(child, ariaNode, indent + '  ');
+      }
     }
   };
-  if (ariaNode.role === '') {
+
+  const ariaNode = ariaSnapshot.root;
+  if (ariaNode.role === 'fragment') {
     // Render fragment.
     for (const child of ariaNode.children || []) {
-      visit(child, '');
+      visit(child, ariaNode, '');
     }
   } else {
-    visit(ariaNode, '');
+    visit(ariaNode, null, '');
   }
   return lines.join('\n');
 }
 
-// Escapes a string for safe inclusion in YAML
-function escapeYamlString(str: string) {
-  if (str === '') {
-    return '""';
+function convertToBestGuessRegex(text: string): string {
+  const dynamicContent = [
+    // 2mb
+    { regex: /\b[\d,.]+[bkmBKM]+\b/, replacement: '[\\d,.]+[bkmBKM]+' },
+    // 2ms, 20s
+    { regex: /\b\d+[hmsp]+\b/, replacement: '\\d+[hmsp]+' },
+    { regex: /\b[\d,.]+[hmsp]+\b/, replacement: '[\\d,.]+[hmsp]+' },
+    // Do not replace single digits with regex by default.
+    // 2+ digits: [Issue 22, 22.3, 2.33, 2,333]
+    { regex: /\b\d+,\d+\b/, replacement: '\\d+,\\d+' },
+    { regex: /\b\d+\.\d{2,}\b/, replacement: '\\d+\\.\\d+' },
+    { regex: /\b\d{2,}\.\d+\b/, replacement: '\\d+\\.\\d+' },
+    { regex: /\b\d{2,}\b/, replacement: '\\d+' },
+  ];
+
+  let pattern = '';
+  let lastIndex = 0;
+
+  const combinedRegex = new RegExp(
+    dynamicContent.map(r => '(' + r.regex.source + ')').join('|'),
+    'g',
+  );
+  text.replace(combinedRegex, (match, ...args) => {
+    const offset = args[args.length - 2];
+    const groups = args.slice(0, -2);
+    pattern += escapeRegExp(text.slice(lastIndex, offset));
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i]) {
+        const { replacement } = dynamicContent[i];
+        pattern += replacement;
+        break;
+      }
+    }
+    lastIndex = offset + match.length;
+    return match;
+  });
+  if (!pattern) {
+    return text;
   }
 
-  const needQuotes =
-    // Starts or ends with whitespace
-    /^\s|\s$/.test(str) ||
-    // Contains control characters
-    /[\x00-\x1f]/.test(str) ||
-    // Contains special YAML characters that could cause parsing issues
-    /[\[\]{}&*!,|>%@`]/.test(str) ||
-    // Contains a colon followed by a space (could be interpreted as a key-value pair)
-    /:\s/.test(str) ||
-    // Is a YAML boolean or null value
-    /^(?:y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|null|Null|NULL|~)$/.test(str) ||
-    // Could be interpreted as a number
-    /^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$/.test(str) ||
-    // Contains a newline character
-    /\n/.test(str) ||
-    // Starts with a special character
-    /^[\-?:,>|%@"`]/.test(str);
+  pattern += escapeRegExp(text.slice(lastIndex));
+  return String(new RegExp(pattern));
+}
 
-  if (needQuotes) {
-    return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"`;
+function textContributesInfo(node: AriaNode, text: string): boolean {
+  if (!text.length) {
+    return false;
   }
 
-  return str;
+  if (!node.name) {
+    return true;
+  }
+
+  if (node.name.length > text.length) {
+    return false;
+  }
+
+  // Figure out if text adds any value. "longestCommonSubstring" is expensive, so limit strings length.
+  const substr =
+    text.length <= 200 && node.name.length <= 200 ? longestCommonSubstring(text, node.name) : '';
+  let filtered = text;
+  while (substr && filtered.includes(substr)) {
+    filtered = filtered.replace(substr, '');
+  }
+  return filtered.trim().length / text.length > 0.1;
+}
+
+function receivesPointerEvents(ariaNode: AriaNode): boolean {
+  return ariaNode.box.visible && ariaNode.receivesPointerEvents;
+}
+
+function hasPointerCursor(ariaNode: AriaNode): boolean {
+  return ariaNode.box.style?.cursor === 'pointer';
 }

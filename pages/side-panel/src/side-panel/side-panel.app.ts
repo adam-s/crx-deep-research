@@ -23,7 +23,7 @@ import { IMathService } from '@shared/services/math.service';
 import { parseDocumentId } from '@shared/utils/utils';
 
 import { ICordycepsService, CordycepsService } from '@src/services/cordyceps/cordyceps.service';
-import { CordycepsPlaygroundService } from '@src/services/cordyceps/cordyceps-playground.service';
+import { CordycepsPlaygroundService } from '@src/services/cordyceps/cordycepsPlaygroundService';
 
 export interface ISidePanelConfiguration {}
 

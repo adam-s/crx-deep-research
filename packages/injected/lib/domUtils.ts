@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
-let browserNameForWorkarounds = '';
-export function setBrowserName(name: string) {
-  browserNameForWorkarounds = name;
+type GlobalOptions = {
+  browserNameForWorkarounds?: string;
+};
+let globalOptions: GlobalOptions = {};
+export function setGlobalOptions(options: GlobalOptions) {
+  globalOptions = options;
+}
+export function getGlobalOptions(): GlobalOptions {
+  return globalOptions;
 }
 
 export function isInsideScope(scope: Node, element: Element | undefined): boolean {
@@ -41,9 +47,12 @@ export function parentElementOrShadowHost(element: Element): Element | undefined
     return element.parentElement;
   }
   if (!element.parentNode) {
-    return;
+    return undefined;
   }
-  if (element.parentNode.nodeType === 11 /* Node.DOCUMENT_FRAGMENT_NODE */ && (element.parentNode as ShadowRoot).host) {
+  if (
+    element.parentNode.nodeType === 11 /* Node.DOCUMENT_FRAGMENT_NODE */ &&
+    (element.parentNode as ShadowRoot).host
+  ) {
     return (element.parentNode as ShadowRoot).host;
   }
   return undefined;
@@ -54,7 +63,10 @@ export function enclosingShadowRootOrDocument(element: Element): Document | Shad
   while (node.parentNode) {
     node = node.parentNode;
   }
-  if (node.nodeType === 11 /* Node.DOCUMENT_FRAGMENT_NODE */ || node.nodeType === 9 /* Node.DOCUMENT_NODE */) {
+  if (
+    node.nodeType === 11 /* Node.DOCUMENT_FRAGMENT_NODE */ ||
+    node.nodeType === 9 /* Node.DOCUMENT_NODE */
+  ) {
     return node as Document | ShadowRoot;
   }
   return undefined;
@@ -76,7 +88,7 @@ export function closestCrossShadow(
   while (element) {
     const closest = element.closest(css);
     if (scope && closest !== scope && closest?.contains(scope)) {
-      return;
+      return undefined;
     }
     if (closest) {
       return closest;
@@ -86,13 +98,19 @@ export function closestCrossShadow(
   return undefined;
 }
 
-export function getElementComputedStyle(element: Element, pseudo?: string): CSSStyleDeclaration | undefined {
+export function getElementComputedStyle(
+  element: Element,
+  pseudo?: string,
+): CSSStyleDeclaration | undefined {
   return element.ownerDocument && element.ownerDocument.defaultView
     ? element.ownerDocument.defaultView.getComputedStyle(element, pseudo)
     : undefined;
 }
 
-export function isElementStyleVisibilityVisible(element: Element, style?: CSSStyleDeclaration): boolean {
+export function isElementStyleVisibilityVisible(
+  element: Element,
+  style?: CSSStyleDeclaration,
+): boolean {
   style = style ?? getElementComputedStyle(element);
   if (!style) {
     return true;
@@ -103,7 +121,7 @@ export function isElementStyleVisibilityVisible(element: Element, style?: CSSSty
   // All the browser implement it, but WebKit has a bug which prevents us from using it:
   // https://bugs.webkit.org/show_bug.cgi?id=264733
   // @ts-ignore
-  if (Element.prototype.checkVisibility && browserNameForWorkarounds !== 'webkit') {
+  if (Element.prototype.checkVisibility && globalOptions.browserNameForWorkarounds !== 'webkit') {
     if (!element.checkVisibility()) {
       return false;
     }
@@ -124,29 +142,39 @@ export function isElementStyleVisibilityVisible(element: Element, style?: CSSSty
   return true;
 }
 
-export function isElementVisible(element: Element): boolean {
+export type Box = {
+  visible: boolean;
+  rect?: DOMRect;
+  style?: CSSStyleDeclaration;
+};
+
+export function box(element: Element): Box {
   // Note: this logic should be similar to waitForDisplayedAtStablePosition() to avoid surprises.
   const style = getElementComputedStyle(element);
   if (!style) {
-    return true;
+    return { visible: true };
   }
   if (style.display === 'contents') {
     // display:contents is not rendered itself, but its child nodes are.
     for (let child = element.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === 1 /* Node.ELEMENT_NODE */ && isElementVisible(child as Element)) {
-        return true;
+        return { visible: true, style };
       }
       if (child.nodeType === 3 /* Node.TEXT_NODE */ && isVisibleTextNode(child as Text)) {
-        return true;
+        return { visible: true, style };
       }
     }
-    return false;
+    return { visible: false, style };
   }
   if (!isElementStyleVisibilityVisible(element, style)) {
-    return false;
+    return { style, visible: false };
   }
   const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
+  return { rect, style, visible: rect.width > 0 && rect.height > 0 };
+}
+
+export function isElementVisible(element: Element): boolean {
+  return box(element).visible;
 }
 
 export function isVisibleTextNode(node: Text) {

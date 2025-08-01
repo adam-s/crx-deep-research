@@ -83,7 +83,7 @@ const manifest = Object.assign(
         matches: ['*://*/*'],
       },
     ],
-    host_permissions: [],
+    host_permissions: ['<all_urls>'],
   },
   !isFirefox && { side_panel: { ...sidePanelConfig.side_panel } },
 );

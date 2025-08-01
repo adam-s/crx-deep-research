@@ -31,6 +31,7 @@
     "../../packages/shared/src",
     "../../packages/injected/lib",
     "../../packages/injected/global.d.ts",
-    "../content-injected/index.d.ts"
+    "../content-injected/index.d.ts",
+    "../content-cordyceps/src/handledInjectedScript.ts"
   ]
 }

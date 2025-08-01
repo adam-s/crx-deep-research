@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
-import type { SelectorEngine, SelectorRoot } from './selectorEngine';
-import { matchesAttributePart } from './selectorUtils';
+import {
+  AttributeSelectorOperator,
+  AttributeSelectorPart,
+  parseAttributeSelector,
+} from './isomorphic/selectorParser';
+import { normalizeWhiteSpace } from './isomorphic/stringUtils';
+
 import {
   beginAriaCaches,
   endAriaCaches,
@@ -34,12 +39,9 @@ import {
   kAriaPressedRoles,
   kAriaSelectedRoles,
 } from './roleUtils';
-import {
-  parseAttributeSelector,
-  type AttributeSelectorPart,
-  type AttributeSelectorOperator,
-} from './utils/isomorphic/selectorParser';
-import { normalizeWhiteSpace } from './utils/isomorphic/stringUtils';
+import { matchesAttributePart } from './selectorUtils';
+
+import type { SelectorEngine, SelectorRoot } from './selectorEngine';
 
 type RoleEngineOptions = {
   role: string;
@@ -81,7 +83,9 @@ function validateSupportedRole(attr: string, roles: string[], role: string) {
 
 function validateSupportedValues(attr: AttributeSelectorPart, values: any[]) {
   if (attr.op !== '<truthy>' && !values.includes(attr.value)) {
-    throw new Error(`"${attr.name}" must be one of ${values.map(v => JSON.stringify(v)).join(', ')}`);
+    throw new Error(
+      `"${attr.name}" must be one of ${values.map(v => JSON.stringify(v)).join(', ')}`,
+    );
   }
 }
 
@@ -99,28 +103,28 @@ function validateAttributes(attrs: AttributeSelectorPart[], role: string): RoleE
         validateSupportedRole(attr.name, kAriaCheckedRoles, role);
         validateSupportedValues(attr, [true, false, 'mixed']);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.checked = attr.op === '<truthy>' ? true : attr.value;
+        options.checked = attr.op === '<truthy>' ? true : (attr.value as boolean | 'mixed');
         break;
       }
       case 'pressed': {
         validateSupportedRole(attr.name, kAriaPressedRoles, role);
         validateSupportedValues(attr, [true, false, 'mixed']);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.pressed = attr.op === '<truthy>' ? true : attr.value;
+        options.pressed = attr.op === '<truthy>' ? true : (attr.value as boolean | 'mixed');
         break;
       }
       case 'selected': {
         validateSupportedRole(attr.name, kAriaSelectedRoles, role);
         validateSupportedValues(attr, [true, false]);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.selected = attr.op === '<truthy>' ? true : attr.value;
+        options.selected = attr.op === '<truthy>' ? true : (attr.value as boolean);
         break;
       }
       case 'expanded': {
         validateSupportedRole(attr.name, kAriaExpandedRoles, role);
         validateSupportedValues(attr, [true, false]);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.expanded = attr.op === '<truthy>' ? true : attr.value;
+        options.expanded = attr.op === '<truthy>' ? true : (attr.value as boolean);
         break;
       }
       case 'level': {
@@ -138,7 +142,7 @@ function validateAttributes(attrs: AttributeSelectorPart[], role: string): RoleE
       case 'disabled': {
         validateSupportedValues(attr, [true, false]);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.disabled = attr.op === '<truthy>' ? true : attr.value;
+        options.disabled = attr.op === '<truthy>' ? true : (attr.value as boolean);
         break;
       }
       case 'name': {
@@ -156,7 +160,7 @@ function validateAttributes(attrs: AttributeSelectorPart[], role: string): RoleE
       case 'include-hidden': {
         validateSupportedValues(attr, [true, false]);
         validateSupportedOp(attr, ['<truthy>', '=']);
-        options.includeHidden = attr.op === '<truthy>' ? true : attr.value;
+        options.includeHidden = attr.op === '<truthy>' ? true : (attr.value as boolean);
         break;
       }
       default: {
@@ -201,7 +205,9 @@ function queryRole(scope: SelectorRoot, options: RoleEngineOptions, internal: bo
     }
     if (options.name !== undefined) {
       // Always normalize whitespace in the accessible name.
-      const accessibleName = normalizeWhiteSpace(getElementAccessibleName(element, !!options.includeHidden));
+      const accessibleName = normalizeWhiteSpace(
+        getElementAccessibleName(element, !!options.includeHidden),
+      );
       if (typeof options.name === 'string') {
         options.name = normalizeWhiteSpace(options.name);
       }

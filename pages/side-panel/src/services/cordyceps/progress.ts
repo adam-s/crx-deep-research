@@ -35,6 +35,16 @@ export class ProgressController implements Progress {
   }
 
   /**
+   * A static helper to quickly run a task with a new ProgressController.
+   * @param task The async task to run.
+   * @param timeoutMs The timeout for the task.
+   * @returns The result of the task.
+   */
+  public static run<T>(task: (progress: Progress) => Promise<T>, timeoutMs = 30_000): Promise<T> {
+    return new ProgressController(timeoutMs).run(task);
+  }
+
+  /**
    * Run your task, enforcing timeout and cleanup.
    * @param task The async task to run.
    * @returns The result of the task.
@@ -82,4 +92,36 @@ function safe(fn: (cleanup: (err?: Error) => void) => void) {
       /* swallow */
     }
   };
+}
+
+export type ProgressRun = typeof ProgressController.prototype.run;
+
+/**
+ * Return a fresh ProgressController in one call.
+ */
+export function getProgress(timeoutMs = 30_000): ProgressController {
+  return new ProgressController(timeoutMs);
+}
+
+/**
+ * Execute a task with progress handling, using either a provided Progress instance
+ * or creating a new ProgressController.
+ */
+export function executeWithProgress<T>(
+  fn: (p: Progress) => Promise<T>,
+  options: { timeout?: number; progress?: Progress } = {},
+): Promise<T> {
+  const { progress, timeout } = options;
+  if (progress) {
+    // caller‑provided Progress: use its race
+    return progress.race(fn(progress));
+  }
+  // otherwise spin up a fresh ProgressController
+  return ProgressController.run(fn, timeout);
+}
+
+const kAbortErrorSymbol = Symbol('kAbortError');
+
+export function isAbortError(error: Error): boolean {
+  return typeof error === 'object' && error !== null && kAbortErrorSymbol in (error as object);
 }

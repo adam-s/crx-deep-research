@@ -117,7 +117,9 @@ export function inject(globalThis: GlobalThis) {
       return cb({ data: message, isBase64: false });
     }
     if (ArrayBuffer.isView(message)) {
-      return cb(bufferToData(new Uint8Array(message.buffer, message.byteOffset, message.byteLength)));
+      return cb(
+        bufferToData(new Uint8Array(message.buffer, message.byteOffset, message.byteLength)),
+      );
     }
     return cb(bufferToData(new Uint8Array(message)));
   }
@@ -194,11 +196,9 @@ export function inject(globalThis: GlobalThis) {
     constructor(url: string | URL, protocols?: string | string[]) {
       super();
 
-      this.url = typeof url === 'string' ? url : url.href;
-      try {
-        this.url = new URL(url).href;
-        this._origin = new URL(url).origin;
-      } catch {}
+      // https://github.com/whatwg/websockets/issues/20
+      this.url = new URL(url, globalThis.window.document.baseURI).href.replace(/^http/, 'ws');
+      this._origin = URL.parse(this.url)?.origin ?? '';
       this._protocols = protocols;
 
       this._id = generateId();
@@ -277,7 +277,9 @@ export function inject(globalThis: GlobalThis) {
 
     send(message: WebSocketMessage): void {
       if (this.readyState === WebSocketMock.CONNECTING) {
-        throw new DOMException(`Failed to execute 'send' on 'WebSocket': Still in CONNECTING state.`);
+        throw new DOMException(
+          `Failed to execute 'send' on 'WebSocket': Still in CONNECTING state.`,
+        );
       }
       if (this.readyState !== WebSocketMock.OPEN) {
         throw new DOMException(`WebSocket is already in CLOSING or CLOSED state.`);
@@ -324,7 +326,9 @@ export function inject(globalThis: GlobalThis) {
       if (this.readyState !== WebSocketMock.OPEN) {
         throw new DOMException(`WebSocket is already in CLOSING or CLOSED state.`);
       }
-      this.dispatchEvent(new MessageEvent('message', { data: message, origin: this._origin, cancelable: true }));
+      this.dispatchEvent(
+        new MessageEvent('message', { data: message, origin: this._origin, cancelable: true }),
+      );
     }
 
     _apiSendToServer(message: WebSocketMessage) {
@@ -362,7 +366,9 @@ export function inject(globalThis: GlobalThis) {
         if (this._passthrough) {
           this._apiSendToPage(event.data);
         } else {
-          messageToData(event.data, data => binding({ type: 'onMessageFromServer', id: this._id, data }));
+          messageToData(event.data, data =>
+            binding({ type: 'onMessageFromServer', id: this._id, data }),
+          );
         }
       };
 
@@ -386,7 +392,10 @@ export function inject(globalThis: GlobalThis) {
         this._onWSClose(code, reason, wasClean);
         return;
       }
-      if (this._ws.readyState === WebSocketMock.CONNECTING || this._ws.readyState === WebSocketMock.OPEN) {
+      if (
+        this._ws.readyState === WebSocketMock.CONNECTING ||
+        this._ws.readyState === WebSocketMock.OPEN
+      ) {
         this._ws.close(code, reason);
       }
     }
@@ -410,6 +419,14 @@ export function inject(globalThis: GlobalThis) {
     _ensureOpened() {
       if (this.readyState !== WebSocketMock.CONNECTING) {
         return;
+      }
+      this.extensions = this._ws?.extensions || '';
+      if (this._ws) {
+        this.protocol = this._ws.protocol;
+      } else if (Array.isArray(this._protocols)) {
+        this.protocol = this._protocols[0] || '';
+      } else {
+        this.protocol = this._protocols || '';
       }
       this.readyState = WebSocketMock.OPEN;
       this.dispatchEvent(new Event('open', { cancelable: true }));

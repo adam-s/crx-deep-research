@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import type { SelectorEngine, SelectorRoot } from './selectorEngine';
+import { parseAttributeSelector } from './isomorphic/selectorParser';
+
 import { isInsideScope } from './domUtils';
 import { matchesComponentAttribute } from './selectorUtils';
-import { parseAttributeSelector } from './utils/isomorphic/selectorParser';
+
+import type { SelectorEngine, SelectorRoot } from './selectorEngine';
 
 type ComponentNode = {
   name: string;
@@ -78,7 +80,6 @@ function buildComponentsTreeVue3(instance: VueVNode): ComponentNode {
     if (file) {
       return classify(basename(file, '.vue'));
     }
-    return undefined;
   }
 
   // @see https://github.com/vuejs/devtools/blob/e7132f3392b975e39e1d9a23cf30456c270099c2/packages/app-backend-vue3/src/components/util.ts#L42
@@ -121,7 +122,7 @@ function buildComponentsTreeVue3(instance: VueVNode): ComponentNode {
 
   // @see https://github.com/vuejs/devtools/blob/e7132f3392b975e39e1d9a23cf30456c270099c2/packages/app-backend-vue3/src/components/tree.ts#L79
   function getInternalInstanceChildren(subTree: any): VueVNode[] {
-    const list = [];
+    const list: VueVNode[] = [];
     if (subTree.component) {
       list.push(subTree.component);
     }
@@ -154,7 +155,7 @@ function buildComponentsTreeVue3(instance: VueVNode): ComponentNode {
       return [];
     }
 
-    const list = [];
+    const list: Element[] = [];
 
     for (let i = 0, l = vnode.children.length; i < l; i++) {
       const childVnode = vnode.children[i];
@@ -190,7 +191,6 @@ function buildComponentsTreeVue2(instance: VueVNode): ComponentNode {
     if (file) {
       return classify(basename(file, '.vue'));
     }
-    return undefined;
   }
 
   // @see https://github.com/vuejs/devtools/blob/e7132f3392b975e39e1d9a23cf30456c270099c2/packages/app-backend-vue2/src/components/util.ts#L10
@@ -208,7 +208,9 @@ function buildComponentsTreeVue2(instance: VueVNode): ComponentNode {
       return instance.$children;
     }
     if (Array.isArray(instance.subTree.children)) {
-      return instance.subTree.children.filter((vnode: any) => !!vnode.component).map((vnode: any) => vnode.component);
+      return instance.subTree.children
+        .filter((vnode: any) => !!vnode.component)
+        .map((vnode: any) => vnode.component);
     }
     return [];
   }
@@ -244,7 +246,7 @@ function findVueRoots(root: Document | ShadowRoot, roots: VueRoot[] = []): VueRo
   const document = root.ownerDocument || root;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
   // Vue2 roots are referred to from elements.
-  const vue2Roots: Set<VueVNode> = new Set();
+  const vue2Roots = new Set<VueVNode>();
   do {
     const node = walker.currentNode;
     if ((node as any).__vue__) {
@@ -268,13 +270,15 @@ function findVueRoots(root: Document | ShadowRoot, roots: VueRoot[] = []): VueRo
   return roots;
 }
 
-export const VueEngine: SelectorEngine = {
+export const createVueEngine = (): SelectorEngine => ({
   queryAll(scope: SelectorRoot, selector: string): Element[] {
     const document = scope.ownerDocument || scope;
     const { name, attributes } = parseAttributeSelector(selector, false);
     const vueRoots = findVueRoots(document);
     const trees = vueRoots.map(vueRoot =>
-      vueRoot.version === 3 ? buildComponentsTreeVue3(vueRoot.root) : buildComponentsTreeVue2(vueRoot.root),
+      vueRoot.version === 3
+        ? buildComponentsTreeVue3(vueRoot.root)
+        : buildComponentsTreeVue2(vueRoot.root),
     );
     const treeNodes = trees
       .map(tree =>
@@ -294,7 +298,7 @@ export const VueEngine: SelectorEngine = {
         }),
       )
       .flat();
-    const allRootElements: Set<Element> = new Set();
+    const allRootElements = new Set<Element>();
     for (const treeNode of treeNodes) {
       for (const rootElement of treeNode.rootElements) {
         allRootElements.add(rootElement);
@@ -302,4 +306,4 @@ export const VueEngine: SelectorEngine = {
     }
     return [...allRootElements];
   },
-};
+});

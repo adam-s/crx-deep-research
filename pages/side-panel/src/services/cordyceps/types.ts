@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+import { type Progress } from './progress';
+
 export type Rect = {
   x: number;
   y: number;
@@ -33,6 +35,10 @@ export interface NavigateOptions {
   waitUntil?: LifecycleEvent;
   timeout?: number;
   referer?: string;
+}
+
+export interface NavigateOptionsWithProgress extends NavigateOptions {
+  progress?: Progress;
 }
 
 export interface NavigationRequest {

@@ -1,5 +1,5 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { BrowserWindow } from './browser-window';
+import { BrowserWindow } from './browserWindow';
 
 export const ICordycepsService = createDecorator<ICordycepsService>('cordycepsService');
 

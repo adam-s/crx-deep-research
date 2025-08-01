@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import type { AttributeSelectorPart } from './utils/isomorphic/selectorParser';
-import { normalizeWhiteSpace } from './utils/isomorphic/stringUtils';
 import { getAriaLabelledByElements } from './roleUtils';
+
+import type { AttributeSelectorPart } from './isomorphic/selectorParser';
+import { normalizeWhiteSpace } from './isomorphic/stringUtils';
 
 export function matchesComponentAttribute(obj: any, attr: AttributeSelectorPart) {
   for (const token of attr.jsonPath) {
@@ -29,7 +30,8 @@ export function matchesComponentAttribute(obj: any, attr: AttributeSelectorPart)
 
 export function matchesAttributePart(value: any, attr: AttributeSelectorPart) {
   const objValue = typeof value === 'string' && !attr.caseSensitive ? value.toUpperCase() : value;
-  const attrValue = typeof attr.value === 'string' && !attr.caseSensitive ? attr.value.toUpperCase() : attr.value;
+  const attrValue =
+    typeof attr.value === 'string' && !attr.caseSensitive ? attr.value.toUpperCase() : attr.value;
 
   if (attr.op === '<truthy>') {
     return !!objValue;
@@ -74,19 +76,28 @@ export function shouldSkipForTextMatching(element: Element | ShadowRoot) {
 export type ElementText = { full: string; normalized: string; immediate: string[] };
 export type TextMatcher = (text: ElementText) => boolean;
 
-export function elementText(cache: Map<Element | ShadowRoot, ElementText>, root: Element | ShadowRoot): ElementText {
+export function elementText(
+  cache: Map<Element | ShadowRoot, ElementText>,
+  root: Element | ShadowRoot,
+): ElementText {
   let value = cache.get(root);
   if (value === undefined) {
     value = { full: '', normalized: '', immediate: [] };
     if (!shouldSkipForTextMatching(root)) {
       let currentImmediate = '';
       if (root instanceof HTMLInputElement && (root.type === 'submit' || root.type === 'button')) {
-        value = { full: root.value, normalized: normalizeWhiteSpace(root.value), immediate: [root.value] };
+        value = {
+          full: root.value,
+          normalized: normalizeWhiteSpace(root.value),
+          immediate: [root.value],
+        };
       } else {
         for (let child = root.firstChild; child; child = child.nextSibling) {
           if (child.nodeType === Node.TEXT_NODE) {
             value.full += child.nodeValue || '';
             currentImmediate += child.nodeValue || '';
+          } else if (child.nodeType === Node.COMMENT_NODE) {
+            continue;
           } else {
             if (currentImmediate) {
               value.immediate.push(currentImmediate);
@@ -135,19 +146,28 @@ export function elementMatchesText(
   return 'self';
 }
 
-export function getElementLabels(textCache: Map<Element | ShadowRoot, ElementText>, element: Element): ElementText[] {
+export function getElementLabels(
+  textCache: Map<Element | ShadowRoot, ElementText>,
+  element: Element,
+): ElementText[] {
   const labels = getAriaLabelledByElements(element);
   if (labels) {
     return labels.map(label => elementText(textCache, label));
   }
   const ariaLabel = element.getAttribute('aria-label');
   if (ariaLabel !== null && !!ariaLabel.trim()) {
-    return [{ full: ariaLabel, normalized: normalizeWhiteSpace(ariaLabel), immediate: [ariaLabel] }];
+    return [
+      { full: ariaLabel, normalized: normalizeWhiteSpace(ariaLabel), immediate: [ariaLabel] },
+    ];
   }
 
   // https://html.spec.whatwg.org/multipage/forms.html#category-label
-  const isNonHiddenInput = element.nodeName === 'INPUT' && (element as HTMLInputElement).type !== 'hidden';
-  if (['BUTTON', 'METER', 'OUTPUT', 'PROGRESS', 'SELECT', 'TEXTAREA'].includes(element.nodeName) || isNonHiddenInput) {
+  const isNonHiddenInput =
+    element.nodeName === 'INPUT' && (element as HTMLInputElement).type !== 'hidden';
+  if (
+    ['BUTTON', 'METER', 'OUTPUT', 'PROGRESS', 'SELECT', 'TEXTAREA'].includes(element.nodeName) ||
+    isNonHiddenInput
+  ) {
     const labels = (element as HTMLInputElement).labels;
     if (labels) {
       return [...labels].map(label => elementText(textCache, label));

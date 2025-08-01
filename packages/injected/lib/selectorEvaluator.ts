@@ -14,17 +14,24 @@
  * limitations under the License.
  */
 
+import { customCSSNames } from './isomorphic/selectorParser';
+import { normalizeWhiteSpace } from './isomorphic/stringUtils';
+
+import { isElementVisible, parentElementOrShadowHost } from './domUtils';
+import { LayoutSelectorName, layoutSelectorScore } from './layoutSelectorUtils';
+import {
+  elementMatchesText,
+  ElementText,
+  elementText,
+  shouldSkipForTextMatching,
+} from './selectorUtils';
+
 import type {
   CSSComplexSelector,
-  CSSSimpleSelector,
   CSSComplexSelectorList,
   CSSFunctionArgument,
-} from './utils/isomorphic/cssParser';
-import { customCSSNames } from './utils/isomorphic/selectorParser';
-import { isElementVisible, parentElementOrShadowHost } from './domUtils';
-import { type LayoutSelectorName, layoutSelectorScore } from './layoutSelectorUtils';
-import { elementMatchesText, elementText, shouldSkipForTextMatching, type ElementText } from './selectorUtils';
-import { normalizeWhiteSpace } from './utils/isomorphic/stringUtils';
+  CSSSimpleSelector,
+} from './isomorphic/cssParser';
 
 type QueryContext = {
   scope: Element | Document;
@@ -45,28 +52,41 @@ export interface SelectorEngine {
     context: QueryContext,
     evaluator: SelectorEvaluator,
   ): boolean;
-  query?(context: QueryContext, args: (string | number | Selector)[], evaluator: SelectorEvaluator): Element[];
+  query?(
+    context: QueryContext,
+    args: (string | number | Selector)[],
+    evaluator: SelectorEvaluator,
+  ): Element[];
 }
 
 type QueryCache = Map<any, { rest: any[]; result: any }[]>;
+
 export class SelectorEvaluatorImpl implements SelectorEvaluator {
-  private _engines = new Map<string, SelectorEngine>();
-  private _cacheQueryCSS: QueryCache = new Map();
-  private _cacheMatches: QueryCache = new Map();
-  private _cacheQuery: QueryCache = new Map();
-  private _cacheMatchesSimple: QueryCache = new Map();
-  private _cacheMatchesParents: QueryCache = new Map();
-  private _cacheCallMatches: QueryCache = new Map();
-  private _cacheCallQuery: QueryCache = new Map();
-  private _cacheQuerySimple: QueryCache = new Map();
-  _cacheText = new Map<Element | ShadowRoot, ElementText>();
+  private _engines: Map<string, SelectorEngine>;
+  private _cacheQueryCSS: QueryCache;
+  private _cacheMatches: QueryCache;
+  private _cacheQuery: QueryCache;
+  private _cacheMatchesSimple: QueryCache;
+  private _cacheMatchesParents: QueryCache;
+  private _cacheCallMatches: QueryCache;
+  private _cacheCallQuery: QueryCache;
+  private _cacheQuerySimple: QueryCache;
+  _cacheText: Map<Element | ShadowRoot, ElementText>;
   private _scoreMap: Map<Element, number> | undefined;
   private _retainCacheCounter = 0;
 
-  constructor(extraEngines: Map<string, SelectorEngine>) {
-    for (const [name, engine] of extraEngines) {
-      this._engines.set(name, engine);
-    }
+  constructor() {
+    this._cacheText = new Map();
+    this._cacheQueryCSS = new Map();
+    this._cacheMatches = new Map();
+    this._cacheQuery = new Map();
+    this._cacheMatchesSimple = new Map();
+    this._cacheMatchesParents = new Map();
+    this._cacheCallMatches = new Map();
+    this._cacheCallQuery = new Map();
+    this._cacheQuerySimple = new Map();
+
+    this._engines = new Map();
     this._engines.set('not', notEngine);
     this._engines.set('is', isEngine);
     this._engines.set('where', isEngine);
@@ -130,7 +150,8 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
   }
 
   private _checkSelector(s: Selector): CSSComplexSelector | CSSComplexSelectorList {
-    const wellFormed = typeof s === 'object' && s && (Array.isArray(s) || ('simples' in s && s.simples.length));
+    const wellFormed =
+      typeof s === 'object' && s && (Array.isArray(s) || ('simples' in s && s.simples.length));
     if (!wellFormed) {
       throw new Error(`Malformed selector "${s}"`);
     }
@@ -152,7 +173,13 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
           if (this._hasScopeClause(selector)) {
             context = this._expandContextForScopeMatching(context);
           }
-          if (!this._matchesSimple(element, selector.simples[selector.simples.length - 1].selector, context)) {
+          if (
+            !this._matchesSimple(
+              element,
+              selector.simples[selector.simples.length - 1].selector,
+              context,
+            )
+          ) {
             return false;
           }
           return this._matchesParents(element, selector, selector.simples.length - 2, context);
@@ -182,7 +209,10 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
           // query() recursively calls itself, so we set up a new map for this particular query() call.
           const previousScoreMap = this._scoreMap;
           this._scoreMap = new Map();
-          let elements = this._querySimple(context, selector.simples[selector.simples.length - 1].selector);
+          let elements = this._querySimple(
+            context,
+            selector.simples[selector.simples.length - 1].selector,
+          );
           elements = elements.filter(element =>
             this._matchesParents(element, selector, selector.simples.length - 2, context),
           );
@@ -235,7 +265,11 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
     return { ...context, scope, originalScope: context.originalScope || context.scope };
   }
 
-  private _matchesSimple(element: Element, simple: CSSSimpleSelector, context: QueryContext): boolean {
+  private _matchesSimple(
+    element: Element,
+    simple: CSSSimpleSelector,
+    context: QueryContext,
+  ): boolean {
     return this._cached<boolean>(
       this._cacheMatchesSimple,
       element,
@@ -282,7 +316,11 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
           if (firstIndex === -1) {
             firstIndex = 0;
           }
-          elements = this._queryEngine(this._getEngine(funcs[firstIndex].name), context, funcs[firstIndex].args);
+          elements = this._queryEngine(
+            this._getEngine(funcs[firstIndex].name),
+            context,
+            funcs[firstIndex].args,
+          );
         }
         for (let i = 0; i < funcs.length; i++) {
           if (i === firstIndex) {
@@ -401,12 +439,18 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
     throw new Error(`Selector engine should implement "matches" or "query"`);
   }
 
-  private _queryEngine(engine: SelectorEngine, context: QueryContext, args: CSSFunctionArgument[]): Element[] {
+  private _queryEngine(
+    engine: SelectorEngine,
+    context: QueryContext,
+    args: CSSFunctionArgument[],
+  ): Element[] {
     if (engine.query) {
       return this._callQuery(engine, args, context);
     }
     if (engine.matches) {
-      return this._queryCSS(context, '*').filter(element => this._callMatches(engine, element, args, context));
+      return this._queryCSS(context, '*').filter(element =>
+        this._callMatches(engine, element, args, context),
+      );
     }
     throw new Error(`Selector engine should implement "matches" or "query"`);
   }
@@ -427,7 +471,11 @@ export class SelectorEvaluatorImpl implements SelectorEvaluator {
     );
   }
 
-  private _callQuery(engine: SelectorEngine, args: CSSFunctionArgument[], context: QueryContext): Element[] {
+  private _callQuery(
+    engine: SelectorEngine,
+    args: CSSFunctionArgument[],
+    context: QueryContext,
+  ): Element[] {
     return this._cached<Element[]>(
       this._cacheCallQuery,
       engine,
@@ -491,7 +539,11 @@ const isEngine: SelectorEngine = {
     return args.some(selector => evaluator.matches(element, selector, context));
   },
 
-  query(context: QueryContext, args: (string | number | Selector)[], evaluator: SelectorEvaluator): Element[] {
+  query(
+    context: QueryContext,
+    args: (string | number | Selector)[],
+    evaluator: SelectorEvaluator,
+  ): Element[] {
     if (args.length === 0) {
       throw new Error(`"is" engine expects non-empty selector list`);
     }
@@ -537,7 +589,11 @@ const scopeEngine: SelectorEngine = {
     return element === actualScope;
   },
 
-  query(context: QueryContext, args: (string | number | Selector)[], evaluator: SelectorEvaluator): Element[] {
+  query(
+    context: QueryContext,
+    args: (string | number | Selector)[],
+    evaluator: SelectorEvaluator,
+  ): Element[] {
     if (args.length !== 0) {
       throw new Error(`"scope" engine expects no arguments`);
     }
@@ -568,7 +624,11 @@ const notEngine: SelectorEngine = {
 };
 
 const lightEngine: SelectorEngine = {
-  query(context: QueryContext, args: (string | number | Selector)[], evaluator: SelectorEvaluator): Element[] {
+  query(
+    context: QueryContext,
+    args: (string | number | Selector)[],
+    evaluator: SelectorEvaluator,
+  ): Element[] {
     return evaluator.query({ ...context, pierceShadow: false }, args);
   },
 
@@ -607,8 +667,12 @@ const textEngine: SelectorEngine = {
       throw new Error(`"text" engine expects a single string`);
     }
     const text = normalizeWhiteSpace(args[0]).toLowerCase();
-    const matcher = (elementText: ElementText) => elementText.normalized.toLowerCase().includes(text);
-    return elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) === 'self';
+    const matcher = (elementText: ElementText) =>
+      elementText.normalized.toLowerCase().includes(text);
+    return (
+      elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) ===
+      'self'
+    );
   },
 };
 
@@ -629,7 +693,10 @@ const textIsEngine: SelectorEngine = {
       }
       return elementText.immediate.some(s => normalizeWhiteSpace(s) === text);
     };
-    return elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) !== 'none';
+    return (
+      elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) !==
+      'none'
+    );
   },
 };
 
@@ -650,7 +717,10 @@ const textMatchesEngine: SelectorEngine = {
     }
     const re = new RegExp(args[0], args.length === 2 ? args[1] : undefined);
     const matcher = (elementText: ElementText) => re.test(elementText.full);
-    return elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) === 'self';
+    return (
+      elementMatchesText((evaluator as SelectorEvaluatorImpl)._cacheText, element, matcher) ===
+      'self'
+    );
   },
 };
 
@@ -668,7 +738,8 @@ const hasTextEngine: SelectorEngine = {
       return false;
     }
     const text = normalizeWhiteSpace(args[0]).toLowerCase();
-    const matcher = (elementText: ElementText) => elementText.normalized.toLowerCase().includes(text);
+    const matcher = (elementText: ElementText) =>
+      elementText.normalized.toLowerCase().includes(text);
     return matcher(elementText((evaluator as SelectorEvaluatorImpl)._cacheText, element));
   },
 };
@@ -681,10 +752,15 @@ function createLayoutEngine(name: LayoutSelectorName): SelectorEngine {
       context: QueryContext,
       evaluator: SelectorEvaluator,
     ): boolean {
-      const maxDistance = args.length && typeof args[args.length - 1] === 'number' ? args[args.length - 1] : undefined;
+      const maxDistance =
+        args.length && typeof args[args.length - 1] === 'number'
+          ? args[args.length - 1]
+          : undefined;
       const queryArgs = maxDistance === undefined ? args : args.slice(0, args.length - 1);
       if (args.length < 1 + (maxDistance === undefined ? 0 : 1)) {
-        throw new Error(`"${name}" engine expects a selector list and optional maximum distance in pixels`);
+        throw new Error(
+          `"${name}" engine expects a selector list and optional maximum distance in pixels`,
+        );
       }
       const inner = evaluator.query(context, queryArgs);
       const score = layoutSelectorScore(name, element, inner, maxDistance);
@@ -698,7 +774,11 @@ function createLayoutEngine(name: LayoutSelectorName): SelectorEngine {
 }
 
 const nthMatchEngine: SelectorEngine = {
-  query(context: QueryContext, args: (string | number | Selector)[], evaluator: SelectorEvaluator): Element[] {
+  query(
+    context: QueryContext,
+    args: (string | number | Selector)[],
+    evaluator: SelectorEvaluator,
+  ): Element[] {
     let index = args[args.length - 1];
     if (args.length < 2) {
       throw new Error(`"nth-match" engine expects non-empty selector list and an index argument`);
@@ -712,7 +792,10 @@ const nthMatchEngine: SelectorEngine = {
   },
 };
 
-function parentElementOrShadowHostInContext(element: Element, context: QueryContext): Element | undefined {
+function parentElementOrShadowHostInContext(
+  element: Element,
+  context: QueryContext,
+): Element | undefined {
   if (element === context.scope) {
     return;
   }
