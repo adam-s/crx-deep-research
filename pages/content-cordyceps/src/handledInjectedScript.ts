@@ -250,6 +250,10 @@ export class HandledInjectedScript {
     return this._injectedScript;
   }
 
+  get document(): Document {
+    return this._injectedScript.document;
+  }
+
   /**
    * Convenience method to get an Element by its handle.
    */

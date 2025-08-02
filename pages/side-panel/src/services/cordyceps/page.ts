@@ -113,7 +113,6 @@ export class Page extends Disposable {
 
       // 2. Test elementExists
       p.log('Testing elementExists...');
-      debugger;
       const checkboxExists = await context.elementExists('#test-checkbox');
       console.assert(checkboxExists, 'Test Failed: #test-checkbox should exist');
       const nonExistentExists = await context.elementExists('#nonexistent');
@@ -141,13 +140,25 @@ export class Page extends Disposable {
         'Test Failed: querySelector for #action-button within .container should return a handle.',
       );
       p.log('querySelector tests passed.');
-
       // 4. Test querySelectorAll
       p.log('Testing querySelectorAll...');
-      const buttonHandles = await context.querySelectorAll('button');
+      // Test global querySelectorAll for button
+      const buttonHandlesGlobal = await context.querySelectorAll('button');
       console.assert(
-        buttonHandles.length === 3,
-        'Test Failed: querySelectorAll for button should return 3 handles.',
+        buttonHandlesGlobal.length === 4,
+        'Test Failed: querySelectorAll for button (global) should return 4 handles.',
+      );
+      // Get handle for .controls container
+      const controlsHandle = await context.querySelector('.controls');
+      console.assert(
+        controlsHandle,
+        'Test Failed: querySelector for .controls should return a handle.',
+      );
+      // Test scoped querySelectorAll for button within .controls
+      const buttonHandlesInControls = await context.querySelectorAll('button', controlsHandle!);
+      console.assert(
+        buttonHandlesInControls.length === 3,
+        'Test Failed: querySelectorAll for button within .controls should return 3 handles.',
       );
       const nonExistentHandles = await context.querySelectorAll('.nonexistent');
       console.assert(

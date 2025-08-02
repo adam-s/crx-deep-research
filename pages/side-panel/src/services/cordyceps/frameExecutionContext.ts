@@ -39,7 +39,6 @@ export class FrameExecutionContext extends Disposable {
     world: chrome.scripting.ExecutionWorld,
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
-    debugger;
     try {
       const results = (await chrome.scripting.executeScript({
         target: {
@@ -74,9 +73,9 @@ export class FrameExecutionContext extends Disposable {
     rootElementHandle?: ElementHandle,
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<void> {
-    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : undefined;
+    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     await this.executeScript(
-      (selector: string, rootHandle?: string) => {
+      (selector: string, rootHandle: string | null) => {
         const injectedScript = window.__cordyceps_handledInjectedScript;
         const parsed = injectedScript.parseSelector(selector);
         const root = rootHandle ? injectedScript.getElementByHandle(rootHandle) : document;
@@ -104,16 +103,16 @@ export class FrameExecutionContext extends Disposable {
     rootElementHandle?: ElementHandle,
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<boolean> {
-    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : undefined;
+    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const result = await this.executeScript(
-      (selector: string, rootHandle?: string) => {
+      (selector: string, rootHandle: string | null) => {
         const injectedScript = window.__cordyceps_handledInjectedScript;
         const parsed = injectedScript.parseSelector(selector);
         const root = rootHandle ? injectedScript.getElementByHandle(rootHandle) : document;
         if (!root) {
           return false;
         }
-        return injectedScript.querySelector(parsed, root, false) !== null;
+        return injectedScript.querySelector(parsed, root, false) !== undefined;
       },
       world,
       selector,
@@ -127,9 +126,9 @@ export class FrameExecutionContext extends Disposable {
     rootElementHandle?: ElementHandle,
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<ElementHandle | null> {
-    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : undefined;
+    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const handle = await this.executeScript(
-      (selector: string, rootHandle?: string) => {
+      (selector: string, rootHandle: string | null) => {
         const injectedScript = window.__cordyceps_handledInjectedScript;
         const parsed = injectedScript.parseSelector(selector);
         const root = rootHandle ? injectedScript.getElementByHandle(rootHandle) : document;
@@ -154,9 +153,9 @@ export class FrameExecutionContext extends Disposable {
     rootElementHandle?: ElementHandle,
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<ElementHandle[]> {
-    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : undefined;
+    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const handles = await this.executeScript(
-      (selector: string, rootHandle?: string) => {
+      (selector: string, rootHandle: string | null) => {
         const injectedScript = window.__cordyceps_handledInjectedScript;
         const parsed = injectedScript.parseSelector(selector);
         if (!parsed || !injectedScript.querySelectorAll) return [];
@@ -183,9 +182,9 @@ export class FrameExecutionContext extends Disposable {
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
     rootElementHandle?: ElementHandle,
   ): Promise<string | boolean> {
-    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : undefined;
+    const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const result = await this.executeScript(
-      (ai: boolean, prefix: string, rootHandle?: string): string | undefined => {
+      (ai: boolean, prefix: string, rootHandle: string | null): string | undefined => {
         const cordyceps = window.__cordyceps_handledInjectedScript;
         const node = rootHandle
           ? cordyceps.getElementByHandle(rootHandle)
