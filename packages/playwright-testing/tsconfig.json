@@ -2,6 +2,11 @@
   "extends": "@crx-deep-research/tsconfig/utils",
   "compilerOptions": {
     "outDir": "dist",
+    "module": "ES2022",
+    "target": "ES2022",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "types": [
       "chrome",
       "node"
@@ -10,6 +15,8 @@
   "include": [
     "src",
     "fixtures",
+    "server",
+    "tests",
     "*.ts"
   ],
 }

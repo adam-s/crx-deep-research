@@ -1,24 +1,16 @@
 import { expect, test } from '../fixtures/extensionTest';
 
-test.describe('Load example extension in chrome', () => {
-  test('and open the index page and verify its contents', async ({ page, extensionId }) => {
-    await page.goto(`chrome-extension://${extensionId}/index.html`);
-    const extensionh1 = page.getByTestId('extension_h1');
-    await expect(extensionh1).toHaveText('Extension h1');
-    const extensionDate = page.getByTestId('extension_date');
-    await expect(extensionDate).toBeVisible();
-    await expect(extensionDate).toHaveText(new Date().toDateString());
+test.describe('Side panel tests', () => {
+  test('open side panel in a tab', async ({ context, extensionId }) => {
+    // Open the side panel directly as a tab
+    const sidePanelPage = await context.newPage();
+    await sidePanelPage.goto(`chrome-extension://${extensionId}/side-panel/index.html`);
 
-    // keep the page open for 3s to show extension works
-    await page.waitForTimeout(3_000);
-  });
+    // Wait for the page to load and verify content
+    await sidePanelPage.waitForLoadState();
+    await expect(sidePanelPage.locator('text=Stuff should go here')).toBeVisible();
 
-  test('and verify test div is appended', async ({ page }) => {
-    await page.goto('https://example.com');
-    const testDiv = page.getByTestId('testDiv');
-    await expect(testDiv).toHaveText('testDivText');
-
-    // keep the page open for 3s to show extension works
-    await page.waitForTimeout(3_000);
+    // Keep the tab open for 15 seconds
+    await sidePanelPage.waitForTimeout(15000);
   });
 });
