@@ -4,47 +4,42 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PORT = process.env.PORT ?? 3005;
+const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const app = express();
-const PORT = process.env.PORT || 3005;
 
-// Serve static files from the public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve everything in /public as static assets
+app.use(express.static(PUBLIC_DIR));
 
-// Main route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// Define all HTML routes in one place
+const pages = [
+  { route: '/', file: 'index.html', label: 'Main page' },
+  { route: '/iframe1', file: 'iframe1.html', label: 'Iframe 1' },
+  { route: '/iframe2', file: 'iframe2.html', label: 'Iframe 2' },
+  { route: '/nested-iframe', file: 'nested-iframe.html', label: 'Nested iframe' },
+];
 
-// Additional routes for iframe content
-app.get('/iframe1', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'iframe1.html'));
-});
-
-app.get('/iframe2', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'iframe2.html'));
-});
-
-app.get('/nested-iframe', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'nested-iframe.html'));
-});
-
-// Error handling middleware
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res) => {
-  console.error('Server error:', err);
-  res.status(500).send('Internal Server Error');
+pages.forEach(({ route, file }) => {
+  app.get(route, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, file));
+  });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).send('Page not found');
+  res.status(404).send('404: Page Not Found');
+});
+
+// Error handler
+app.use((err, req, res) => {
+  console.error('Server error:', err);
+  res.status(500).send('500: Internal Server Error');
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Cordyceps Example Server running at http://localhost:${PORT}`);
-  console.log(`📍 Main page: http://localhost:${PORT}`);
-  console.log(`📍 Iframe 1: http://localhost:${PORT}/iframe1`);
-  console.log(`📍 Iframe 2: http://localhost:${PORT}/iframe2`);
-  console.log(`📍 Nested iframe: http://localhost:${PORT}/nested-iframe`);
+  console.log(`🚀 Server listening at http://localhost:${PORT}`);
+  pages.forEach(({ route, label }) => {
+    console.log(`📍 ${label}: http://localhost:${PORT}${route}`);
+  });
 });

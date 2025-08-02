@@ -23,7 +23,10 @@ import { IMathService } from '@shared/services/math.service';
 import { parseDocumentId } from '@shared/utils/utils';
 
 import { ICordycepsService, CordycepsService } from '@src/services/cordyceps/cordyceps.service';
-import { CordycepsPlaygroundService } from '@src/services/cordyceps/cordycepsPlaygroundService';
+import {
+  CordycepsPlaygroundService,
+  ICordycepsPlaygroundService,
+} from '@src/services/cordyceps/cordycepsPlaygroundService';
 
 export interface ISidePanelConfiguration {}
 
@@ -113,7 +116,10 @@ export class SidePanelApp extends Disposable {
     const cordycepsService = instantiationService.createInstance(CordycepsService);
     serviceCollection.set(ICordycepsService, cordycepsService);
 
-    this._register(instantiationService.createInstance(CordycepsPlaygroundService));
+    const cordycepsPlaygroundService = this._register(
+      instantiationService.createInstance(CordycepsPlaygroundService),
+    );
+    serviceCollection.set(ICordycepsPlaygroundService, cordycepsPlaygroundService);
 
     return instantiationService;
   }

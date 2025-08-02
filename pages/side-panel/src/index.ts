@@ -2,7 +2,6 @@ import { ISidePanelConfiguration, SidePanelApp } from '@src/side-panel/side-pane
 const configuration: ISidePanelConfiguration = {};
 import './index.css';
 
-
 try {
   const sidePanel = new SidePanelApp(configuration);
   sidePanel.start();

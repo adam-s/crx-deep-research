@@ -15,9 +15,7 @@ chrome.action.onClicked.addListener(() => {
   // Get the current window and open the side panel in that window
   chrome.windows.getCurrent({ populate: true }, window => {
     if (window?.id) {
-      chrome.sidePanel
-        .open({ windowId: window.id })
-        .catch(error => console.error(error));
+      chrome.sidePanel.open({ windowId: window.id }).catch(error => console.error(error));
     }
   });
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
+import { Main } from '../pages/Main';
 
 const useStyles = makeStyles({
   root: {
@@ -19,7 +20,7 @@ export const Content: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <div>Stuff should go here</div>
+      <Main />
     </div>
   );
 };
