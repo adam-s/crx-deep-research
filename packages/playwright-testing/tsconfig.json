@@ -1,0 +1,15 @@
+{
+  "extends": "@crx-deep-research/tsconfig/utils",
+  "compilerOptions": {
+    "outDir": "dist",
+    "types": [
+      "chrome",
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "fixtures",
+    "*.ts"
+  ],
+}

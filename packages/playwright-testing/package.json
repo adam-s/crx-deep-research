@@ -1,0 +1,18 @@
+{
+  "name": "@crx-deep-research/playwright-testing",
+  "version": "0.0.1",
+  "description": "Playwright testing utilities for CRX Deep Research",
+  "private": true,
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./build",
+    "ready": "tsc",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "pnpm lint --fix",
+    "prettier": "prettier . --write --ignore-path ../../.prettierignore",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@crx-deep-research/tsconfig": "workspace:*",
+    "@playwright/test": "^1.54.2"
+  }
+}
