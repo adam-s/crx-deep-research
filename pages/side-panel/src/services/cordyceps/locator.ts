@@ -148,6 +148,24 @@ export class Locator {
     });
   }
 
+  async highlight(options?: { timeout?: number }): Promise<void> {
+    return await executeWithProgress(
+      async () => {
+        await this._frame.context.highlight(this._selector);
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  async hideHighlight(): Promise<void> {
+    return await executeWithProgress(
+      async () => {
+        await this._frame.context.hideHighlight();
+      },
+      { timeout: 30000 },
+    );
+  }
+
   async click(options?: ClickOptions): Promise<void> {
     return executeProgressElementOperation(
       this._selector,

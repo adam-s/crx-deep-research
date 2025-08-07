@@ -772,6 +772,24 @@ export class Frame extends Disposable {
     );
   }
 
+  async highlight(selector: string, options?: { timeout?: number }): Promise<void> {
+    return await executeWithProgress(
+      async () => {
+        await this.context.highlight(selector);
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  async hideHighlight(): Promise<void> {
+    return await executeWithProgress(
+      async () => {
+        await this.context.hideHighlight();
+      },
+      { timeout: 30000 },
+    );
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,

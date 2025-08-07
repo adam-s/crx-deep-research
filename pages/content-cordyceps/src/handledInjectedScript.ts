@@ -773,4 +773,18 @@ export class HandledInjectedScript {
       };
     }
   }
+
+  /**
+   * Highlight elements matching the given parsed selector.
+   */
+  highlight(parsedSelector: unknown): void {
+    this._injectedScript.highlight(parsedSelector as ParsedSelector);
+  }
+
+  /**
+   * Hide any currently displayed highlights.
+   */
+  hideHighlight(): void {
+    this._injectedScript.hideHighlight();
+  }
 }

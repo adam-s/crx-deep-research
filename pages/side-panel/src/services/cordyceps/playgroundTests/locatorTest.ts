@@ -10,6 +10,7 @@ import {
   testDispatchEventFunctionality,
   testEvaluateFunctionality,
   testFillFunctionality,
+  testHighlightFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -89,6 +90,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test clear() functionality
       progress.log('Testing clear() method on form inputs');
       await testClearFunctionality(page, progress, this.context);
+
+      // Test highlight() functionality
+      progress.log('Testing highlight() and hideHighlight() methods');
+      await testHighlightFunctionality(page, progress, this.context);
 
       // Test evaluate() and evaluateHandle() functionality
       progress.log('Testing evaluate() and evaluateHandle() methods');

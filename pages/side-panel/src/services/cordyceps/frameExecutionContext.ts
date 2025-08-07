@@ -64,6 +64,8 @@ interface CordycepsInjectedScript {
     type: string,
     eventInit: Record<string, unknown>,
   ): { success: boolean; error?: string };
+  highlight(parsedSelector: unknown): void;
+  hideHighlight(): void;
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -504,6 +506,34 @@ export class FrameExecutionContext extends Disposable {
       type,
       eventInit,
     );
+  }
+
+  /**
+   * Highlight elements matching the given selector.
+   */
+  public async highlight(
+    selector: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<void> {
+    return this.executeScript(
+      (selector: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        const parsed = injected.parseSelector(selector);
+        return injected.highlight(parsed);
+      },
+      world,
+      selector,
+    );
+  }
+
+  /**
+   * Hide any currently displayed highlights.
+   */
+  public async hideHighlight(world: chrome.scripting.ExecutionWorld = 'ISOLATED'): Promise<void> {
+    return this.executeScript(() => {
+      const injected = window.__cordyceps_handledInjectedScript;
+      return injected.hideHighlight();
+    }, world);
   }
 
   public toString(): string {
