@@ -195,6 +195,22 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().dispatchEvent(selector, type, eventInit, options);
   }
 
+  async evaluate<R, Arg>(
+    pageFunction: (...args: [Arg]) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<R> {
+    return await this.mainFrame().evaluate(pageFunction, arg, options);
+  }
+
+  async evaluateHandle<R, Arg>(
+    pageFunction: (...args: [Arg]) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<ElementHandle | null> {
+    return await this.mainFrame().evaluateHandle(pageFunction, arg, options);
+  }
+
   /**
    * Get bounding box for an element handle.
    * Similar to Playwright's Page._getBoundingBox method.

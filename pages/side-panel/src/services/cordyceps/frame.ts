@@ -754,6 +754,48 @@ export class Frame extends Disposable {
       { timeout: 30000 },
     );
   }
+
+  async evaluate<R, Arg>(
+    pageFunction: (...args: [Arg]) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<R> {
+    return await executeWithProgress(
+      async () => {
+        // Pass function directly, args as rest parameters
+        if (arg !== undefined) {
+          const result = await this.context.executeScript(pageFunction, 'ISOLATED', arg);
+          return result as R;
+        } else {
+          // Cast to no-arg function when no argument provided
+          const noArgFunction = pageFunction as () => R;
+          const result = await this.context.executeScript(noArgFunction, 'ISOLATED');
+          return result as R;
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  async evaluateHandle<R, Arg>(
+    pageFunction: (...args: [Arg]) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<ElementHandle | null> {
+    return await executeWithProgress(
+      async () => {
+        // Pass function directly, args as rest parameters
+        if (arg !== undefined) {
+          return await this.context.evaluateHandle(pageFunction, 'ISOLATED', arg);
+        } else {
+          // Cast to no-arg function when no argument provided
+          const noArgFunction = pageFunction as () => R;
+          return await this.context.evaluateHandle(noArgFunction, 'ISOLATED');
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
 }
 
 // #region FrameLocator
