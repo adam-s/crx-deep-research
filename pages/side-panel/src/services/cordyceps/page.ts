@@ -4,7 +4,7 @@ import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './frameExecutionContext';
-import type { NavigateOptionsWithProgress } from './types';
+import type { NavigateOptionsWithProgress, Rect } from './types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
@@ -172,6 +172,22 @@ export class Page extends Disposable {
 
   async click(selector: string, options?: NavigateOptionsWithProgress): Promise<void> {
     await this.frameManager.mainFrame().click(selector, options);
+  }
+
+  async check(selector: string): Promise<void> {
+    await this.frameManager.mainFrame().check(selector);
+  }
+
+  async uncheck(selector: string): Promise<void> {
+    await this.frameManager.mainFrame().uncheck(selector);
+  }
+
+  /**
+   * Get bounding box for an element handle.
+   * Similar to Playwright's Page._getBoundingBox method.
+   */
+  async _getBoundingBox(handle: ElementHandle): Promise<Rect | null> {
+    return await handle.boundingBox();
   }
 
   // #region TESTING

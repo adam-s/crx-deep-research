@@ -65,3 +65,14 @@ export type StrictOptions = {
 export type WaitForElementOptions = StrictOptions & {
   state?: 'attached' | 'detached' | 'visible' | 'hidden';
 } & { omitReturnValue?: boolean };
+
+export type Point = {
+  x: number;
+  y: number;
+};
+
+export type CheckOptions = {
+  position?: Point;
+  force?: boolean;
+  timeout?: number;
+};

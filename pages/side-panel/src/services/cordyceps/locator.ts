@@ -67,11 +67,10 @@ export class Locator {
         }
 
         try {
-          // Create our ElementHandle wrapper
-          const elementHandle = new ElementHandle(this._frame.context!, handle.toString());
-          return await task(elementHandle, options.timeout);
+          // Use the ElementHandle directly - no need to recreate it
+          return await task(handle, options.timeout);
         } finally {
-          await handle.dispose();
+          handle.dispose();
         }
       },
       { timeout: options.timeout },
@@ -82,6 +81,20 @@ export class Locator {
     return await this._withElement(h => h.boundingBox(), {
       title: 'Bounding box',
       timeout: options?.timeout,
+    });
+  }
+
+  async check(): Promise<void> {
+    return await this._withElement(h => h.check(), {
+      title: 'Check',
+      timeout: 30000,
+    });
+  }
+
+  async uncheck(): Promise<void> {
+    return await this._withElement(h => h.uncheck(), {
+      title: 'Uncheck',
+      timeout: 30000,
     });
   }
 }

@@ -558,69 +558,14 @@ export class Frame extends Disposable {
 
         // Use the frame's context directly since it's a FrameExecutionContext
         const frameContext = resolved.frame.context;
-
-        // Execute the selector evaluation logic similar to Playwright
+        // Execute the selector evaluation logic using the content script method
         const result = await progress.race(
-          frameContext.executeScript(
-            (
-              parsedSelector: unknown,
-              strict: boolean,
-              scopeHandle: string | null,
-              selectorString: string,
-            ) => {
-              const injected = window.__cordyceps_handledInjectedScript;
-
-              // Get root element
-              const root = scopeHandle
-                ? injected.getElementByHandle(scopeHandle)
-                : injected.document || document;
-
-              if (!root) {
-                throw injected.createStacklessError('Root element not found');
-              }
-
-              // Check if root is connected (for scoped searches)
-              if (scopeHandle && root && !(root as Element).isConnected) {
-                throw injected.createStacklessError('Element is not attached to the DOM');
-              }
-
-              // Get all matching elements
-              const elementHandles = injected.querySelectorAll(parsedSelector, root);
-              const elements = elementHandles
-                .map(handle => injected.getElementByHandle(handle))
-                .filter(Boolean);
-
-              const element = elements[0];
-              // Basic visibility check - can be enhanced with injected.isElementVisible if available
-              const visible = element ? (element as HTMLElement).offsetParent !== null : false;
-
-              let log = '';
-              if (elements.length > 1) {
-                if (strict) {
-                  throw injected.createStacklessError(
-                    `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
-                  );
-                }
-                const firstElement = elements[0];
-                if (firstElement) {
-                  log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${injected.previewNode(firstElement)}`;
-                }
-              } else if (element) {
-                log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${injected.previewNode(element)}`;
-              }
-
-              return {
-                log,
-                elementHandle: elementHandles[0] || null,
-                visible,
-                attached: !!element,
-              };
-            },
-            resolved.info.world,
+          frameContext.waitForSelectorEvaluation(
             resolved.info.parsed,
             resolved.info.strict,
             resolved.frame === this && scope ? scope.remoteObject : null,
             selector,
+            resolved.info.world,
           ),
         );
 
@@ -829,6 +774,40 @@ export class Frame extends Disposable {
 
   frameLocator(selector: string): FrameLocator {
     return new FrameLocator(this, selector);
+  }
+
+  async check(selector: string): Promise<void> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+        try {
+          return await handle.checkWithProgress(progress);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  async uncheck(selector: string): Promise<void> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+        try {
+          return await handle.uncheckWithProgress(progress);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: 30000 },
+    );
   }
 }
 

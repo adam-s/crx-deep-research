@@ -16,13 +16,40 @@ declare global {
 
 interface CordycepsInjectedScript {
   parseSelector(selector: string): unknown;
-  querySelector(parsedSelector: unknown, root: Node, all: boolean): string | null;
+  querySelector(parsedSelector: unknown, root: Node, strict: boolean): string | null;
   querySelectorAll(parsedSelector: unknown, root: Node): string[];
   ariaSnapshot(node: Node, options: { forAI: boolean; refPrefix: string }): string | undefined;
   getElementByHandle(handle: string): Element | undefined;
   document?: Document;
-  createStacklessError(message: string): Error;
-  previewNode(node: Node): string;
+  waitForSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+  ): {
+    log: string;
+    elementHandle: string | null;
+    visible: boolean;
+    attached: boolean;
+  };
+  frameSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+  ): string | null;
+  getBoundingBox(handle: string): { x: number; y: number; width: number; height: number } | null;
+  isChecked(handle: string): boolean;
+  setChecked(
+    handle: string,
+    state: boolean,
+  ): {
+    success: boolean;
+    error?: string;
+    needsClick: boolean;
+    currentState: boolean;
+  };
+  clickElement(handle: string): { success: boolean; error?: string };
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -250,6 +277,164 @@ export class FrameExecutionContext extends Disposable {
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
     return this.executeScript(func, world, ...args);
+  }
+
+  /**
+   * Evaluate waitForSelector logic using the content script method.
+   * This replaces the inline script execution with a call to the content script.
+   */
+  public async waitForSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<
+    | {
+        log: string;
+        elementHandle: string | null;
+        visible: boolean;
+        attached: boolean;
+      }
+    | undefined
+  > {
+    return this.executeScript(
+      (
+        parsedSelector: unknown,
+        strict: boolean,
+        scopeHandle: string | null,
+        selectorString: string,
+      ) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.waitForSelectorEvaluation(
+          parsedSelector,
+          strict,
+          scopeHandle,
+          selectorString,
+        );
+      },
+      world,
+      parsedSelector,
+      strict,
+      scopeHandle,
+      selectorString,
+    );
+  }
+
+  /**
+   * Evaluate frame selector logic using the content script method.
+   * This replaces the inline script execution with a call to the content script.
+   */
+  public async frameSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<string | null | undefined> {
+    return this.executeScript(
+      (
+        parsedSelector: unknown,
+        strict: boolean,
+        scopeHandle: string | null,
+        selectorString: string,
+      ) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.frameSelectorEvaluation(
+          parsedSelector,
+          strict,
+          scopeHandle,
+          selectorString,
+        );
+      },
+      world,
+      parsedSelector,
+      strict,
+      scopeHandle,
+      selectorString,
+    );
+  }
+
+  /**
+   * Get bounding box for an element using the content script method.
+   * This replaces direct DOM access with a call to the content script.
+   */
+  public async getBoundingBox(
+    handle: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ x: number; y: number; width: number; height: number } | null | undefined> {
+    return this.executeScript(
+      (handle: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.getBoundingBox(handle);
+      },
+      world,
+      handle,
+    );
+  }
+
+  /**
+   * Check if an element is currently checked (for checkboxes and radio buttons).
+   * This method uses the content script to evaluate the checked state.
+   */
+  public async isChecked(
+    handle: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<boolean | undefined> {
+    return this.executeScript(
+      (handle: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.isChecked(handle);
+      },
+      world,
+      handle,
+    );
+  }
+
+  /**
+   * Set the checked state of an element following Playwright patterns.
+   * This method handles the core check/uncheck logic via content script.
+   */
+  public async setChecked(
+    handle: string,
+    state: boolean,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<
+    | {
+        success: boolean;
+        error?: string;
+        needsClick: boolean;
+        currentState: boolean;
+      }
+    | undefined
+  > {
+    return this.executeScript(
+      (handle: string, state: boolean) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.setChecked(handle, state);
+      },
+      world,
+      handle,
+      state,
+    );
+  }
+
+  /**
+   * Click an element using the content script method.
+   * This method handles clicking via content script.
+   */
+  public async clickElement(
+    handle: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ success: boolean; error?: string } | undefined> {
+    return this.executeScript(
+      (handle: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.clickElement(handle);
+      },
+      world,
+      handle,
+    );
   }
 
   public toString(): string {

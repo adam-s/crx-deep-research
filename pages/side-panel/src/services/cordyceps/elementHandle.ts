@@ -1,7 +1,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { FrameExecutionContext } from './frameExecutionContext';
 import { Rect, WaitForElementOptions } from './types';
-import { Progress } from './progress';
+import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
 
 export function throwRetargetableDOMError<T>(result: T | 'error:notconnected'): T {
@@ -51,8 +51,118 @@ export class ElementHandle extends JSHandle {
   }
 
   async boundingBox(): Promise<Rect | null> {
-    const value = this.frame.context;
-    return value === undefined ? null : ({} as Rect);
+    try {
+      const result = await this._context.getBoundingBox(this.remoteObject);
+      return result || null;
+    } catch (e) {
+      // Handle disconnected elements or other errors
+      return null;
+    }
+  }
+
+  async check(): Promise<void> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._setChecked(progress, true);
+        if (result !== 'done') {
+          throw new Error(`Check failed: ${result}`);
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  async uncheck(): Promise<void> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._setChecked(progress, false);
+        if (result !== 'done') {
+          throw new Error(`Uncheck failed: ${result}`);
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  /**
+   * Check a checkbox or radio button following Playwright patterns.
+   * This method implements the _setChecked logic similar to Playwright's ElementHandle.
+   */
+  async checkWithProgress(progress: Progress): Promise<void> {
+    const result = await this._setChecked(progress, true);
+    if (result !== 'done') {
+      throw new Error(`Check failed: ${result}`);
+    }
+  }
+
+  /**
+   * Uncheck a checkbox or radio button following Playwright patterns.
+   */
+  async uncheckWithProgress(progress: Progress): Promise<void> {
+    const result = await this._setChecked(progress, false);
+    if (result !== 'done') {
+      throw new Error(`Uncheck failed: ${result}`);
+    }
+  }
+
+  /**
+   * Internal method to set checked state following Playwright patterns.
+   * This method handles the core check/uncheck logic with proper error handling.
+   */
+  async _setChecked(progress: Progress, state: boolean): Promise<'error:notconnected' | 'done'> {
+    // Helper function to check current state
+    const isChecked = async (): Promise<boolean> => {
+      const result = await progress.race(this._context.isChecked(this.remoteObject));
+      if (result === undefined) {
+        throwElementIsNotAttached();
+      }
+      return result;
+    };
+
+    // Check if element is already in the desired state
+    const currentState = await isChecked();
+    if (currentState === state) {
+      return 'done';
+    }
+
+    // Attempt to set the checked state
+    const setResult = await progress.race(this._context.setChecked(this.remoteObject, state));
+    if (!setResult) {
+      return 'error:notconnected';
+    }
+
+    if (!setResult.success) {
+      throw new Error(setResult.error || 'Failed to set checked state');
+    }
+
+    // If a click is needed to change the state, perform the click
+    if (setResult.needsClick) {
+      const clickResult = await progress.race(this._context.clickElement(this.remoteObject));
+      if (!clickResult) {
+        return 'error:notconnected';
+      }
+
+      if (!clickResult.success) {
+        throw new Error(clickResult.error || 'Failed to click element');
+      }
+
+      // Verify the state changed after clicking
+      const newState = await isChecked();
+      if (newState !== state) {
+        throw new Error('Clicking the checkbox did not change its state');
+      }
+    }
+
+    return 'done';
+  }
+
+  /**
+   * Get bounding box with progress tracking.
+   * Similar to Playwright's ElementHandle.boundingBox method with progress.
+   */
+  async boundingBoxWithProgress(progress: Progress): Promise<Rect | null> {
+    const value = await progress.race(this.boundingBox());
+    return value || null;
   }
 
   async isIframeElement(): Promise<boolean | 'error:notconnected'> {

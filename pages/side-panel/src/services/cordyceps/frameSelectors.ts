@@ -83,46 +83,20 @@ export class FrameSelectors {
       // @see https://chatgpt.com/share/68894910-90f8-8004-9173-1fcbf62d9913
       frame = this._jumpToAriaRefFrameIfNeeded(selector, info, frame);
       const context = frame.context;
-      const handle = await context.evaluateHandle(
-        (
-          parsedSelector: ParsedSelector,
-          strict: boolean,
-          scopeHandle: string | null,
-          selectorString: string,
-        ) => {
-          const injected = window.__cordyceps_handledInjectedScript;
-          const root = scopeHandle ? injected.getElementByHandle(scopeHandle) : injected.document;
-          if (!root) {
-            throw new Error('Root element not found for scope');
-          }
-
-          const elementHandle = injected.querySelector(parsedSelector, root, strict);
-          if (!elementHandle) {
-            return null;
-          }
-
-          const element = injected.getElementByHandle(elementHandle);
-          if (element && element.nodeName !== 'IFRAME' && element.nodeName !== 'FRAME') {
-            // This will throw inside the content script, and the error will be propagated.
-            // Note: createStacklessError and previewNode are on the raw injectedScript.
-            throw injected.createStacklessError(
-              `Selector "${selectorString}" resolved to ${injected.previewNode(
-                element,
-              )}, but an <iframe> was expected`,
-            );
-          }
-          return elementHandle;
-        },
-        info.world,
+      const handleId = await context.frameSelectorEvaluation(
         info.parsed,
         info.strict,
         i === 0 && scope?.remoteObject ? scope.remoteObject : null,
         stringifySelector(frameChunks[i]),
+        info.world,
       );
 
-      if (!handle) {
+      if (!handleId) {
         throw new InvalidSelectorError(`Could not find frame for selector "${selector}"`);
       }
+
+      const handle = new ElementHandle(context, handleId);
+
       const childFrame = await handle.contentFrame();
       if (!childFrame) {
         throw new InvalidSelectorError(`Selector "${selector}" did not resolve to an iframe`);

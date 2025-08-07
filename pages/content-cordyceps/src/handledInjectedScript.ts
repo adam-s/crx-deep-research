@@ -197,16 +197,21 @@ export class HandledInjectedScript {
 
   /**
    * Modified querySelector that returns a UUID handle instead of an Element.
+   * This method matches the interface expected by FrameExecutionContext.
    *
-   * @param selector - The parsed selector to query
+   * @param parsedSelector - The parsed selector to query
    * @param root - The root element to search within
    * @param strict - Whether to enforce strict mode (single element match)
-   * @returns UUID handle of the found element, or undefined if not found
+   * @returns UUID handle of the found element, or null if not found
    */
-  querySelector(selector: ParsedSelector, root: Node, strict: boolean = false): string | undefined {
-    const element = this._injectedScript.querySelector(selector, root, strict);
+  querySelector(parsedSelector: unknown, root: Node, strict: boolean): string | null {
+    const element = this._injectedScript.querySelector(
+      parsedSelector as ParsedSelector,
+      root,
+      strict,
+    );
     if (!element) {
-      return undefined;
+      return null;
     }
     return this._handleManager.getHandleForElement(element);
   }
@@ -214,12 +219,12 @@ export class HandledInjectedScript {
   /**
    * Modified querySelectorAll that returns UUID handles instead of Elements.
    *
-   * @param selector - The parsed selector to query
+   * @param parsedSelector - The parsed selector to query
    * @param root - The root element to search within
    * @returns Array of UUID handles for all found elements
    */
-  querySelectorAll(selector: ParsedSelector, root: Node): string[] {
-    const elements = this._injectedScript.querySelectorAll(selector, root);
+  querySelectorAll(parsedSelector: unknown, root: Node): string[] {
+    const elements = this._injectedScript.querySelectorAll(parsedSelector as ParsedSelector, root);
     return elements.map(element => this._handleManager.getHandleForElement(element));
   }
 
@@ -266,5 +271,276 @@ export class HandledInjectedScript {
    */
   getHandleForElement(element: Element): string {
     return this._handleManager.getHandleForElement(element);
+  }
+
+  /**
+   * Wait for selector evaluation logic moved from FrameExecutionContext.
+   * This method handles the core selector resolution and state checking.
+   */
+  waitForSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+  ): {
+    log: string;
+    elementHandle: string | null;
+    visible: boolean;
+    attached: boolean;
+  } {
+    // Get root element
+    const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document || document;
+    if (!root) {
+      throw this._injectedScript.createStacklessError('Root element not found');
+    }
+
+    // Check if root is connected (for scoped searches)
+    if (scopeHandle && root && !(root as Element).isConnected) {
+      throw this._injectedScript.createStacklessError('Element is not attached to the DOM');
+    }
+
+    // Get all matching elements
+    const elementHandles = this.querySelectorAll(parsedSelector, root);
+    const elements = elementHandles.map(handle => this.getElementByHandle(handle)).filter(Boolean);
+
+    const element = elements[0];
+    const visible = element ? this._injectedScript.utils.isElementVisible(element) : false;
+
+    let log = '';
+    if (elements.length > 1) {
+      if (strict) {
+        throw this._injectedScript.createStacklessError(
+          `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
+        );
+      }
+      const firstElement = elements[0];
+      if (firstElement) {
+        log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${this._injectedScript.previewNode(firstElement)}`;
+      }
+    } else if (element) {
+      log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${this._injectedScript.previewNode(element)}`;
+    }
+
+    return {
+      log,
+      elementHandle: elementHandles[0] || null,
+      visible,
+      attached: !!element,
+    };
+  }
+
+  /**
+   * Frame selector evaluation logic moved from FrameSelectors.
+   * This method handles iframe/frame element validation.
+   */
+  frameSelectorEvaluation(
+    parsedSelector: unknown,
+    strict: boolean,
+    scopeHandle: string | null,
+    selectorString: string,
+  ): string | null {
+    const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document;
+    if (!root) {
+      throw new Error('Root element not found for scope');
+    }
+
+    const elementHandle = this.querySelector(parsedSelector, root, strict);
+    if (!elementHandle) {
+      return null;
+    }
+
+    const element = this.getElementByHandle(elementHandle);
+    if (element && element.nodeName !== 'IFRAME' && element.nodeName !== 'FRAME') {
+      // This will throw inside the content script, and the error will be propagated.
+      throw this._injectedScript.createStacklessError(
+        `Selector "${selectorString}" resolved to ${this._injectedScript.previewNode(
+          element,
+        )}, but an <iframe> was expected`,
+      );
+    }
+    return elementHandle;
+  }
+
+  /**
+   * Get bounding box for an element by its handle.
+   * This method handles the core bounding box calculation logic.
+   */
+  getBoundingBox(handle: string): { x: number; y: number; width: number; height: number } | null {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return null;
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return null;
+    }
+
+    // Get the bounding client rect
+    const rect = (element as Element).getBoundingClientRect();
+
+    // Return null if element has no dimensions
+    if (rect.width === 0 && rect.height === 0) {
+      return null;
+    }
+
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  /**
+   * Check if an element is currently checked (for checkboxes and radio buttons).
+   * This method handles the core checked state evaluation logic.
+   */
+  isChecked(handle: string): boolean {
+    const element = this.getElementByHandle(handle) as HTMLInputElement;
+    if (!element) {
+      return false;
+    }
+
+    // Check if element is connected to the DOM
+    if (!element.isConnected) {
+      return false;
+    }
+
+    // Check if it's a checkable element
+    if (element.tagName !== 'INPUT') {
+      return false;
+    }
+
+    const inputType = element.type.toLowerCase();
+    if (inputType !== 'checkbox' && inputType !== 'radio') {
+      return false;
+    }
+
+    return element.checked;
+  }
+
+  /**
+   * Set the checked state of a checkbox or radio button.
+   * This method handles the core check/uncheck logic following Playwright patterns.
+   */
+  setChecked(
+    handle: string,
+    state: boolean,
+  ): {
+    success: boolean;
+    error?: string;
+    needsClick: boolean;
+    currentState: boolean;
+  } {
+    const element = this.getElementByHandle(handle) as HTMLInputElement;
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+        needsClick: false,
+        currentState: false,
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!element.isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+        needsClick: false,
+        currentState: false,
+      };
+    }
+
+    // Check if it's a checkable element
+    if (element.tagName !== 'INPUT') {
+      return {
+        success: false,
+        error: 'Element is not an input element',
+        needsClick: false,
+        currentState: false,
+      };
+    }
+
+    const inputType = element.type.toLowerCase();
+    if (inputType !== 'checkbox' && inputType !== 'radio') {
+      return {
+        success: false,
+        error: `Input element type "${inputType}" is not checkable. Only 'checkbox' and 'radio' are supported.`,
+        needsClick: false,
+        currentState: false,
+      };
+    }
+
+    const currentState = element.checked;
+
+    // If already in the desired state, no action needed
+    if (currentState === state) {
+      return {
+        success: true,
+        needsClick: false,
+        currentState,
+      };
+    }
+
+    // Check if element is disabled
+    if (element.disabled) {
+      return {
+        success: false,
+        error: 'Element is disabled',
+        needsClick: false,
+        currentState,
+      };
+    }
+
+    // Check if element is visible using InjectedScript utilities
+    if (!this._injectedScript.utils.isElementVisible(element)) {
+      return {
+        success: false,
+        error: 'Element is not visible',
+        needsClick: false,
+        currentState,
+      };
+    }
+
+    // Return that a click is needed to change the state
+    return {
+      success: true,
+      needsClick: true,
+      currentState,
+    };
+  }
+
+  /**
+   * Perform a click on an element by its handle.
+   * This method handles the core click logic.
+   */
+  clickElement(handle: string): { success: boolean; error?: string } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+      };
+    }
+
+    try {
+      (element as HTMLElement).click();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to click element',
+      };
+    }
   }
 }

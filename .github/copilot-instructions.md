@@ -2,6 +2,13 @@
 
 ## Prompts
 
+### Find common patterns
+- step 1: find common patterns in frameExecutionContext pages/side-panel/src/services/cordyceps/frameExecutionContext.ts
+
+- step 2: find common patterns in handledInjectedScript pages/content-cordyceps/src/handledInjectedScript.ts
+
+- Use the common patterns to emulate building new methods to interact with the DOM based on step 1 and step 2.
+
 ### General Coding
 
 - **Scope of coding**: Only do a little bit at a time. Give the user a chance to review the code. 
