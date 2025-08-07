@@ -24,18 +24,14 @@ export async function testClearFunctionality(
     await textInputLocator.fill(initialValue);
 
     // Verify it was filled
-    const preClearValue = await page.evaluate(
-      () => (document.querySelector('#text-input') as HTMLInputElement)?.value,
-    );
+    const preClearValue = await textInputLocator.getValue();
     progress.log(`Text input pre-clear value: "${preClearValue}"`);
 
     // Now clear it
     await textInputLocator.clear();
 
     // Verify the value was cleared
-    const clearedTextValue = await page.evaluate(
-      () => (document.querySelector('#text-input') as HTMLInputElement)?.value,
-    );
+    const clearedTextValue = await textInputLocator.getValue();
 
     if (clearedTextValue === '') {
       progress.log(`Text input clear test PASSED - Value cleared successfully`);
@@ -64,18 +60,14 @@ export async function testClearFunctionality(
     await emailInputLocator.fill(initialEmail);
 
     // Verify it was filled
-    const preClearEmail = await page.evaluate(
-      () => (document.querySelector('#email-input') as HTMLInputElement)?.value,
-    );
+    const preClearEmail = await emailInputLocator.getValue();
     progress.log(`Email input pre-clear value: "${preClearEmail}"`);
 
     // Now clear it
     await emailInputLocator.clear();
 
     // Verify the email value was cleared
-    const clearedEmailValue = await page.evaluate(
-      () => (document.querySelector('#email-input') as HTMLInputElement)?.value,
-    );
+    const clearedEmailValue = await emailInputLocator.getValue();
 
     if (clearedEmailValue === '') {
       progress.log(`Email input clear test PASSED - Value cleared successfully`);
@@ -104,18 +96,14 @@ export async function testClearFunctionality(
     await textareaLocator.fill(initialTextareaValue);
 
     // Verify it was filled
-    const preClearTextarea = await page.evaluate(
-      () => (document.querySelector('#textarea-input') as HTMLTextAreaElement)?.value,
-    );
+    const preClearTextarea = await textareaLocator.getValue();
     progress.log(`Textarea pre-clear value: "${preClearTextarea}"`);
 
     // Now clear it
     await textareaLocator.clear();
 
     // Verify the textarea value was cleared
-    const clearedTextareaValue = await page.evaluate(
-      () => (document.querySelector('#textarea-input') as HTMLTextAreaElement)?.value,
-    );
+    const clearedTextareaValue = await textareaLocator.getValue();
 
     if (clearedTextareaValue === '') {
       progress.log(`Textarea clear test PASSED - Value cleared successfully`);
@@ -144,18 +132,14 @@ export async function testClearFunctionality(
     await passwordInputLocator.fill(initialPassword);
 
     // Verify it was filled
-    const preClearPassword = await page.evaluate(
-      () => (document.querySelector('#password-input') as HTMLInputElement)?.value,
-    );
+    const preClearPassword = await passwordInputLocator.getValue();
     progress.log(`Password input pre-clear value: "${preClearPassword}"`);
 
     // Now clear it
     await passwordInputLocator.clear();
 
     // Verify the password value was cleared
-    const clearedPasswordValue = await page.evaluate(
-      () => (document.querySelector('#password-input') as HTMLInputElement)?.value,
-    );
+    const clearedPasswordValue = await passwordInputLocator.getValue();
 
     if (clearedPasswordValue === '') {
       progress.log(`Password input clear test PASSED - Value cleared successfully`);
@@ -184,9 +168,7 @@ export async function testClearFunctionality(
     await textInputLocator.clear();
 
     // Verify it's empty
-    const alreadyEmptyValue = await page.evaluate(
-      () => (document.querySelector('#text-input') as HTMLInputElement)?.value,
-    );
+    const alreadyEmptyValue = await textInputLocator.getValue();
 
     if (alreadyEmptyValue === '') {
       progress.log(`Clear empty input test PASSED - Idempotent operation successful`);

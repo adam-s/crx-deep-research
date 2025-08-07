@@ -831,6 +831,14 @@ export class Frame extends Disposable {
       { timeout: options?.timeout || 30000 },
     );
   }
+
+  async queryCount(selector: string): Promise<number> {
+    return await this.selectors.queryCount(selector);
+  }
+
+  async queryAll(selector: string, scope?: ElementHandle): Promise<ElementHandle[]> {
+    return await this.selectors.queryAll(selector, scope);
+  }
 }
 
 // #region FrameLocator

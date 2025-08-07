@@ -4,7 +4,7 @@ import type { TestContext } from '../api';
 import { Severity } from '../../../../utils/types';
 
 /**
- * Test evaluate() and evaluateHandle() functionality across Page, Frame, Locator, and ElementHandle
+ * Test type-safe element operations functionality across Page, Frame, Locator, and ElementHandle
  * Note: Due to Chrome extension limitations, we use simple inline functions for testing
  */
 export async function testEvaluateFunctionality(
@@ -21,15 +21,11 @@ export async function testEvaluateFunctionality(
     return window.location.href;
   }
 
-  function getElementTagName(element: Element) {
-    return element.tagName;
-  }
-
   function getDocument() {
     return document;
   }
 
-  progress.log('Testing evaluate() and evaluateHandle() methods');
+  progress.log('Testing type-safe element operations methods');
 
   try {
     // Test Page.evaluate() - minimal sanity check with inline function
@@ -58,22 +54,22 @@ export async function testEvaluateFunctionality(
       details: { frameUrl },
     });
 
-    // Test Locator.evaluate() - get body element info
-    progress.log('Testing Locator.evaluate()');
+    // Test Locator type-safe methods - get body element info
+    progress.log('Testing Locator type-safe methods');
     const bodyLocator = page.locator('body');
 
-    const bodyTagName = await bodyLocator.evaluate(getElementTagName);
+    const bodyTagName = await bodyLocator.getTagName();
     progress.log(`Body tag name: ${bodyTagName}`);
 
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
-      message: 'Locator.evaluate() test passed',
+      message: 'Locator type-safe methods test passed',
       details: { bodyTagName },
     });
 
-    // Test ElementHandle.evaluate() is covered by Locator.evaluate() which uses _withElement
-    progress.log('ElementHandle.evaluate() is tested via Locator.evaluate()');
+    // Test ElementHandle type-safe methods are covered by Locator methods which use _withElement
+    progress.log('ElementHandle type-safe methods are tested via Locator methods');
 
     // Test Page.evaluateHandle() - get document reference
     progress.log('Testing Page.evaluateHandle()');
@@ -89,15 +85,15 @@ export async function testEvaluateFunctionality(
       });
     }
 
-    progress.log('All evaluate functionality tests completed successfully');
+    progress.log('All type-safe functionality tests completed successfully');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    progress.log(`Evaluate functionality test failed: ${errorMessage}`);
+    progress.log(`Type-safe functionality test failed: ${errorMessage}`);
 
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Error,
-      message: 'Evaluate functionality test failed',
+      message: 'Type-safe functionality test failed',
       details: { error: errorMessage },
     });
 

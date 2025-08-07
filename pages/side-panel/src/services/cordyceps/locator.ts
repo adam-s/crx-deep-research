@@ -1,5 +1,15 @@
-import { escapeForTextSelector } from '@injected/isomorphic/stringUtils';
-import { Frame } from './frame';
+import { escapeForTextSelector, isString } from '@injected/isomorphic/stringUtils';
+import {
+  getByTestIdSelector,
+  getByAltTextSelector,
+  getByLabelSelector,
+  getByPlaceholderSelector,
+  getByTextSelector,
+  getByTitleSelector,
+  ByRoleOptions,
+  getByRoleSelector,
+} from '@injected/isomorphic/locatorUtils';
+import { Frame, FrameLocator, testIdAttributeName } from './frame';
 import { Rect, TimeoutOptions, ClickOptions } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress, Progress } from './progress';
@@ -113,6 +123,34 @@ export class Locator {
     );
   }
 
+  /**
+   * Execute an element method with clean error handling and progress tracking
+   */
+  private async _executeElementMethod<T>(
+    methodName: keyof ElementHandle,
+    ...args: unknown[]
+  ): Promise<T> {
+    return executeWithProgress(
+      async progress => {
+        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
+          strict: true,
+        });
+
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${this._selector}`);
+        }
+
+        try {
+          const method = handle[methodName] as (...args: unknown[]) => Promise<T>;
+          return await method.apply(handle, args);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
   async boundingBox(options?: TimeoutOptions): Promise<Rect | null> {
     return await this._withElement(h => h.boundingBox(), {
       title: 'Bounding box',
@@ -121,17 +159,11 @@ export class Locator {
   }
 
   async check(): Promise<void> {
-    return await this._withElement(h => h.check(), {
-      title: 'Check',
-      timeout: 30000,
-    });
+    return this._executeElementMethod<void>('check');
   }
 
   async uncheck(): Promise<void> {
-    return await this._withElement(h => h.uncheck(), {
-      title: 'Uncheck',
-      timeout: 30000,
-    });
+    return this._executeElementMethod<void>('uncheck');
   }
 
   async fill(value: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
@@ -200,17 +232,6 @@ export class Locator {
     );
   }
 
-  async evaluate<R, Arg>(
-    pageFunction: (element: Element, arg: Arg) => R,
-    arg?: Arg,
-    options?: { timeout?: number },
-  ): Promise<R> {
-    return await this._withElement(h => h.evaluate(pageFunction, arg, options), {
-      title: 'Evaluate',
-      timeout: options?.timeout || 30000,
-    });
-  }
-
   async evaluateAll<R, Arg>(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     pageFunction: (elements: Element[], arg: Arg) => R,
@@ -234,4 +255,283 @@ export class Locator {
       timeout: options?.timeout || 30000,
     });
   }
+
+  locator(selectorOrLocator: string | Locator, options?: Omit<LocatorOptions, 'visible'>): Locator {
+    if (isString(selectorOrLocator))
+      return new Locator(this._frame, this._selector + ' >> ' + selectorOrLocator, options);
+    if (selectorOrLocator._frame !== this._frame)
+      throw new Error(`Locators must belong to the same frame.`);
+    return new Locator(
+      this._frame,
+      this._selector + ' >> internal:chain=' + JSON.stringify(selectorOrLocator._selector),
+      options,
+    );
+  }
+
+  getByTestId(testId: string | RegExp): Locator {
+    return this.locator(getByTestIdSelector(testIdAttributeName(), testId));
+  }
+
+  getByAltText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByAltTextSelector(text, options));
+  }
+
+  getByLabel(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByLabelSelector(text, options));
+  }
+
+  getByPlaceholder(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByPlaceholderSelector(text, options));
+  }
+
+  getByText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTextSelector(text, options));
+  }
+
+  getByTitle(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTitleSelector(text, options));
+  }
+
+  getByRole(role: string, options: ByRoleOptions = {}): Locator {
+    return this.locator(getByRoleSelector(role, options));
+  }
+
+  frameLocator(selector: string): FrameLocator {
+    return new FrameLocator(this._frame, this._selector + ' >> ' + selector);
+  }
+
+  filter(options?: LocatorOptions): Locator {
+    return new Locator(this._frame, this._selector, options);
+  }
+
+  async elementHandle(options?: TimeoutOptions): Promise<ElementHandle> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
+          strict: true,
+          state: 'attached',
+          ...options,
+        });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${this._selector}`);
+        }
+        return handle;
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  async elementHandles(): Promise<ElementHandle[]> {
+    return await executeWithProgress(
+      async () => {
+        // Use the frame's context to get all elements matching the selector
+        const handles = await this._frame.context.querySelectorAll(
+          this._selector,
+          undefined, // no root element handle
+          'ISOLATED',
+        );
+        return handles || [];
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  async count(): Promise<number> {
+    return await this._frame.selectors.queryCount(this._selector);
+  }
+
+  async all(): Promise<Locator[]> {
+    const count = await this.count();
+    return new Array(count).fill(0).map((_, i) => this.nth(i));
+  }
+
+  async allInnerTexts(): Promise<string[]> {
+    return await executeWithProgress(
+      async () => {
+        const handles = await this.elementHandles();
+        const texts: string[] = [];
+
+        for (const handle of handles) {
+          try {
+            const text = await handle.getInnerText();
+            texts.push(text || '');
+          } finally {
+            handle.dispose();
+          }
+        }
+
+        return texts;
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  async allTextContents(): Promise<string[]> {
+    return await executeWithProgress(
+      async () => {
+        const handles = await this.elementHandles();
+        const texts: string[] = [];
+
+        for (const handle of handles) {
+          try {
+            const text = await handle.getTextContent();
+            texts.push(text || '');
+          } finally {
+            handle.dispose();
+          }
+        }
+
+        return texts;
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  contentFrame(): FrameLocator {
+    return new FrameLocator(this._frame, this._selector);
+  }
+
+  describe(description: string): Locator {
+    return new Locator(
+      this._frame,
+      this._selector + ' >> internal:describe=' + JSON.stringify(description),
+    );
+  }
+
+  first(): Locator {
+    return new Locator(this._frame, this._selector + ' >> nth=0');
+  }
+
+  last(): Locator {
+    return new Locator(this._frame, this._selector + ` >> nth=-1`);
+  }
+
+  nth(index: number): Locator {
+    return new Locator(this._frame, this._selector + ` >> nth=${index}`);
+  }
+
+  and(locator: Locator): Locator {
+    if (locator._frame !== this._frame) throw new Error(`Locators must belong to the same frame.`);
+    return new Locator(
+      this._frame,
+      this._selector + ` >> internal:and=` + JSON.stringify(locator._selector),
+    );
+  }
+
+  or(locator: Locator): Locator {
+    if (locator._frame !== this._frame) throw new Error(`Locators must belong to the same frame.`);
+    return new Locator(
+      this._frame,
+      this._selector + ` >> internal:or=` + JSON.stringify(locator._selector),
+    );
+  }
+
+  // #region Simple Element Operations for Locator
+
+  /**
+   * Get text content of the first matching element
+   */
+  async getTextContent(): Promise<string> {
+    return this._executeElementMethod<string>('getTextContent');
+  }
+
+  /**
+   * Get inner text of the first matching element
+   */
+  async getInnerText(): Promise<string> {
+    return this._executeElementMethod<string>('getInnerText');
+  }
+
+  /**
+   * Get value of the first matching input element
+   */
+  async getValue(): Promise<string> {
+    return this._executeElementMethod<string>('getValue');
+  }
+
+  /**
+   * Check if the first matching input element is checked
+   */
+  async isChecked(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isChecked');
+  }
+
+  /**
+   * Get tag name of the first matching element
+   */
+  async getTagName(): Promise<string> {
+    return this._executeElementMethod<string>('getTagName');
+  }
+
+  /**
+   * Set value of the first matching input element
+   */
+  async setValue(value: string): Promise<void> {
+    return this._executeElementMethod<void>('setValue', value);
+  }
+
+  /**
+   * Set text content of the first matching element
+   */
+  async setTextContent(text: string): Promise<void> {
+    return this._executeElementMethod<void>('setTextContent', text);
+  }
+
+  /**
+   * Set checked state of the first matching input element
+   */
+  async setChecked(checked: boolean): Promise<void> {
+    return this._executeElementMethod<void>('setChecked', checked);
+  }
+
+  /**
+   * Get attribute value of the first matching element
+   */
+  async getAttribute(name: string): Promise<string | null> {
+    return this._executeElementMethod<string | null>('getAttribute', name);
+  }
+
+  /**
+   * Set attribute value of the first matching element
+   */
+  async setAttribute(name: string, value: string): Promise<void> {
+    return this._executeElementMethod<void>('setAttribute', name, value);
+  }
+
+  /**
+   * Check if the first matching element has an attribute
+   */
+  async hasAttribute(name: string): Promise<boolean> {
+    return this._executeElementMethod<boolean>('hasAttribute', name);
+  }
+
+  /**
+   * Check if the first matching element has a CSS class
+   */
+  async hasClass(className: string): Promise<boolean> {
+    return this._executeElementMethod<boolean>('hasClass', className);
+  }
+
+  /**
+   * Check if the first matching element is visible
+   */
+  async isVisible(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isVisible');
+  }
+
+  /**
+   * Check if the first matching element is enabled
+   */
+  async isEnabled(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isEnabled');
+  }
+
+  /**
+   * Focus the first matching element
+   */
+  async focus(): Promise<void> {
+    return this._executeElementMethod<void>('focus');
+  }
+
+  // #endregion Simple Element Operations for Locator
 }

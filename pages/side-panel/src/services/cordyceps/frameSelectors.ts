@@ -9,7 +9,7 @@ import {
 import { ElementHandle } from './elementHandle';
 import { Frame } from './frame';
 import { asLocator } from '@injected/isomorphic/locatorGenerators';
-import { ExecutionContext } from './executionContext';
+import { FrameExecutionContext } from './frameExecutionContext';
 
 export type SelectorInfo = {
   parsed: ParsedSelector;
@@ -36,7 +36,7 @@ export class FrameSelectors {
     scope?: ElementHandle,
   ): Promise<
     | {
-        context: ExecutionContext;
+        context: FrameExecutionContext;
         info: SelectorInfo;
         frame: Frame;
         scope?: ElementHandle;
@@ -149,5 +149,33 @@ export class FrameSelectors {
     if (!jumptToFrame)
       throw new InvalidSelectorError(`Invalid frame in aria-ref selector "${selector}"`);
     return jumptToFrame;
+  }
+
+  async queryCount(selector: string): Promise<number> {
+    const resolved = await this.resolveInjectedForSelector(selector);
+    if (!resolved) {
+      throw new Error(`Failed to find frame for selector "${selector}"`);
+    }
+
+    return (
+      (await resolved.context.evaluate(
+        (parsedSelector: unknown) => {
+          const injected = window.__cordyceps_handledInjectedScript;
+          return injected.querySelectorAll(parsedSelector, document).length;
+        },
+        resolved.info.world,
+        resolved.info.parsed,
+      )) || 0
+    );
+  }
+
+  async queryAll(selector: string, scope?: ElementHandle): Promise<ElementHandle[]> {
+    const resolved = await this.resolveInjectedForSelector(selector, {}, scope);
+    if (!resolved) {
+      return [];
+    }
+
+    // Use the context's querySelectorAll method which already returns ElementHandle[]
+    return await resolved.context.querySelectorAll(selector, scope, resolved.info.world);
   }
 }

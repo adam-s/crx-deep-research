@@ -296,10 +296,8 @@ async function testTextInputs(page: Page, progress: Progress, context: TestConte
 
   // Test text input
   const textInput = page.locator('#text-input');
-  await textInput.evaluate((el: Element, value: string) => {
-    (el as HTMLInputElement).value = value;
-  }, 'Test text value');
-  const textValue = await textInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  await textInput.first().setValue('Test text value');
+  const textValue = await textInput.first().getValue();
 
   if (textValue !== 'Test text value') {
     throw new Error(`Text input failed: expected "Test text value", got "${textValue}"`);
@@ -307,10 +305,8 @@ async function testTextInputs(page: Page, progress: Progress, context: TestConte
 
   // Test email input
   const emailInput = page.locator('#email-input');
-  await emailInput.evaluate((el: Element, value: string) => {
-    (el as HTMLInputElement).value = value;
-  }, 'test@example.com');
-  const emailValue = await emailInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  await emailInput.first().setValue('test@example.com');
+  const emailValue = await emailInput.first().getValue();
 
   if (emailValue !== 'test@example.com') {
     throw new Error(`Email input failed: expected "test@example.com", got "${emailValue}"`);
@@ -318,10 +314,8 @@ async function testTextInputs(page: Page, progress: Progress, context: TestConte
 
   // Test number input
   const numberInput = page.locator('#number-input');
-  await numberInput.evaluate((el: Element, value: string) => {
-    (el as HTMLInputElement).value = value;
-  }, '42');
-  const numberValue = await numberInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  await numberInput.setValue('42');
+  const numberValue = await numberInput.getValue();
 
   if (numberValue !== '42') {
     throw new Error(`Number input failed: expected "42", got "${numberValue}"`);
@@ -348,14 +342,14 @@ async function testCheckboxesAndRadios(
   // Test checkbox checking/unchecking
   const checkbox1 = page.locator('#checkbox-1');
   await checkbox1.check();
-  const isChecked1 = await checkbox1.evaluate((el: Element) => (el as HTMLInputElement).checked);
+  const isChecked1 = await checkbox1.isChecked();
 
   if (!isChecked1) {
     throw new Error('Checkbox check failed');
   }
 
   await checkbox1.uncheck();
-  const isUnchecked1 = await checkbox1.evaluate((el: Element) => (el as HTMLInputElement).checked);
+  const isUnchecked1 = await checkbox1.isChecked();
 
   if (isUnchecked1) {
     throw new Error('Checkbox uncheck failed');
@@ -364,7 +358,7 @@ async function testCheckboxesAndRadios(
   // Test radio button selection
   const radio1 = page.locator('#radio-1');
   await radio1.check();
-  const radioChecked = await radio1.evaluate((el: Element) => (el as HTMLInputElement).checked);
+  const radioChecked = await radio1.isChecked();
 
   if (!radioChecked) {
     throw new Error('Radio button check failed');
@@ -389,12 +383,8 @@ async function testSelectElements(
 
   // Test single select
   const singleSelect = page.locator('#single-select');
-  await singleSelect.evaluate((el: Element, value: string) => {
-    (el as HTMLSelectElement).value = value;
-  }, 'option3');
-  const selectedValue = await singleSelect.evaluate(
-    (el: Element) => (el as HTMLSelectElement).value,
-  );
+  await singleSelect.setValue('option3');
+  const selectedValue = await singleSelect.getValue();
 
   if (selectedValue !== 'option3') {
     throw new Error(`Select option failed: expected "option3", got "${selectedValue}"`);
@@ -415,10 +405,8 @@ async function testTextarea(page: Page, progress: Progress, context: TestContext
   progress.log('Testing textarea');
 
   const textarea = page.locator('#textarea-input');
-  await textarea.evaluate((el: Element, value: string) => {
-    (el as HTMLTextAreaElement).value = value;
-  }, 'New textarea content\nWith multiple lines\nAnd more text');
-  const textareaValue = await textarea.evaluate((el: Element) => (el as HTMLTextAreaElement).value);
+  await textarea.setValue('New textarea content\nWith multiple lines\nAnd more text');
+  const textareaValue = await textarea.getValue();
 
   if (!textareaValue.includes('New textarea content')) {
     throw new Error(`Textarea fill failed: expected content not found in "${textareaValue}"`);
@@ -466,7 +454,7 @@ async function testSpecializedInputs(
   // Test range input
   const rangeInput = page.locator('#range-input');
   await rangeInput.fill('75');
-  const rangeValue = await rangeInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  const rangeValue = await rangeInput.getValue();
 
   if (rangeValue !== '75') {
     throw new Error(`Range input failed: expected "75", got "${rangeValue}"`);
@@ -475,7 +463,7 @@ async function testSpecializedInputs(
   // Test color input
   const colorInput = page.locator('#color-input');
   await colorInput.fill('#00ff00');
-  const colorValue = await colorInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  const colorValue = await colorInput.getValue();
 
   if (colorValue !== '#00ff00') {
     throw new Error(`Color input failed: expected "#00ff00", got "${colorValue}"`);
@@ -484,7 +472,7 @@ async function testSpecializedInputs(
   // Test date input
   const dateInput = page.locator('#date-input');
   await dateInput.fill('2024-12-25');
-  const dateValue = await dateInput.evaluate((el: Element) => (el as HTMLInputElement).value);
+  const dateValue = await dateInput.getValue();
 
   if (dateValue !== '2024-12-25') {
     throw new Error(`Date input failed: expected "2024-12-25", got "${dateValue}"`);

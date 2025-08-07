@@ -11,6 +11,7 @@ import {
   testEvaluateFunctionality,
   testFillFunctionality,
   testHighlightFunctionality,
+  testLocatorFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -95,8 +96,12 @@ export class LocatorTest extends PlaygroundTest {
       progress.log('Testing highlight() and hideHighlight() methods');
       await testHighlightFunctionality(page, progress, this.context);
 
-      // Test evaluate() and evaluateHandle() functionality
-      progress.log('Testing evaluate() and evaluateHandle() methods');
+      // Test locator functionality (chaining, getBy methods, etc.)
+      progress.log('Testing advanced locator methods (chaining, getBy, first, last, etc.)');
+      await testLocatorFunctionality(page, progress, this.context);
+
+      // Test type-safe element operations functionality
+      progress.log('Testing type-safe element operations methods');
       await testEvaluateFunctionality(page, progress, this.context);
 
       this.context.events.emit({

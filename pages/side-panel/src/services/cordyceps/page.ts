@@ -129,6 +129,63 @@ export class Page extends Disposable {
     return this.mainFrame().frameLocator(selector);
   }
 
+  // Additional locator methods that delegate to main frame
+  first(selector: string): Locator {
+    return this.mainFrame().locator(selector).first();
+  }
+
+  last(selector: string): Locator {
+    return this.mainFrame().locator(selector).last();
+  }
+
+  nth(selector: string, index: number): Locator {
+    return this.mainFrame().locator(selector).nth(index);
+  }
+
+  async elementHandle(selector: string, options?: { timeout?: number }): Promise<ElementHandle> {
+    return this.mainFrame().locator(selector).elementHandle(options);
+  }
+
+  async elementHandles(selector: string): Promise<ElementHandle[]> {
+    return this.mainFrame().locator(selector).elementHandles();
+  }
+
+  async highlight(selector: string, options?: { timeout?: number }): Promise<void> {
+    await this.mainFrame().locator(selector).highlight(options);
+  }
+
+  async hideHighlight(selector: string): Promise<void> {
+    await this.mainFrame().locator(selector).hideHighlight();
+  }
+
+  async boundingBox(selector: string, options?: { timeout?: number }): Promise<Rect | null> {
+    return this.mainFrame().locator(selector).boundingBox(options);
+  }
+
+  async count(selector: string): Promise<number> {
+    return this.mainFrame().locator(selector).count();
+  }
+
+  async all(selector: string): Promise<Locator[]> {
+    return this.mainFrame().locator(selector).all();
+  }
+
+  async allInnerTexts(selector: string): Promise<string[]> {
+    return this.mainFrame().locator(selector).allInnerTexts();
+  }
+
+  async allTextContents(selector: string): Promise<string[]> {
+    return this.mainFrame().locator(selector).allTextContents();
+  }
+
+  async queryCount(selector: string): Promise<number> {
+    return this.mainFrame().queryCount(selector);
+  }
+
+  async queryAll(selector: string, scope?: ElementHandle): Promise<ElementHandle[]> {
+    return this.mainFrame().queryAll(selector, scope);
+  }
+
   async contentFrameIdForFrame(handle: ElementHandle): Promise<number | null> {
     const result = await handle.context.evaluate(
       (h: string) => {
@@ -193,6 +250,8 @@ export class Page extends Disposable {
   ): Promise<void> {
     await this.frameManager.mainFrame().fill(selector, value, options);
   }
+
+  // Put locator methods here
 
   async clear(selector: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
     await this.frameManager.mainFrame().clear(selector, options);

@@ -10,6 +10,7 @@ import {
   OperationResult,
   STANDARD_TIMEOUT,
 } from './utils';
+import { ElementAction, executeElementOp } from './elementOperations';
 
 // #region Helper Functions
 
@@ -455,99 +456,6 @@ export class ElementHandle extends JSHandle {
     return this.fillWithProgress(progress, '', options);
   }
 
-  async evaluate<R, Arg>(
-    pageFunction: (element: Element, arg: Arg) => R,
-    arg?: Arg,
-    options?: { timeout?: number },
-  ): Promise<R> {
-    return await executeWithProgress(
-      async () => {
-        // For Chrome extensions, we need to handle common evaluation patterns
-        // Since we can't use eval() or new Function(), we need predefined functions
-
-        // Create a wrapper that gets the element and applies a predefined operation
-        const evaluateElement = (handle: string, operation: string) => {
-          const injected = window.__cordyceps_handledInjectedScript;
-          const element = injected.getElementByHandle(handle);
-          if (!element) {
-            throw new Error('Element not found for handle');
-          }
-
-          // Handle common evaluation patterns
-          switch (operation) {
-            case 'tagName':
-              return element.tagName;
-            case 'textContent':
-              return element.textContent;
-            case 'innerHTML':
-              return element.innerHTML;
-            case 'outerHTML':
-              return element.outerHTML;
-            case 'className':
-              return element.className;
-            case 'id':
-              return element.id;
-            case 'value':
-              return (element as HTMLInputElement).value;
-            case 'checked':
-              return (element as HTMLInputElement).checked;
-            case 'disabled':
-              return (element as HTMLInputElement).disabled;
-            case 'href':
-              return (element as HTMLAnchorElement).href;
-            case 'src':
-              return (element as HTMLImageElement).src;
-            default: {
-              // For unknown operations, try to detect common patterns
-              const funcStr = pageFunction.toString();
-              if (funcStr.includes('element.tagName')) {
-                return element.tagName;
-              }
-              if (funcStr.includes('element.textContent')) {
-                return element.textContent;
-              }
-              if (funcStr.includes('element.innerHTML')) {
-                return element.innerHTML;
-              }
-              // Default fallback - return the element itself for debugging
-              return {
-                tagName: element.tagName,
-                textContent: element.textContent,
-                className: element.className,
-                id: element.id,
-              };
-            }
-          }
-        };
-
-        // Try to detect the operation from the function
-        const funcStr = pageFunction.toString();
-        let operation = 'unknown';
-
-        if (funcStr.includes('element.tagName')) {
-          operation = 'tagName';
-        } else if (funcStr.includes('element.textContent')) {
-          operation = 'textContent';
-        } else if (funcStr.includes('element.innerHTML')) {
-          operation = 'innerHTML';
-        } else if (funcStr.includes('element.className')) {
-          operation = 'className';
-        } else if (funcStr.includes('element.id')) {
-          operation = 'id';
-        }
-
-        const result = await this._context.executeScript(
-          evaluateElement,
-          'ISOLATED',
-          this.remoteObject,
-          operation,
-        );
-        return result as R;
-      },
-      { timeout: options?.timeout || STANDARD_TIMEOUT },
-    );
-  }
-
   async evaluateAll<R, Arg>(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     pageFunction: (elements: Element[], arg: Arg) => R,
@@ -616,6 +524,394 @@ export class ElementHandle extends JSHandle {
         }
       },
       { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  // #region Simple Element Operations
+
+  /**
+   * Execute element operation with standard wrapper
+   * This reduces repetition across all element operation methods
+   */
+  private async _executeElementOp<T>(action: ElementAction): Promise<T> {
+    return await executeWithProgress(
+      async () => {
+        const result = await this._context.executeScript(
+          executeElementOp,
+          'ISOLATED',
+          this.remoteObject,
+          action,
+        );
+        return result as T;
+      },
+      { timeout: STANDARD_TIMEOUT },
+    );
+  }
+
+  /**
+   * Get text content - simple and clean
+   * Replaces: await handle.evaluate(el => el.textContent)
+   * With: await handle.getTextContent()
+   */
+  async getTextContent(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
+  }
+
+  /**
+   * Get inner text - simple and clean
+   * Replaces: await handle.evaluate(el => el.innerText)
+   * With: await handle.getInnerText()
+   */
+  async getInnerText(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'innerText' });
+  }
+
+  /**
+   * Get input value - simple and clean
+   * Replaces: await handle.evaluate(el => el.value)
+   * With: await handle.getValue()
+   */
+  async getValue(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'value' });
+  }
+
+  /**
+   * Check if input is checked - simple and clean
+   * Replaces: await handle.evaluate(el => el.checked)
+   * With: await handle.isChecked()
+   */
+  async isChecked(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'checked' });
+  }
+
+  /**
+   * Get tag name - simple and clean
+   * Replaces: await handle.evaluate(el => el.tagName)
+   * With: await handle.getTagName()
+   */
+  async getTagName(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'tagName' });
+  }
+
+  /**
+   * Get inner HTML - simple and clean
+   * Replaces: await handle.evaluate(el => el.innerHTML)
+   * With: await handle.getInnerHTML()
+   */
+  async getInnerHTML(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'innerHTML' });
+  }
+
+  /**
+   * Get outer HTML - simple and clean
+   * Replaces: await handle.evaluate(el => el.outerHTML)
+   * With: await handle.getOuterHTML()
+   */
+  async getOuterHTML(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'outerHTML' });
+  }
+
+  /**
+   * Get class name - simple and clean
+   * Replaces: await handle.evaluate(el => el.className)
+   * With: await handle.getClassName()
+   */
+  async getClassName(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'className' });
+  }
+
+  /**
+   * Get element ID - simple and clean
+   * Replaces: await handle.evaluate(el => el.id)
+   * With: await handle.getId()
+   */
+  async getId(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'id' });
+  }
+
+  /**
+   * Set input value - simple and clean
+   * Replaces: await handle.evaluate((el, value) => { el.value = value; }, newValue)
+   * With: await handle.setValue(newValue)
+   */
+  async setValue(value: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'set', prop: 'value', value });
+  }
+
+  /**
+   * Set text content - simple and clean
+   * Replaces: await handle.evaluate((el, text) => { el.textContent = text; }, newText)
+   * With: await handle.setTextContent(newText)
+   */
+  async setTextContent(text: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'set', prop: 'textContent', value: text });
+  }
+
+  /**
+   * Set checked state - simple and clean
+   * Replaces: await handle.evaluate((el, checked) => { el.checked = checked; }, newState)
+   * With: await handle.setChecked(newState)
+   */
+  async setChecked(checked: boolean): Promise<void> {
+    await this._executeElementOp<void>({ op: 'set', prop: 'checked', value: checked });
+  }
+
+  /**
+   * Get attribute value - simple and clean
+   * Replaces: await handle.evaluate(el => el.getAttribute('name'))
+   * With: await handle.getAttribute('name')
+   */
+  async getAttribute(name: string): Promise<string | null> {
+    return this._executeElementOp<string | null>({ op: 'attr', name });
+  }
+
+  /**
+   * Set attribute value - simple and clean
+   * Replaces: await handle.evaluate((el, name, value) => { el.setAttribute(name, value); }, 'id', '123')
+   * With: await handle.setAttribute('id', '123')
+   */
+  async setAttribute(name: string, value: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'attr', name, value });
+  }
+
+  /**
+   * Remove attribute - simple and clean
+   * Replaces: await handle.evaluate((el, name) => { el.removeAttribute(name); }, 'disabled')
+   * With: await handle.removeAttribute('disabled')
+   */
+  async removeAttribute(name: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'attr', name, value: null });
+  }
+
+  /**
+   * Check if element has attribute - simple and clean
+   * Replaces: await handle.evaluate(el => el.hasAttribute('disabled'))
+   * With: await handle.hasAttribute('disabled')
+   */
+  async hasAttribute(name: string): Promise<boolean> {
+    return await executeWithProgress(
+      async () => {
+        const result = await this.getAttribute(name);
+        return result !== null;
+      },
+      { timeout: STANDARD_TIMEOUT },
+    );
+  }
+
+  /**
+   * Check if element has CSS class - simple and clean
+   * Replaces: await handle.evaluate(el => el.classList.contains('active'))
+   * With: await handle.hasClass('active')
+   */
+  async hasClass(className: string): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'class', name: className, action: 'has' });
+  }
+
+  /**
+   * Add CSS class - simple and clean
+   * Replaces: await handle.evaluate((el, cls) => { el.classList.add(cls); }, 'active')
+   * With: await handle.addClass('active')
+   */
+  async addClass(className: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'class', name: className, action: 'add' });
+  }
+
+  /**
+   * Remove CSS class - simple and clean
+   * Replaces: await handle.evaluate((el, cls) => { el.classList.remove(cls); }, 'active')
+   * With: await handle.removeClass('active')
+   */
+  async removeClass(className: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'class', name: className, action: 'remove' });
+  }
+
+  /**
+   * Toggle CSS class - simple and clean
+   * Replaces: await handle.evaluate((el, cls) => { el.classList.toggle(cls); }, 'active')
+   * With: await handle.toggleClass('active')
+   */
+  async toggleClass(className: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'class', name: className, action: 'toggle' });
+  }
+
+  /**
+   * Get bounding rectangle - simple and clean
+   * Replaces: await handle.evaluate(el => el.getBoundingClientRect())
+   * With: await handle.getBoundingRect()
+   */
+  async getBoundingRect(): Promise<DOMRect> {
+    return this._executeElementOp<DOMRect>({ op: 'rect' });
+  }
+
+  /**
+   * Check if element is visible - simple and clean
+   * Replaces: await handle.evaluate(el => { const rect = el.getBoundingClientRect(); return rect.width > 0 && rect.height > 0; })
+   * With: await handle.isVisible()
+   */
+  async isVisible(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isVisible' });
+  }
+
+  /**
+   * Check if element is enabled - simple and clean
+   * Replaces: await handle.evaluate(el => !el.disabled)
+   * With: await handle.isEnabled()
+   */
+  async isEnabled(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isEnabled' });
+  }
+
+  /**
+   * Check if element is focused - simple and clean
+   * Replaces: await handle.evaluate(el => document.activeElement === el)
+   * With: await handle.isFocused()
+   */
+  async isFocused(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isFocused' });
+  }
+
+  /**
+   * Focus element - simple and clean
+   * Replaces: await handle.evaluate(el => el.focus())
+   * With: await handle.focus()
+   */
+  async focus(): Promise<void> {
+    await this._executeElementOp<void>({ op: 'action', name: 'focus' });
+  }
+
+  /**
+   * Blur element - simple and clean
+   * Replaces: await handle.evaluate(el => el.blur())
+   * With: await handle.blur()
+   */
+  async blur(): Promise<void> {
+    await this._executeElementOp<void>({ op: 'action', name: 'blur' });
+  }
+
+  /**
+   * Click element (DOM click) - simple and clean
+   * Replaces: await handle.evaluate(el => el.click())
+   * With: await handle.clickElement()
+   */
+  async clickElement(): Promise<void> {
+    await this._executeElementOp<void>({ op: 'action', name: 'click' });
+  }
+
+  // #endregion Simple Element Operations
+
+  /**
+   * @deprecated Use type-safe methods instead of evaluate()
+   * This method is kept for backward compatibility but should be replaced with
+   * specific type-safe methods like getProperty(), setProperty(), getAttribute(), etc.
+   */
+  async evaluate<R, Arg>(
+    pageFunction: (element: Element, arg: Arg) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<R> {
+    console.warn(
+      'ElementHandle.evaluate() is deprecated. Use type-safe methods like getProperty(), setProperty(), getAttribute(), etc. instead.',
+    );
+
+    return await executeWithProgress(
+      async () => {
+        // For Chrome extensions, we need to handle common evaluation patterns
+        // Since we can't use eval() or new Function(), we need predefined functions
+
+        // Create a wrapper that gets the element and applies a predefined operation
+        const evaluateElement = (handle: string, operation: string, ...args: unknown[]) => {
+          const injected = window.__cordyceps_handledInjectedScript;
+          const element = injected.getElementByHandle(handle);
+          if (!element) {
+            throw new Error('Element not found for handle');
+          }
+
+          // Handle common evaluation patterns
+          switch (operation) {
+            case 'tagName':
+              return element.tagName;
+            case 'textContent':
+              return element.textContent;
+            case 'innerHTML':
+              return element.innerHTML;
+            case 'outerHTML':
+              return element.outerHTML;
+            case 'className':
+              return element.className;
+            case 'id':
+              return element.id;
+            case 'value':
+              return (element as HTMLInputElement).value;
+            case 'checked':
+              return (element as HTMLInputElement).checked;
+            case 'disabled':
+              return (element as HTMLInputElement).disabled;
+            case 'href':
+              return (element as HTMLAnchorElement).href;
+            case 'src':
+              return (element as HTMLImageElement).src;
+            case 'innerText':
+              return (element as HTMLElement).innerText;
+            default: {
+              // For unknown operations, try to apply the function directly
+              // This is a fallback for when pattern detection fails
+              try {
+                // If we have an argument, call the function with element and arg
+                if (args.length > 0) {
+                  return (pageFunction as (element: Element, arg: unknown) => R)(element, args[0]);
+                } else {
+                  // Call the function with just the element
+                  return (pageFunction as (element: Element) => R)(element);
+                }
+              } catch (error) {
+                // If direct function call fails, return safe default
+                return element.textContent as R;
+              }
+            }
+          }
+        };
+
+        // Try to detect the operation from the function
+        const funcStr = pageFunction.toString();
+        let operation = 'unknown';
+
+        // More flexible pattern matching that handles different parameter names
+        if (funcStr.includes('.tagName')) {
+          operation = 'tagName';
+        } else if (funcStr.includes('.textContent')) {
+          operation = 'textContent';
+        } else if (funcStr.includes('.innerHTML')) {
+          operation = 'innerHTML';
+        } else if (funcStr.includes('.outerHTML')) {
+          operation = 'outerHTML';
+        } else if (funcStr.includes('.className')) {
+          operation = 'className';
+        } else if (funcStr.includes('.id')) {
+          operation = 'id';
+        } else if (funcStr.includes('.value')) {
+          operation = 'value';
+        } else if (funcStr.includes('.checked')) {
+          operation = 'checked';
+        } else if (funcStr.includes('.disabled')) {
+          operation = 'disabled';
+        } else if (funcStr.includes('.href')) {
+          operation = 'href';
+        } else if (funcStr.includes('.src')) {
+          operation = 'src';
+        } else if (funcStr.includes('.innerText')) {
+          operation = 'innerText';
+        }
+
+        const result = await this._context.executeScript(
+          evaluateElement,
+          'ISOLATED',
+          this.remoteObject,
+          operation,
+          arg,
+        );
+        return result as R;
+      },
+      { timeout: options?.timeout || STANDARD_TIMEOUT },
     );
   }
 }

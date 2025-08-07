@@ -23,9 +23,7 @@ export async function testFillFunctionality(
     await textInputLocator.fill(testValue1);
 
     // Verify the value was set correctly
-    const textValue = await page.evaluate(
-      () => (document.querySelector('#text-input') as HTMLInputElement)?.value,
-    );
+    const textValue = await textInputLocator.getValue();
 
     if (textValue === testValue1) {
       progress.log(`Text input fill test PASSED - Value: "${textValue}"`);
@@ -53,9 +51,7 @@ export async function testFillFunctionality(
     await emailInputLocator.fill(testEmail);
 
     // Verify the email value was set correctly
-    const emailValue = await page.evaluate(
-      () => (document.querySelector('#email-input') as HTMLInputElement)?.value,
-    );
+    const emailValue = await emailInputLocator.getValue();
 
     if (emailValue === testEmail) {
       progress.log(`Email input fill test PASSED - Value: "${emailValue}"`);
@@ -83,9 +79,7 @@ export async function testFillFunctionality(
     await textareaLocator.fill(testTextareaValue);
 
     // Verify the textarea value was set correctly
-    const textareaValue = await page.evaluate(
-      () => (document.querySelector('#textarea-input') as HTMLTextAreaElement)?.value,
-    );
+    const textareaValue = await textareaLocator.getValue();
 
     if (textareaValue === testTextareaValue) {
       progress.log(`Textarea fill test PASSED - Value: "${textareaValue}"`);
@@ -115,9 +109,7 @@ export async function testFillFunctionality(
     await passwordInputLocator.fill(testPassword);
 
     // Verify the password value was set correctly
-    const passwordValue = await page.evaluate(
-      () => (document.querySelector('#password-input') as HTMLInputElement)?.value,
-    );
+    const passwordValue = await passwordInputLocator.getValue();
 
     if (passwordValue === testPassword) {
       progress.log(`Password input fill test PASSED - Value set correctly`);
@@ -145,9 +137,7 @@ export async function testFillFunctionality(
     await textInputLocator.fill(overwriteValue);
 
     // Verify the value was overwritten correctly
-    const overwrittenValue = await page.evaluate(
-      () => (document.querySelector('#text-input') as HTMLInputElement)?.value,
-    );
+    const overwrittenValue = await textInputLocator.getValue();
 
     if (overwrittenValue === overwriteValue) {
       progress.log(`Text input overwrite test PASSED - Value: "${overwrittenValue}"`);

@@ -6,3 +6,4 @@ export { testDispatchEventFunctionality } from './dispatchEventFunctionality';
 export { testEvaluateFunctionality } from './evaluateFunctionality';
 export { testFillFunctionality } from './fillFunctionality';
 export { testHighlightFunctionality } from './highlightFunctionality';
+export { testLocatorFunctionality } from './locatorFunctionality';
