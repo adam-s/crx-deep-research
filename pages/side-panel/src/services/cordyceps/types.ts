@@ -55,3 +55,13 @@ export interface NavigationEvent {
   error?: Error;
   lifecycleEvents?: LifecycleEvent[];
 }
+
+export type TimeoutOptions = { timeout?: number };
+
+export type StrictOptions = {
+  strict?: boolean;
+};
+
+export type WaitForElementOptions = StrictOptions & {
+  state?: 'attached' | 'detached' | 'visible' | 'hidden';
+} & { omitReturnValue?: boolean };

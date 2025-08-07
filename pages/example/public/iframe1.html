@@ -32,6 +32,14 @@
     button:hover {
       background-color: #1976d2;
     }
+
+    .sibling-container {
+      margin-top: 1em;
+      padding: 1em;
+      border: 1px dashed #3f51b5;
+      border-radius: 0.25em;
+      background-color: #f1f3f5;
+    }
   </style>
 </head>
 
@@ -47,6 +55,14 @@
     <button onclick="iframe1Action()">Iframe 1 Button</button>
 
     <p id="iframe1-status">Status: Ready</p>
+
+    <div class="sibling-container">
+      <h4>Sibling Iframes</h4>
+      <iframe src="/sibling1.html" title="Sibling Iframe 1"
+        style="height: 80px; border-color: #7986cb;"></iframe>
+      <iframe src="/sibling2.html" title="Sibling Iframe 2"
+        style="height: 80px; border-color: #7986cb;"></iframe>
+    </div>
   </div>
 
   <script>

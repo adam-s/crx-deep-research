@@ -15,6 +15,8 @@ export interface UseCordycepsPlaygroundReturn {
   runDOMInteractionTest: () => Promise<void>;
   /** Run performance test */
   runPerformanceTest: () => Promise<void>;
+  /** Run locator test */
+  runLocatorTest: () => Promise<void>;
   /** All events emitted by the playground */
   events: EventMessage[];
   /** Latest event from the playground */
@@ -141,6 +143,22 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     }
   }, [cordycepsPlaygroundService]);
 
+  const runLocatorTest = useCallback(async (): Promise<void> => {
+    if (!cordycepsPlaygroundService) {
+      setError('Cordyceps playground service not available');
+      return;
+    }
+
+    try {
+      setError(null);
+      await cordycepsPlaygroundService.runLocatorTest();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to run locator test';
+      setError(errorMessage);
+      console.error('useCordycepsPlayground: Failed to run locator test:', err);
+    }
+  }, [cordycepsPlaygroundService]);
+
   const runPerformanceTest = useCallback(async (): Promise<void> => {
     if (!cordycepsPlaygroundService) {
       setError('Cordyceps playground service not available');
@@ -175,6 +193,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     runNavigationTest,
     runFrameExecutionTest,
     runDOMInteractionTest,
+    runLocatorTest,
     runPerformanceTest,
     events,
     latestEvent,

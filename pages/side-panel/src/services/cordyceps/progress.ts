@@ -1,127 +1,178 @@
-export interface Progress {
-  /** record a message (e.g. for logging or debugging) */
-  log(message: string): void;
+/**
+ * Copyright (c) Microsoft Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-  /** register a cleanup callback that only runs if the operation is aborted or times out */
-  cleanupOnAbort(cleanup: (error?: Error) => void): void;
+const kAbortErrorSymbol = Symbol('kAbortError');
 
-  /** race your promise against the internal abort signal */
-  race<T>(promise: Promise<T>): Promise<T>;
+/**
+ * Error thrown when a timeout is exceeded.
+ */
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
 }
 
-export class ProgressController implements Progress {
-  private readonly _abortPromise: Promise<never>;
-  private _rejectAbort!: (err: Error) => void;
-  private readonly _cleanupCallbacks: Array<(error?: Error) => void> = [];
-  private readonly _timeoutMs: number;
+interface AbortError extends Error {
+  [kAbortErrorSymbol]?: boolean;
+}
 
-  constructor(timeoutMs = 30_000) {
-    this._timeoutMs = timeoutMs;
+/**
+ * Check whether the given error was produced by an abort.
+ */
+export function isAbortError(error: Error): boolean {
+  return Boolean((error as AbortError)[kAbortErrorSymbol]);
+}
+
+/**
+ * Progress interface passed to tasks to enable logging, abort racing, and cleanup on abort.
+ */
+export interface Progress {
+  /** Record a message for logging or debugging. */
+  log(message: string): void;
+  /** Register a cleanup callback that only runs if the operation is aborted. */
+  cleanupWhenAborted(cleanup: (error?: Error) => void): void;
+  /** Race your promise against the internal abort signal. */
+  race<T>(promise: Promise<T>): Promise<T>;
+  /**
+   * Race your promise against the internal abort signal,
+   * and schedule a cleanup for the result if still running.
+   */
+  raceWithCleanup<T>(promise: Promise<T>, cleanup: (result: T) => void): Promise<T>;
+}
+
+/**
+ * Controller for running tasks with timeout and abort semantics.
+ * Implements the Progress interface.
+ */
+export class ProgressController implements Progress {
+  private _state: 'before' | 'running' | 'aborted' | 'finished' = 'before';
+  private _cleanupCallbacks: Array<(error?: Error) => void> = [];
+  private _abortReject!: (error: Error) => void;
+  private _abortPromise: Promise<never>;
+  private _timer?: NodeJS.Timeout;
+
+  /**
+   * @param timeout - maximum duration in milliseconds before automatic abort
+   * @param parent - optional parent Progress to delegate logs to
+   */
+  constructor(
+    private readonly _timeout: number,
+    private readonly _parent?: Progress,
+  ) {
+    // Create an abort promise and capture its reject function.
     this._abortPromise = new Promise<never>((_, reject) => {
-      this._rejectAbort = reject;
+      this._abortReject = (error: Error) => {
+        (error as AbortError)[kAbortErrorSymbol] = true;
+        reject(error);
+      };
     });
+    // Prevent unhandled rejection warnings.
+    this._abortPromise.catch(() => {});
   }
 
   public log(message: string): void {
-    console.debug(`[goto] ${message}`);
+    if (this._parent) {
+      this._parent.log(message);
+    } else {
+      console.debug(message);
+    }
   }
 
-  public cleanupOnAbort(cleanup: (error?: Error) => void): void {
-    this._cleanupCallbacks.push(cleanup);
+  public cleanupWhenAborted(cleanup: (error?: Error) => void): void {
+    if (this._state === 'running' || this._state === 'before') {
+      this._cleanupCallbacks.push(cleanup);
+    }
   }
 
   public race<T>(promise: Promise<T>): Promise<T> {
     return Promise.race([promise, this._abortPromise]);
   }
 
-  /**
-   * A static helper to quickly run a task with a new ProgressController.
-   * @param task The async task to run.
-   * @param timeoutMs The timeout for the task.
-   * @returns The result of the task.
-   */
-  public static run<T>(task: (progress: Progress) => Promise<T>, timeoutMs = 30_000): Promise<T> {
-    return new ProgressController(timeoutMs).run(task);
+  public raceWithCleanup<T>(promise: Promise<T>, cleanup: (result: T) => void): Promise<T> {
+    return this.race(
+      promise.then(result => {
+        if (this._state === 'running') {
+          this._cleanupCallbacks.push(() => cleanup(result));
+        } else if (this._state === 'finished') {
+          cleanup(result);
+        }
+        return result;
+      }),
+    );
   }
 
   /**
-   * Run your task, enforcing timeout and cleanup.
-   * @param task The async task to run.
-   * @returns The result of the task.
+   * Run the provided task, aborting if it does not complete within the timeout.
    */
   public async run<T>(task: (progress: Progress) => Promise<T>): Promise<T> {
-    let timer: number | undefined;
-    if (this._timeoutMs > 0) {
-      timer = window.setTimeout(
-        () => this._doAbort(new Error(`Timeout ${this._timeoutMs}ms exceeded`)),
-        this._timeoutMs,
-      );
+    if (this._state !== 'before') throw new Error('ProgressController can only be run once');
+    this._state = 'running';
+
+    let caughtError: Error | undefined;
+    if (this._timeout > 0) {
+      this._timer = setTimeout(() => {
+        if (this._state === 'running')
+          this.abort(new TimeoutError(`Timeout ${this._timeout}ms exceeded.`));
+      }, this._timeout);
     }
 
     try {
-      return await task(this);
+      const result = await task(this);
+      this._state = 'finished';
+      return result;
+    } catch (error) {
+      caughtError = error as Error;
+      if (this._state === 'running') this.abort(caughtError);
+      throw caughtError;
     } finally {
-      if (timer !== undefined) {
-        clearTimeout(timer);
+      if (this._timer) clearTimeout(this._timer);
+      // Run cleanup callbacks if we ended up in an aborted state
+      if (this._cleanupCallbacks.length > 0) {
+        for (const cb of this._cleanupCallbacks) {
+          try {
+            cb(caughtError);
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+        this._cleanupCallbacks.length = 0;
       }
     }
   }
 
   /**
-   * Aborts with a given error (or a timeout error).
-   * @param err The error to abort with.
+   * Abort the operation with the given error. Subsequent .race() calls will reject.
    */
-  private _doAbort(err: Error): void {
-    for (const fn of this._cleanupCallbacks) {
-      safe(call => call(err))(fn);
-    }
-    this._rejectAbort(err);
+  public abort(error: Error): void {
+    if (this._state !== 'running') return;
+    this._state = 'aborted';
+    this._abortReject(error);
   }
 }
 
 /**
- * Helper to guard cleanup calls from throwing exceptions.
- * @param fn The function to protect.
- * @returns A new function that swallows exceptions.
- */
-function safe(fn: (cleanup: (err?: Error) => void) => void) {
-  return (cleanup: (err?: Error) => void) => {
-    try {
-      fn(cleanup);
-    } catch {
-      /* swallow */
-    }
-  };
-}
-
-export type ProgressRun = typeof ProgressController.prototype.run;
-
-/**
- * Return a fresh ProgressController in one call.
- */
-export function getProgress(timeoutMs = 30_000): ProgressController {
-  return new ProgressController(timeoutMs);
-}
-
-/**
- * Execute a task with progress handling, using either a provided Progress instance
- * or creating a new ProgressController.
+ * Execute a function with progress handling, using either a provided Progress instance
+ * or creating a new ProgressController with the given timeout.
  */
 export function executeWithProgress<T>(
   fn: (p: Progress) => Promise<T>,
   options: { timeout?: number; progress?: Progress } = {},
 ): Promise<T> {
-  const { progress, timeout } = options;
-  if (progress) {
-    // caller‑provided Progress: use its race
-    return progress.race(fn(progress));
-  }
-  // otherwise spin up a fresh ProgressController
-  return ProgressController.run(fn, timeout);
-}
-
-const kAbortErrorSymbol = Symbol('kAbortError');
-
-export function isAbortError(error: Error): boolean {
-  return typeof error === 'object' && error !== null && kAbortErrorSymbol in (error as object);
+  const { timeout = 30000, progress } = options;
+  if (progress) return progress.race(fn(progress));
+  return new ProgressController(timeout).run(fn);
 }

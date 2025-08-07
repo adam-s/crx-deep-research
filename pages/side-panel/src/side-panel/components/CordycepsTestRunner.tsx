@@ -9,6 +9,7 @@ export const CordycepsTestRunner: React.FC = () => {
     runFrameExecutionTest,
     runDOMInteractionTest,
     runPerformanceTest,
+    runLocatorTest,
     isRunning,
     error,
     clearEvents,
@@ -51,6 +52,10 @@ export const CordycepsTestRunner: React.FC = () => {
 
           <Button appearance="secondary" disabled={isRunning} onClick={runPerformanceTest}>
             Performance Test
+          </Button>
+
+          <Button appearance="secondary" disabled={isRunning} onClick={runLocatorTest}>
+            Locator Test
           </Button>
         </div>
 

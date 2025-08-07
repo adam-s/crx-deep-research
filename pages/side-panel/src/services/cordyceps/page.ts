@@ -1,10 +1,13 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FrameManager } from './frameManager';
-import { Frame } from './frame';
+import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './frameExecutionContext';
 import type { NavigateOptionsWithProgress } from './types';
+import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
+import { LocatorOptions, Locator } from './locator';
+import { ElementHandle } from './elementHandle';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
@@ -90,6 +93,88 @@ export class Page extends Disposable {
     }, options);
   }
 
+  locator(selector: string, options?: LocatorOptions): Locator {
+    return this.mainFrame().locator(selector, options);
+  }
+
+  getByTestId(testId: string | RegExp): Locator {
+    return this.mainFrame().getByTestId(testId);
+  }
+
+  getByAltText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.mainFrame().getByAltText(text, options);
+  }
+
+  getByLabel(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.mainFrame().getByLabel(text, options);
+  }
+
+  getByPlaceholder(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.mainFrame().getByPlaceholder(text, options);
+  }
+
+  getByText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.mainFrame().getByText(text, options);
+  }
+
+  getByTitle(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.mainFrame().getByTitle(text, options);
+  }
+
+  getByRole(role: string, options: ByRoleOptions = {}): Locator {
+    return this.mainFrame().getByRole(role, options);
+  }
+
+  frameLocator(selector: string): FrameLocator {
+    return this.mainFrame().frameLocator(selector);
+  }
+
+  async contentFrameIdForFrame(handle: ElementHandle): Promise<number | null> {
+    const result = await handle.context.evaluate(
+      (h: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        const element = injected.getElementByHandle(h);
+        if (element && 'contentWindow' in element && (element as HTMLIFrameElement).contentWindow) {
+          // Return the src of the iframe. We'll use this to find the frame.
+          return (element as HTMLIFrameElement).src;
+        }
+        return null;
+      },
+      'ISOLATED',
+      handle.remoteObject,
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    // Now, find the frame with this src. This is not foolproof.
+    const frames = this.frameManager.frames();
+    const frame = frames.find(f => f.url() === result);
+    return frame ? frame.frameId : null;
+  }
+
+  async getContentFrame(handle: ElementHandle): Promise<Frame | null> {
+    const frameId = await this.contentFrameIdForFrame(handle);
+    if (frameId === null) {
+      return null;
+    }
+    return this.frameManager.frame(frameId);
+  }
+
+  async snapshotForAI(options?: { progress?: Progress }): Promise<string> {
+    return executeWithProgress(async p => {
+      this.lastSnapshotFrameIds = [];
+      const snapshot = await snapshotFrameForAI(p, this.mainFrame(), 0, this.lastSnapshotFrameIds);
+      return snapshot.join('\n');
+    }, options);
+  }
+
+  async click(selector: string, options?: NavigateOptionsWithProgress): Promise<void> {
+    await this.frameManager.mainFrame().click(selector, options);
+  }
+
+  // #region TESTING
   async testFrameExecutionContext(options?: { progress?: Progress }): Promise<void> {
     return executeWithProgress(async p => {
       p.log('Starting FrameExecutionContext tests...');
@@ -191,19 +276,6 @@ export class Page extends Disposable {
       p.log('All FrameExecutionContext tests passed!');
     }, options);
   }
-
-  async snapshotForAI(options?: { progress?: Progress }): Promise<string> {
-    return executeWithProgress(async p => {
-      this.lastSnapshotFrameIds = [];
-      const snapshot = await snapshotFrameForAI(p, this.mainFrame(), 0, this.lastSnapshotFrameIds);
-      return snapshot.join('\n');
-    }, options);
-  }
-
-  // #region Dom Interaction
-  async click(selector: string, options?: NavigateOptionsWithProgress): Promise<void> {
-    await this.frameManager.mainFrame().click(selector, options);
-  }
 }
 
 // We can return to this at a later time
@@ -220,9 +292,6 @@ async function snapshotFrameForAI(
     async continuePolling => {
       try {
         const context = frame.context;
-        if (!context) {
-          throw new Error(`Frame ${frame.frameId} has no execution context`);
-        }
         const refPrefix = frameOrdinal ? 'f' + frameOrdinal : '';
         const forAI = true;
         const snapshotOrRetry = await progress.race(

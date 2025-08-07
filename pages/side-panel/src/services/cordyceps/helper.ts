@@ -74,7 +74,7 @@ class Helper {
         disposable.dispose();
       }
     };
-    progress.cleanupOnAbort(dispose);
+    progress.cleanupWhenAborted(dispose);
     return { promise: progress.race(promise), dispose };
   }
 

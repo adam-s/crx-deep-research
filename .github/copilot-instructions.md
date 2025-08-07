@@ -4,6 +4,10 @@
 
 ### General Coding
 
+- **Scope of coding**: Only do a little bit at a time. Give the user a chance to review the code. 
+
+- **Chrome extension**: Write code for a Chrome extension that is compatible with the latest version of Chrome and adheres to the latest Chrome extension development standards. DO NOT USE new Function(''). DO NOT USE eval('').
+
 - **any type**: Do not under any circumstance allow any any type to enter the code. any is not a valid type in this code base. Remove any any type from the TypeScript code.
   
 - **Consistency**: Adhere to a specific coding standard or style guide (e.g., [Airbnb's JavaScript Style Guide](https://github.com/airbnb/javascript)) to ensure uniformity across all files.

@@ -4,10 +4,12 @@ import {
   splitSelectorByFrame,
   visitAllSelectorParts,
   parseSelector,
+  stringifySelector,
 } from '@injected/isomorphic/selectorParser';
-import { ElementHandle, JSHandle } from './elementHandle';
+import { ElementHandle } from './elementHandle';
 import { Frame } from './frame';
 import { asLocator } from '@injected/isomorphic/locatorGenerators';
+import { ExecutionContext } from './executionContext';
 
 export type SelectorInfo = {
   parsed: ParsedSelector;
@@ -26,10 +28,7 @@ type StrictOptions = {
 };
 
 export class FrameSelectors {
-  private _frame: Frame;
-  constructor(frame: Frame) {
-    this._frame = frame;
-  }
+  constructor(private _frame: Frame) {}
 
   async resolveInjectedForSelector(
     selector: string,
@@ -37,15 +36,23 @@ export class FrameSelectors {
     scope?: ElementHandle,
   ): Promise<
     | {
-        injected: JSHandle;
+        context: ExecutionContext;
         info: SelectorInfo;
         frame: Frame;
         scope?: ElementHandle;
       }
     | undefined
   > {
-    await this.resolveFrameForSelector(selector, options, scope);
-    return undefined;
+    const resolved = await this.resolveFrameForSelector(selector, options, scope);
+    if (!resolved) {
+      return undefined;
+    }
+    return {
+      context: resolved.frame.context,
+      info: resolved.info,
+      frame: resolved.frame,
+      scope: resolved.scope,
+    };
   }
 
   async resolveFrameForSelector(
@@ -55,7 +62,6 @@ export class FrameSelectors {
   ): Promise<SelectorInFrame | null> {
     let frame: Frame = this._frame;
     scope; // get rid of typescript error
-
     // This is for later when we support frame navigation
     const frameChunks = splitSelectorByFrame(selector);
 
@@ -73,14 +79,60 @@ export class FrameSelectors {
     // If there are multiple frame chunks, parse each for validation (currently unused)
     for (let i = 0; i < frameChunks.length - 1; ++i) {
       const info = this._parseSelector(frameChunks[i], options);
-
-      // This uses a mechanism to jump to the correct frame by adding
       // info to a frame aria-ref selector.
       // @see https://chatgpt.com/share/68894910-90f8-8004-9173-1fcbf62d9913
       frame = this._jumpToAriaRefFrameIfNeeded(selector, info, frame);
+      const context = frame.context;
+      const handle = await context.evaluateHandle(
+        (
+          parsedSelector: ParsedSelector,
+          strict: boolean,
+          scopeHandle: string | null,
+          selectorString: string,
+        ) => {
+          const injected = window.__cordyceps_handledInjectedScript;
+          const root = scopeHandle ? injected.getElementByHandle(scopeHandle) : injected.document;
+          if (!root) {
+            throw new Error('Root element not found for scope');
+          }
+
+          const elementHandle = injected.querySelector(parsedSelector, root, strict);
+          if (!elementHandle) {
+            return null;
+          }
+
+          const element = injected.getElementByHandle(elementHandle);
+          if (element && element.nodeName !== 'IFRAME' && element.nodeName !== 'FRAME') {
+            // This will throw inside the content script, and the error will be propagated.
+            // Note: createStacklessError and previewNode are on the raw injectedScript.
+            throw injected.createStacklessError(
+              `Selector "${selectorString}" resolved to ${injected.previewNode(
+                element,
+              )}, but an <iframe> was expected`,
+            );
+          }
+          return elementHandle;
+        },
+        info.world,
+        info.parsed,
+        info.strict,
+        i === 0 && scope?.remoteObject ? scope.remoteObject : null,
+        stringifySelector(frameChunks[i]),
+      );
+
+      if (!handle) {
+        throw new InvalidSelectorError(`Could not find frame for selector "${selector}"`);
+      }
+      const childFrame = await handle.contentFrame();
+      if (!childFrame) {
+        throw new InvalidSelectorError(`Selector "${selector}" did not resolve to an iframe`);
+      }
+      frame = childFrame;
     }
-    // No frame navigation implemented yet, so return null
-    return null;
+    if (frame !== this._frame) scope = undefined;
+    const lastChunk = frame.selectors._parseSelector(frameChunks[frameChunks.length - 1], options);
+    frame = this._jumpToAriaRefFrameIfNeeded(selector, lastChunk, frame);
+    return { frame, info: lastChunk, scope };
   }
 
   private _parseSelector(

@@ -3,11 +3,29 @@ import { Progress, executeWithProgress, isAbortError } from './progress';
 import { helper } from './helper';
 import type { FrameManager } from './frameManager';
 import type { FrameExecutionContext } from './frameExecutionContext';
-import type { NavigationEvent, LifecycleEvent, NavigateOptionsWithProgress } from './types';
+import type {
+  NavigationEvent,
+  LifecycleEvent,
+  NavigateOptionsWithProgress,
+  WaitForElementOptions,
+} from './types';
 import { Event } from 'vs/base/common/event';
 import * as dom from './utilsDOM';
 import { FrameSelectors } from './frameSelectors';
 import { isSessionClosedError } from './protocolError';
+import {
+  getByTestIdSelector,
+  getByAltTextSelector,
+  getByLabelSelector,
+  getByPlaceholderSelector,
+  getByTextSelector,
+  getByTitleSelector,
+  ByRoleOptions,
+  getByRoleSelector,
+} from '@injected/isomorphic/locatorUtils';
+import { LocatorOptions, Locator } from './locator';
+import { isString } from '@injected/isomorphic/stringUtils';
+import { ElementHandle } from './elementHandle';
 
 export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion'; // extensionTypes.DocumentLifecycle
 
@@ -275,15 +293,22 @@ export class Frame extends Disposable {
     this._context = context;
   }
 
-  get context(): FrameExecutionContext | undefined {
+  get context(): FrameExecutionContext {
+    if (!this._context) {
+      throw new Error(`Frame ${this.frameId} has no execution context`);
+    }
     return this._context;
   }
 
   /**
    * Access the shared Session via its manager.
    */
-  public get session() {
+  get session() {
     return this.frameManager.page.session;
+  }
+
+  get mainFrame() {
+    return this.frameManager.mainFrame();
   }
 
   parentFrame(): Frame | null {
@@ -372,7 +397,7 @@ export class Frame extends Disposable {
       };
 
       if (progress) {
-        progress.cleanupOnAbort(cleanup);
+        progress.cleanupWhenAborted(cleanup);
       }
 
       // Trigger the navigation
@@ -502,6 +527,146 @@ export class Frame extends Disposable {
     }, options);
   }
 
+  async waitForSelector(
+    progress: Progress,
+    selector: string,
+    performActionPreChecksAndLog: boolean,
+    options: WaitForElementOptions,
+    scope?: ElementHandle,
+  ): Promise<ElementHandle | null> {
+    const { state = 'visible' } = options;
+    if (!['attached', 'detached', 'visible', 'hidden'].includes(state))
+      throw new Error(`state: expected one of (attached|detached|visible|hidden)`);
+
+    if (performActionPreChecksAndLog) {
+      progress.log(
+        `waiting for selector "${selector}"${state === 'attached' ? '' : ' to be ' + state}`,
+      );
+    }
+
+    return this._retryWithProgressAndTimeouts(
+      progress,
+      [0, 20, 50, 100, 100, 500],
+      async continuePolling => {
+        const resolved = await progress.race(
+          this.selectors.resolveInjectedForSelector(selector, options, scope),
+        );
+        if (!resolved) {
+          if (state === 'hidden' || state === 'detached') return null;
+          return continuePolling;
+        }
+
+        // Use the frame's context directly since it's a FrameExecutionContext
+        const frameContext = resolved.frame.context;
+
+        // Execute the selector evaluation logic similar to Playwright
+        const result = await progress.race(
+          frameContext.executeScript(
+            (
+              parsedSelector: unknown,
+              strict: boolean,
+              scopeHandle: string | null,
+              selectorString: string,
+            ) => {
+              const injected = window.__cordyceps_handledInjectedScript;
+
+              // Get root element
+              const root = scopeHandle
+                ? injected.getElementByHandle(scopeHandle)
+                : injected.document || document;
+
+              if (!root) {
+                throw injected.createStacklessError('Root element not found');
+              }
+
+              // Check if root is connected (for scoped searches)
+              if (scopeHandle && root && !(root as Element).isConnected) {
+                throw injected.createStacklessError('Element is not attached to the DOM');
+              }
+
+              // Get all matching elements
+              const elementHandles = injected.querySelectorAll(parsedSelector, root);
+              const elements = elementHandles
+                .map(handle => injected.getElementByHandle(handle))
+                .filter(Boolean);
+
+              const element = elements[0];
+              // Basic visibility check - can be enhanced with injected.isElementVisible if available
+              const visible = element ? (element as HTMLElement).offsetParent !== null : false;
+
+              let log = '';
+              if (elements.length > 1) {
+                if (strict) {
+                  throw injected.createStacklessError(
+                    `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
+                  );
+                }
+                const firstElement = elements[0];
+                if (firstElement) {
+                  log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${injected.previewNode(firstElement)}`;
+                }
+              } else if (element) {
+                log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${injected.previewNode(element)}`;
+              }
+
+              return {
+                log,
+                elementHandle: elementHandles[0] || null,
+                visible,
+                attached: !!element,
+              };
+            },
+            resolved.info.world,
+            resolved.info.parsed,
+            resolved.info.strict,
+            resolved.frame === this && scope ? scope.remoteObject : null,
+            selector,
+          ),
+        );
+
+        if (!result) {
+          if (state === 'hidden' || state === 'detached') return null;
+          return continuePolling;
+        }
+
+        const resultData = result as {
+          log: string;
+          elementHandle: string | null;
+          visible: boolean;
+          attached: boolean;
+        };
+        const { log, elementHandle, visible, attached } = resultData;
+
+        if (log) {
+          progress.log(log);
+        }
+
+        // Check if the current state matches what we're waiting for
+        const success = { attached, detached: !attached, visible, hidden: !visible }[state];
+        if (!success) {
+          return continuePolling;
+        }
+
+        // If we don't need to return the element, return null
+        if (options.omitReturnValue) {
+          return null;
+        }
+
+        // For detached/hidden states, return null since element shouldn't be used
+        if (state === 'detached' || state === 'hidden') {
+          return null;
+        }
+
+        // Return ElementHandle for attached/visible states
+        if (elementHandle) {
+          return new ElementHandle(frameContext, elementHandle);
+        }
+
+        return null;
+      },
+    );
+  }
+
   private async _retryWithProgressIfNotConnected<R>(
     progress: Progress,
     selector: string,
@@ -521,7 +686,11 @@ export class Frame extends Disposable {
         this.selectors.resolveInjectedForSelector(selector, { strict }),
       );
 
-      resolved;
+      if (!resolved) {
+        // Element not found → retry
+        progress.log(`element not found for selector "${selector}", retrying`);
+        return continuePolling;
+      }
 
       // 2. Check if element exists using the execution context
       try {
@@ -550,7 +719,7 @@ export class Frame extends Disposable {
       };
 
       // Ensure cleanup if aborted mid‐flight
-      progress.cleanupOnAbort(() => {
+      progress.cleanupWhenAborted(() => {
         handle.dispose();
       });
 
@@ -625,4 +794,128 @@ export class Frame extends Disposable {
     }
     await this._context.clickSelector(selector, undefined, world);
   }
+
+  locator(selector: string, options?: LocatorOptions): Locator {
+    return new Locator(this, selector, options);
+  }
+
+  getByTestId(testId: string | RegExp): Locator {
+    return this.locator(getByTestIdSelector(testIdAttributeName(), testId));
+  }
+
+  getByAltText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByAltTextSelector(text, options));
+  }
+
+  getByLabel(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByLabelSelector(text, options));
+  }
+
+  getByPlaceholder(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByPlaceholderSelector(text, options));
+  }
+
+  getByText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTextSelector(text, options));
+  }
+
+  getByTitle(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTitleSelector(text, options));
+  }
+
+  getByRole(role: string, options: ByRoleOptions = {}): Locator {
+    return this.locator(getByRoleSelector(role, options));
+  }
+
+  frameLocator(selector: string): FrameLocator {
+    return new FrameLocator(this, selector);
+  }
+}
+
+// #region FrameLocator
+export class FrameLocator {
+  private _frame: Frame;
+  private _frameSelector: string;
+
+  constructor(frame: Frame, selector: string) {
+    this._frame = frame;
+    this._frameSelector = selector;
+  }
+
+  locator(selectorOrLocator: string | Locator, options?: LocatorOptions): Locator {
+    if (isString(selectorOrLocator))
+      return new Locator(
+        this._frame,
+        this._frameSelector + ' >> internal:control=enter-frame >> ' + selectorOrLocator,
+        options,
+      );
+    if (selectorOrLocator._frame !== this._frame)
+      throw new Error(`Locators must belong to the same frame.`);
+    return new Locator(
+      this._frame,
+      this._frameSelector + ' >> internal:control=enter-frame >> ' + selectorOrLocator._selector,
+      options,
+    );
+  }
+
+  getByTestId(testId: string | RegExp): Locator {
+    return this.locator(getByTestIdSelector(testIdAttributeName(), testId));
+  }
+
+  getByAltText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByAltTextSelector(text, options));
+  }
+
+  getByLabel(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByLabelSelector(text, options));
+  }
+
+  getByPlaceholder(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByPlaceholderSelector(text, options));
+  }
+
+  getByText(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTextSelector(text, options));
+  }
+
+  getByTitle(text: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.locator(getByTitleSelector(text, options));
+  }
+
+  getByRole(role: string, options: ByRoleOptions = {}): Locator {
+    return this.locator(getByRoleSelector(role, options));
+  }
+
+  owner() {
+    return new Locator(this._frame, this._frameSelector);
+  }
+
+  frameLocator(selector: string): FrameLocator {
+    return new FrameLocator(
+      this._frame,
+      this._frameSelector + ' >> internal:control=enter-frame >> ' + selector,
+    );
+  }
+
+  first(): FrameLocator {
+    return new FrameLocator(this._frame, this._frameSelector + ' >> nth=0');
+  }
+
+  last(): FrameLocator {
+    return new FrameLocator(this._frame, this._frameSelector + ` >> nth=-1`);
+  }
+
+  nth(index: number): FrameLocator {
+    return new FrameLocator(this._frame, this._frameSelector + ` >> nth=${index}`);
+  }
+}
+
+let _testIdAttributeName: string = 'data-testid';
+
+export function testIdAttributeName(): string {
+  return _testIdAttributeName;
+}
+
+export function setTestIdAttribute(attributeName: string) {
+  _testIdAttributeName = attributeName;
 }

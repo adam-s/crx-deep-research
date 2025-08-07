@@ -21,6 +21,8 @@ interface CordycepsInjectedScript {
   ariaSnapshot(node: Node, options: { forAI: boolean; refPrefix: string }): string | undefined;
   getElementByHandle(handle: string): Element | undefined;
   document?: Document;
+  createStacklessError(message: string): Error;
+  previewNode(node: Node): string;
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -61,6 +63,43 @@ export class FrameExecutionContext extends Disposable {
       return mainResult?.result;
     } catch (e) {
       const method = func.name || 'executeScript';
+      throw ProtocolError.from(e, method);
+    }
+  }
+
+  /**
+   * Like executeScript, but returns an ElementHandle for a handle string returned by the injected script.
+   */
+  public async evaluateHandle<Args extends unknown[], T = string>(
+    func: (...args: Args) => T,
+    world: chrome.scripting.ExecutionWorld,
+    ...args: Args
+  ): Promise<ElementHandle | null> {
+    try {
+      const results = (await chrome.scripting.executeScript({
+        target: { tabId: this.frame.tabId, frameIds: [this.frame.frameId] },
+        world,
+        func,
+        args,
+      })) as ScriptInjectionResult<T>[];
+
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+
+      const main = results[0];
+      if (main?.error) {
+        throw new Error(main.error.message);
+      }
+
+      const handleId = main.result as unknown as string | null;
+      if (!handleId) {
+        return null;
+      }
+
+      return new ElementHandle(this, handleId);
+    } catch (e) {
+      const method = func.name || 'evaluateHandle';
       throw ProtocolError.from(e, method);
     }
   }
@@ -203,6 +242,14 @@ export class FrameExecutionContext extends Disposable {
       rootHandle,
     );
     return result ?? true;
+  }
+
+  public async evaluate<T, Args extends unknown[]>(
+    func: (...args: Args) => T,
+    world: chrome.scripting.ExecutionWorld,
+    ...args: Args
+  ): Promise<Awaited<T> | undefined> {
+    return this.executeScript(func, world, ...args);
   }
 
   public toString(): string {
