@@ -2,7 +2,43 @@ import { escapeForTextSelector } from '@injected/isomorphic/stringUtils';
 import { Frame } from './frame';
 import { Rect, TimeoutOptions, ClickOptions } from './types';
 import { ElementHandle } from './elementHandle';
-import { executeWithProgress } from './progress';
+import { executeWithProgress, Progress } from './progress';
+import { OperationResult, STANDARD_TIMEOUT } from './utils';
+
+// #region Helper Functions
+
+/**
+ * Execute progress-based operation with element handle
+ */
+async function executeProgressElementOperation(
+  selector: string,
+  frame: Frame,
+  operation: (handle: ElementHandle, progress: Progress) => Promise<OperationResult>,
+  operationName: string,
+  timeout?: number,
+): Promise<void> {
+  return executeWithProgress(
+    async progress => {
+      const handle = await frame.waitForSelector(progress, selector, false, {
+        strict: true,
+      });
+
+      if (!handle) {
+        throw new Error(`Element not found for selector: ${selector}`);
+      }
+
+      try {
+        const result = await operation(handle, progress);
+        if (result !== 'done') {
+          throw new Error(`${operationName} failed: ${result}`);
+        }
+      } finally {
+        handle.dispose();
+      }
+    },
+    { timeout: timeout || STANDARD_TIMEOUT },
+  );
+}
 
 export type LocatorOptions = {
   hasText?: string | RegExp;
@@ -99,42 +135,22 @@ export class Locator {
   }
 
   async click(options?: ClickOptions): Promise<void> {
-    return await this._withElement(
-      async (h, timeout) => {
-        return executeWithProgress(
-          async progress => {
-            const result = await h._click(progress, options);
-            if (result !== 'done') {
-              throw new Error(`Click failed: ${result}`);
-            }
-          },
-          { timeout: timeout || options?.timeout || 30000 },
-        );
-      },
-      {
-        title: 'Click',
-        timeout: options?.timeout || 30000,
-      },
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (h, progress) => h._click(progress, options),
+      'Click',
+      options?.timeout,
     );
   }
 
   async dblclick(options?: ClickOptions): Promise<void> {
-    return await this._withElement(
-      async (h, timeout) => {
-        return executeWithProgress(
-          async progress => {
-            const result = await h._dblclick(progress, options);
-            if (result !== 'done') {
-              throw new Error(`Double click failed: ${result}`);
-            }
-          },
-          { timeout: timeout || options?.timeout || 30000 },
-        );
-      },
-      {
-        title: 'Double Click',
-        timeout: options?.timeout || 30000,
-      },
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (h, progress) => h._dblclick(progress, options),
+      'Double Click',
+      options?.timeout,
     );
   }
 
@@ -143,22 +159,12 @@ export class Locator {
     eventInit: Record<string, unknown> = {},
     options?: { timeout?: number },
   ): Promise<void> {
-    return await this._withElement(
-      async (h, timeout) => {
-        return executeWithProgress(
-          async progress => {
-            const result = await h._dispatchEvent(progress, type, eventInit);
-            if (result !== 'done') {
-              throw new Error(`Dispatch event failed: ${result}`);
-            }
-          },
-          { timeout: timeout || options?.timeout || 30000 },
-        );
-      },
-      {
-        title: 'Dispatch Event',
-        timeout: options?.timeout || 30000,
-      },
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (h, progress) => h._dispatchEvent(progress, type, eventInit),
+      'Dispatch Event',
+      options?.timeout,
     );
   }
 

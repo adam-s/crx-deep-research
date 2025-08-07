@@ -15,6 +15,19 @@
 
 - **Chrome extension**: Write code for a Chrome extension that is compatible with the latest version of Chrome and adheres to the latest Chrome extension development standards. DO NOT USE new Function(''). DO NOT USE eval('').
 
+- **Forbidden Code Patterns**: The following code patterns are strictly forbidden anywhere in the entire project due to Chrome extension Content Security Policy (CSP) restrictions:
+  - `new Function('')` - Dynamic function creation is blocked
+  - `eval('')` - Dynamic code evaluation is blocked  
+  - `Function()` constructor - Alternative dynamic function creation is blocked
+  - `setTimeout('code', delay)` - String-based setTimeout is blocked (use function callbacks instead)
+  - `setInterval('code', delay)` - String-based setInterval is blocked (use function callbacks instead)
+  - Any form of dynamic code execution from strings
+  
+  These restrictions apply to all files including content scripts, background scripts, and injected scripts. Use alternative patterns like:
+  - Pre-defined functions instead of dynamic function creation
+  - Function references instead of string-based code execution
+  - Structured data passing instead of code serialization
+
 - **any type**: Do not under any circumstance allow any any type to enter the code. any is not a valid type in this code base. Remove any any type from the TypeScript code.
   
 - **Consistency**: Adhere to a specific coding standard or style guide (e.g., [Airbnb's JavaScript Style Guide](https://github.com/airbnb/javascript)) to ensure uniformity across all files.

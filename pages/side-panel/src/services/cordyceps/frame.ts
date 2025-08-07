@@ -26,6 +26,7 @@ import {
 import { LocatorOptions, Locator } from './locator';
 import { isString } from '@injected/isomorphic/stringUtils';
 import { ElementHandle } from './elementHandle';
+// #region Helper Functions
 
 export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion'; // extensionTypes.DocumentLifecycle
 

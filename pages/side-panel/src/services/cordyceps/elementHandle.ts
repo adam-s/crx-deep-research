@@ -3,14 +3,38 @@ import type { FrameExecutionContext } from './frameExecutionContext';
 import { Rect, WaitForElementOptions, ClickOptions } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
+import {
+  throwRetargetableDOMError,
+  throwElementIsNotAttached,
+  handleOperationResult,
+  OperationResult,
+  STANDARD_TIMEOUT,
+} from './utils';
 
-export function throwRetargetableDOMError<T>(result: T | 'error:notconnected'): T {
-  if (result === 'error:notconnected') throwElementIsNotAttached();
-  return result;
+// #region Helper Functions
+
+/**
+ * Helper function to validate element handle operation results
+ */
+function validateElementOperationResult(result: OperationResult, operation: string): void {
+  handleOperationResult(result, operation);
 }
 
-export function throwElementIsNotAttached(): never {
-  throw new Error('Element is not attached to the DOM');
+/**
+ * Execute element operation with standard error handling
+ */
+async function executeElementOperation(
+  operation: (progress: Progress) => Promise<OperationResult>,
+  operationName: string,
+  timeout: number = STANDARD_TIMEOUT,
+): Promise<void> {
+  return executeWithProgress(
+    async progress => {
+      const result = await operation(progress);
+      validateElementOperationResult(result, operationName);
+    },
+    { timeout },
+  );
 }
 
 // This needs to know it's world, tab id, frame id, and element id that
@@ -61,39 +85,21 @@ export class ElementHandle extends JSHandle {
   }
 
   async check(): Promise<void> {
-    return executeWithProgress(
-      async progress => {
-        const result = await this._setChecked(progress, true);
-        if (result !== 'done') {
-          throw new Error(`Check failed: ${result}`);
-        }
-      },
-      { timeout: 30000 },
+    return executeElementOperation(
+      async progress => await this._setChecked(progress, true),
+      'Check',
     );
   }
 
   async uncheck(): Promise<void> {
-    return executeWithProgress(
-      async progress => {
-        const result = await this._setChecked(progress, false);
-        if (result !== 'done') {
-          throw new Error(`Uncheck failed: ${result}`);
-        }
-      },
-      { timeout: 30000 },
+    return executeElementOperation(
+      async progress => await this._setChecked(progress, false),
+      'Uncheck',
     );
   }
 
   async click(): Promise<void> {
-    return executeWithProgress(
-      async progress => {
-        const result = await this._click(progress);
-        if (result !== 'done') {
-          throw new Error(`Click failed: ${result}`);
-        }
-      },
-      { timeout: 30000 },
-    );
+    return executeElementOperation(async progress => await this._click(progress), 'Click');
   }
 
   /**
@@ -168,14 +174,10 @@ export class ElementHandle extends JSHandle {
   }
 
   async dblclick(options?: ClickOptions): Promise<void> {
-    return executeWithProgress(
-      async progress => {
-        const result = await this._dblclick(progress, options);
-        if (result !== 'done') {
-          throw new Error(`Double click failed: ${result}`);
-        }
-      },
-      { timeout: options?.timeout || 30000 },
+    return executeElementOperation(
+      async progress => await this._dblclick(progress, options),
+      'Double click',
+      options?.timeout,
     );
   }
 
@@ -330,14 +332,9 @@ export class ElementHandle extends JSHandle {
   }
 
   async dispatchEvent(type: string, eventInit: Record<string, unknown> = {}): Promise<void> {
-    return await executeWithProgress(
-      async progress => {
-        const result = await this._dispatchEvent(progress, type, eventInit);
-        if (result !== 'done') {
-          throw new Error(`Dispatch event failed: ${result}`);
-        }
-      },
-      { timeout: 30000 },
+    return executeElementOperation(
+      async progress => await this._dispatchEvent(progress, type, eventInit),
+      'Dispatch event',
     );
   }
 
@@ -365,45 +362,89 @@ export class ElementHandle extends JSHandle {
   ): Promise<R> {
     return await executeWithProgress(
       async () => {
-        // Since Chrome extensions can't serialize function references,
-        // we need to approach this differently. Let's check if the simpler
-        // direct function call works by using the existing pattern from Frame
+        // For Chrome extensions, we need to handle common evaluation patterns
+        // Since we can't use eval() or new Function(), we need predefined functions
 
-        if (arg !== undefined) {
-          // For now, let's try a direct approach and see what happens
-          const result = await this._context.executeScript(
-            (handle: string) => {
-              const injected = window.__cordyceps_handledInjectedScript;
-              const element = injected.getElementByHandle(handle);
-              if (!element) {
-                throw new Error('Element not found for handle');
+        // Create a wrapper that gets the element and applies a predefined operation
+        const evaluateElement = (handle: string, operation: string) => {
+          const injected = window.__cordyceps_handledInjectedScript;
+          const element = injected.getElementByHandle(handle);
+          if (!element) {
+            throw new Error('Element not found for handle');
+          }
+
+          // Handle common evaluation patterns
+          switch (operation) {
+            case 'tagName':
+              return element.tagName;
+            case 'textContent':
+              return element.textContent;
+            case 'innerHTML':
+              return element.innerHTML;
+            case 'outerHTML':
+              return element.outerHTML;
+            case 'className':
+              return element.className;
+            case 'id':
+              return element.id;
+            case 'value':
+              return (element as HTMLInputElement).value;
+            case 'checked':
+              return (element as HTMLInputElement).checked;
+            case 'disabled':
+              return (element as HTMLInputElement).disabled;
+            case 'href':
+              return (element as HTMLAnchorElement).href;
+            case 'src':
+              return (element as HTMLImageElement).src;
+            default: {
+              // For unknown operations, try to detect common patterns
+              const funcStr = pageFunction.toString();
+              if (funcStr.includes('element.tagName')) {
+                return element.tagName;
               }
-              // Let's see if we can access element properties directly
-              return (element as Element).tagName;
-            },
-            'ISOLATED',
-            this.remoteObject,
-          );
-          return result as R;
-        } else {
-          // Test with a simple hardcoded function first
-          const result = await this._context.executeScript(
-            (handle: string) => {
-              const injected = window.__cordyceps_handledInjectedScript;
-              const element = injected.getElementByHandle(handle);
-              if (!element) {
-                throw new Error('Element not found for handle');
+              if (funcStr.includes('element.textContent')) {
+                return element.textContent;
               }
-              // Return tagName directly to test if this works
-              return (element as Element).tagName;
-            },
-            'ISOLATED',
-            this.remoteObject,
-          );
-          return result as R;
+              if (funcStr.includes('element.innerHTML')) {
+                return element.innerHTML;
+              }
+              // Default fallback - return the element itself for debugging
+              return {
+                tagName: element.tagName,
+                textContent: element.textContent,
+                className: element.className,
+                id: element.id,
+              };
+            }
+          }
+        };
+
+        // Try to detect the operation from the function
+        const funcStr = pageFunction.toString();
+        let operation = 'unknown';
+
+        if (funcStr.includes('element.tagName')) {
+          operation = 'tagName';
+        } else if (funcStr.includes('element.textContent')) {
+          operation = 'textContent';
+        } else if (funcStr.includes('element.innerHTML')) {
+          operation = 'innerHTML';
+        } else if (funcStr.includes('element.className')) {
+          operation = 'className';
+        } else if (funcStr.includes('element.id')) {
+          operation = 'id';
         }
+
+        const result = await this._context.executeScript(
+          evaluateElement,
+          'ISOLATED',
+          this.remoteObject,
+          operation,
+        );
+        return result as R;
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || STANDARD_TIMEOUT },
     );
   }
 
