@@ -61,6 +61,7 @@ export type LocatorOptions = {
 export class Locator {
   _frame: Frame;
   _selector: string;
+  private _description?: string;
 
   constructor(frame: Frame, selector: string, options?: LocatorOptions) {
     this._frame = frame;
@@ -99,7 +100,7 @@ export class Locator {
   }
 
   private async _withElement<R>(
-    task: (handle: ElementHandle, timeout?: number) => Promise<R>,
+    task: (handle: ElementHandle) => Promise<R>,
     options: { title: string; internal?: boolean; timeout?: number },
   ): Promise<R> {
     return executeWithProgress(
@@ -113,8 +114,7 @@ export class Locator {
         }
 
         try {
-          // Use the ElementHandle directly - no need to recreate it
-          return await task(handle, options.timeout);
+          return await task(handle);
         } finally {
           handle.dispose();
         }
@@ -392,10 +392,10 @@ export class Locator {
   }
 
   describe(description: string): Locator {
-    return new Locator(
-      this._frame,
-      this._selector + ' >> internal:describe=' + JSON.stringify(description),
-    );
+    // Metadata-only: do not alter selector string to avoid changing world resolution.
+    const locator = new Locator(this._frame, this._selector);
+    locator._description = description;
+    return locator;
   }
 
   first(): Locator {
@@ -408,6 +408,10 @@ export class Locator {
 
   nth(index: number): Locator {
     return new Locator(this._frame, this._selector + ` >> nth=${index}`);
+  }
+
+  get description(): string | undefined {
+    return this._description;
   }
 
   and(locator: Locator): Locator {

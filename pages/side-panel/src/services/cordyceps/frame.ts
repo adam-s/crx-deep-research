@@ -580,8 +580,14 @@ export class Frame extends Disposable {
           elementHandle: string | null;
           visible: boolean;
           attached: boolean;
+          error?: string;
         };
-        const { log, elementHandle, visible, attached } = resultData;
+        const { log, elementHandle, visible, attached, error } = resultData;
+
+        // Check for errors first
+        if (error) {
+          throw new Error(`Selector evaluation failed: ${error}`);
+        }
 
         if (log) {
           progress.log(log);

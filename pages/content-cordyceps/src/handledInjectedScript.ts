@@ -205,6 +205,35 @@ export class HandledInjectedScript {
    * @returns UUID handle of the found element, or null if not found
    */
   querySelector(parsedSelector: unknown, root: Node, strict: boolean): string | null {
+    // Check for multiple elements first to debug the issue
+    const allElements = this._injectedScript.querySelectorAll(
+      parsedSelector as ParsedSelector,
+      root,
+    );
+
+    if (allElements.length > 1) {
+      console.log('🔍 Multiple elements found for selector:', parsedSelector);
+      console.log('📊 Found', allElements.length, 'elements:');
+      allElements.forEach((el, index) => {
+        console.log(
+          `  ${index + 1}.`,
+          el.tagName.toLowerCase(),
+          el.className || '[no class]',
+          el.id || '[no id]',
+        );
+      });
+
+      if (strict) {
+        console.log('⚠️ Strict mode enabled - this should throw an error');
+      } else {
+        console.log('✅ Non-strict mode - will return first element');
+      }
+
+      // Debugger to inspect the multiple elements scenario
+      // eslint-disable-next-line no-debugger
+      debugger;
+    }
+
     const element = this._injectedScript.querySelector(
       parsedSelector as ParsedSelector,
       root,
@@ -287,46 +316,84 @@ export class HandledInjectedScript {
     elementHandle: string | null;
     visible: boolean;
     attached: boolean;
+    error?: string;
   } {
-    // Get root element
-    const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document || document;
-    if (!root) {
-      throw this._injectedScript.createStacklessError('Root element not found');
-    }
-
-    // Check if root is connected (for scoped searches)
-    if (scopeHandle && root && !(root as Element).isConnected) {
-      throw this._injectedScript.createStacklessError('Element is not attached to the DOM');
-    }
-
-    // Get all matching elements
-    const elementHandles = this.querySelectorAll(parsedSelector, root);
-    const elements = elementHandles.map(handle => this.getElementByHandle(handle)).filter(Boolean);
-
-    const element = elements[0];
-    const visible = element ? this._injectedScript.utils.isElementVisible(element) : false;
-
-    let log = '';
-    if (elements.length > 1) {
-      if (strict) {
-        throw this._injectedScript.createStacklessError(
-          `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
-        );
+    try {
+      // Get root element
+      const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document || document;
+      if (!root) {
+        return {
+          log: '',
+          elementHandle: null,
+          visible: false,
+          attached: false,
+          error: 'Root element not found',
+        };
       }
-      const firstElement = elements[0];
-      if (firstElement) {
-        log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${this._injectedScript.previewNode(firstElement)}`;
-      }
-    } else if (element) {
-      log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${this._injectedScript.previewNode(element)}`;
-    }
 
-    return {
-      log,
-      elementHandle: elementHandles[0] || null,
-      visible,
-      attached: !!element,
-    };
+      // Check if root is connected (for scoped searches)
+      if (scopeHandle && root && !(root as Element).isConnected) {
+        return {
+          log: '',
+          elementHandle: null,
+          visible: false,
+          attached: false,
+          error: 'Element is not attached to the DOM',
+        };
+      }
+
+      // Get all matching elements
+      const elementHandles = this.querySelectorAll(parsedSelector, root);
+      const elements = elementHandles
+        .map(handle => this.getElementByHandle(handle))
+        .filter(Boolean);
+
+      const element = elements[0];
+      const visible = element ? this._injectedScript.utils.isElementVisible(element) : false;
+
+      let log = '';
+      if (elements.length > 1) {
+        console.log('🎯 waitForSelectorEvaluation: Multiple elements found!');
+        console.log('📋 Selector:', selectorString);
+        console.log('📊 Found', elements.length, 'elements');
+        console.log('🔧 Strict mode:', strict);
+
+        // eslint-disable-next-line no-debugger
+        debugger;
+
+        if (strict) {
+          return {
+            log: '',
+            elementHandle: null,
+            visible: false,
+            attached: false,
+            error: `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
+          };
+        }
+        const firstElement = elements[0];
+        if (firstElement) {
+          log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${this._injectedScript.previewNode(firstElement)}`;
+        }
+      } else if (element) {
+        log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${this._injectedScript.previewNode(element)}`;
+      }
+
+      return {
+        log,
+        elementHandle: elementHandles[0] || null,
+        visible,
+        attached: !!element,
+      };
+    } catch (error) {
+      // Catch any unexpected errors and return them as error results
+      return {
+        log: '',
+        elementHandle: null,
+        visible: false,
+        attached: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
   }
 
   /**

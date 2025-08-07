@@ -31,6 +31,7 @@ interface CordycepsInjectedScript {
     elementHandle: string | null;
     visible: boolean;
     attached: boolean;
+    error?: string;
   };
   frameSelectorEvaluation(
     parsedSelector: unknown,
@@ -311,6 +312,7 @@ export class FrameExecutionContext extends Disposable {
         elementHandle: string | null;
         visible: boolean;
         attached: boolean;
+        error?: string;
       }
     | undefined
   > {
