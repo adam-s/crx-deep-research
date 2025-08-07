@@ -167,6 +167,47 @@ export class ElementHandle extends JSHandle {
     return 'done';
   }
 
+  async dblclick(options?: ClickOptions): Promise<void> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._dblclick(progress, options);
+        if (result !== 'done') {
+          throw new Error(`Double click failed: ${result}`);
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  /**
+   * Double click an element following Playwright patterns.
+   * This method implements enhanced double clicking with proper error handling.
+   */
+  async dblclickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
+    const result = await this._dblclick(progress, options);
+    if (result !== 'done') {
+      throw new Error(`Double click failed: ${result}`);
+    }
+  }
+
+  /**
+   * Internal method to perform double click following Playwright patterns.
+   * Double click is essentially a click with clickCount: 2.
+   */
+  async _dblclick(
+    progress: Progress,
+    options?: ClickOptions,
+  ): Promise<'error:notconnected' | 'done'> {
+    // Merge options with clickCount: 2 for double click
+    const dblclickOptions: ClickOptions = {
+      ...options,
+      clickCount: 2,
+    };
+
+    // Use the existing _click method with modified options
+    return await this._click(progress, dblclickOptions);
+  }
+
   /**
    * Check a checkbox or radio button following Playwright patterns.
    * This method implements the _setChecked logic similar to Playwright's ElementHandle.

@@ -117,4 +117,24 @@ export class Locator {
       },
     );
   }
+
+  async dblclick(options?: ClickOptions): Promise<void> {
+    return await this._withElement(
+      async (h, timeout) => {
+        return executeWithProgress(
+          async progress => {
+            const result = await h._dblclick(progress, options);
+            if (result !== 'done') {
+              throw new Error(`Double click failed: ${result}`);
+            }
+          },
+          { timeout: timeout || options?.timeout || 30000 },
+        );
+      },
+      {
+        title: 'Double Click',
+        timeout: options?.timeout || 30000,
+      },
+    );
+  }
 }

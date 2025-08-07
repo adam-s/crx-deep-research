@@ -710,6 +710,23 @@ export class Frame extends Disposable {
     );
   }
 
+  async dblclick(selector: string, options?: ClickOptions): Promise<void> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+        try {
+          return await handle.dblclickWithProgress(progress, options);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
   /**
    * Direct click using chrome.scripting.executeScript - simpler alternative to click()
    * This bypasses the retry-with-progress pattern for cases where you want direct control

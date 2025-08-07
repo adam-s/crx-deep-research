@@ -557,6 +557,7 @@ export class HandledInjectedScript {
       clickCount?: number;
     } = {},
   ): { success: boolean; error?: string; needsForce?: boolean } {
+    console.log('clickElementWithOptions called with button:', options.button);
     const element = this.getElementByHandle(handle);
     if (!element) {
       return {
@@ -603,11 +604,16 @@ export class HandledInjectedScript {
     }
 
     try {
-      // If position is specified, use a more sophisticated click
-      if (options.position) {
+      // Use enhanced mouse events for right/middle clicks or when position is specified
+      if (options.position || options.button === 'right' || options.button === 'middle') {
         const rect = htmlElement.getBoundingClientRect();
-        const clientX = rect.left + options.position.x;
-        const clientY = rect.top + options.position.y;
+        // Use center of element if no position specified
+        const clientX = options.position
+          ? rect.left + options.position.x
+          : rect.left + rect.width / 2;
+        const clientY = options.position
+          ? rect.top + options.position.y
+          : rect.top + rect.height / 2;
 
         // Create and dispatch mouse events
         const mouseDownEvent = new MouseEvent('mousedown', {
@@ -638,6 +644,20 @@ export class HandledInjectedScript {
         htmlElement.dispatchEvent(mouseDownEvent);
         htmlElement.dispatchEvent(mouseUpEvent);
         htmlElement.dispatchEvent(clickEvent);
+
+        // Dispatch contextmenu event for right-clicks
+        if (options.button === 'right') {
+          console.log('Dispatching contextmenu event for right-click');
+          const contextMenuEvent = new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX,
+            clientY,
+            button: 2,
+          });
+          htmlElement.dispatchEvent(contextMenuEvent);
+          console.log('Contextmenu event dispatched');
+        }
 
         // Handle multiple clicks
         if (options.clickCount && options.clickCount > 1) {

@@ -205,7 +205,7 @@
                 <div class="shadow-content">
                     <h4>🌟 Shadow DOM Element</h4>
                     <p>This content is inside a shadow DOM and isolated from the main document!</p>
-                    <button class="shadow-button" onclick="alert('Shadow DOM button clicked!')">
+                    <button class="shadow-button" onclick="console.log('Shadow DOM button clicked!')">
                         Click Me (Shadow)
                     </button>
                     <br>
@@ -221,7 +221,6 @@
     // Button click handlers
     function handleButtonClick() {
       const timestamp = new Date().toLocaleTimeString();
-      alert(`Action button clicked at ${timestamp}!`);
       console.log(`🎯 Action button clicked at ${timestamp}`);
     }
 

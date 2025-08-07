@@ -174,6 +174,10 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().click(selector, options);
   }
 
+  async dblclick(selector: string, options?: ClickOptions): Promise<void> {
+    await this.frameManager.mainFrame().dblclick(selector, options);
+  }
+
   async check(selector: string): Promise<void> {
     await this.frameManager.mainFrame().check(selector);
   }
