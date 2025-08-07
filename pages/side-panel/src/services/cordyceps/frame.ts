@@ -11,7 +11,6 @@ import type {
   ClickOptions,
 } from './types';
 import { Event } from 'vs/base/common/event';
-import * as dom from './utilsDOM';
 import { FrameSelectors } from './frameSelectors';
 import { isSessionClosedError } from './protocolError';
 import {
@@ -613,76 +612,6 @@ export class Frame extends Disposable {
     );
   }
 
-  private async _retryWithProgressIfNotConnected<R>(
-    progress: Progress,
-    selector: string,
-    strict: boolean | undefined, // Whether to enforce that the selector matches exactly one element
-    performActionPreChecks: boolean, // Whether to run pre-action checks before performing the main
-    action: (handle: dom.ElementHandle<Element>) => Promise<R | 'error:notconnected'>,
-  ): Promise<R> {
-    progress.log(`waiting for ${selector}`);
-    return this._retryWithProgressAndTimeouts(progress, undefined, async continuePolling => {
-      // 1. Check if we have an execution context
-      if (!this._context) {
-        progress.log('no execution context available, retrying');
-        return continuePolling;
-      }
-
-      const resolved = await progress.race(
-        this.selectors.resolveInjectedForSelector(selector, { strict }),
-      );
-
-      if (!resolved) {
-        // Element not found → retry
-        progress.log(`element not found for selector "${selector}", retrying`);
-        return continuePolling;
-      }
-
-      // 2. Check if element exists using the execution context
-      try {
-        const elementExists = await this._context.elementExists(selector);
-
-        if (!elementExists) {
-          // Element not found → retry
-          return continuePolling;
-        }
-      } catch (e) {
-        // Error checking element existence → retry
-        progress.log('error checking element existence, retrying');
-        return continuePolling;
-      }
-
-      // 3. Create element handle that uses the real click functionality
-      const handle: dom.ElementHandle<Element> = {
-        element: document.createElement('div'), // Placeholder - not used in our implementation
-        dispose: () => {}, // No cleanup needed for chrome.scripting approach
-        click: async () => {
-          if (!this._context) {
-            throw new Error('No execution context available');
-          }
-          await this._context.clickSelector(selector);
-        },
-      };
-
-      // Ensure cleanup if aborted mid‐flight
-      progress.cleanupWhenAborted(() => {
-        handle.dispose();
-      });
-
-      // 4. Perform the user‐supplied action
-      try {
-        const result = await action(handle);
-        if (result === 'error:notconnected') {
-          progress.log('element detached, retrying');
-          return continuePolling;
-        }
-        return result;
-      } finally {
-        handle.dispose();
-      }
-    });
-  }
-
   isNonRetriableError(e: Error) {
     if (isAbortError(e)) return true;
     if (isSessionClosedError(e)) return true;
@@ -690,40 +619,55 @@ export class Frame extends Disposable {
   }
 
   // #region Dom Interaction
+
+  /**
+   * Helper method to execute an action with an ElementHandle, handling the lifecycle of
+   * getting the handle, executing the action, and disposing of the handle.
+   */
+  private async _executeWithElementHandle<T>(
+    selector: string,
+    timeout: number,
+    action: (handle: ElementHandle, progress: Progress) => Promise<T>,
+  ): Promise<T> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+        try {
+          return await action(handle, progress);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout },
+    );
+  }
+
   /**
    * Click a selector, but only after the frame has loaded.
    */
   async click(selector: string, options?: ClickOptions): Promise<void> {
-    return await executeWithProgress(
-      async progress => {
-        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
-        if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
-        }
-        try {
-          return await handle.clickWithProgress(progress, options);
-        } finally {
-          handle.dispose();
-        }
-      },
-      { timeout: options?.timeout || 30000 },
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.clickWithProgress(progress, options),
     );
   }
 
   async dblclick(selector: string, options?: ClickOptions): Promise<void> {
-    return await executeWithProgress(
-      async progress => {
-        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
-        if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
-        }
-        try {
-          return await handle.dblclickWithProgress(progress, options);
-        } finally {
-          handle.dispose();
-        }
-      },
-      { timeout: options?.timeout || 30000 },
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.dblclickWithProgress(progress, options),
+    );
+  }
+
+  async dispatchEvent(
+    selector: string,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+    options?: { timeout?: number },
+  ): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.dispatchEventWithProgress(progress, type, eventInit),
     );
   }
 

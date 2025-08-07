@@ -309,6 +309,49 @@ export class ElementHandle extends JSHandle {
     }
   }
 
+  async _dispatchEvent(
+    progress: Progress,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+  ): Promise<'error:notconnected' | 'done'> {
+    const result = await progress.race(
+      this._context.dispatchEvent(this.remoteObject, type, eventInit),
+    );
+
+    if (!result) {
+      return 'error:notconnected';
+    }
+
+    if (!result.success) {
+      throw new Error(`Failed to dispatch event: ${result.error || 'Unknown error'}`);
+    }
+
+    return 'done';
+  }
+
+  async dispatchEvent(type: string, eventInit: Record<string, unknown> = {}): Promise<void> {
+    return await executeWithProgress(
+      async progress => {
+        const result = await this._dispatchEvent(progress, type, eventInit);
+        if (result !== 'done') {
+          throw new Error(`Dispatch event failed: ${result}`);
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  async dispatchEventWithProgress(
+    progress: Progress,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+  ): Promise<void> {
+    const result = await this._dispatchEvent(progress, type, eventInit);
+    if (result !== 'done') {
+      throw new Error(`Dispatch event failed: ${result}`);
+    }
+  }
+
   async contentFrame(): Promise<Frame | null> {
     const isFrameElement = throwRetargetableDOMError(await this.isIframeElement());
     if (!isFrameElement) return null;

@@ -59,6 +59,11 @@ interface CordycepsInjectedScript {
       clickCount?: number;
     },
   ): { success: boolean; error?: string; needsForce?: boolean };
+  dispatchEvent(
+    handle: string,
+    type: string,
+    eventInit: Record<string, unknown>,
+  ): { success: boolean; error?: string };
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -476,6 +481,28 @@ export class FrameExecutionContext extends Disposable {
       world,
       handle,
       options,
+    );
+  }
+
+  /**
+   * Dispatch a custom event on an element using the content script method.
+   * This method handles event creation and dispatching with proper browser compatibility.
+   */
+  public async dispatchEvent(
+    handle: string,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ success: boolean; error?: string } | undefined> {
+    return this.executeScript(
+      (handle: string, type: string, eventInit: Record<string, unknown>) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.dispatchEvent(handle, type, eventInit);
+      },
+      world,
+      handle,
+      type,
+      eventInit,
     );
   }
 

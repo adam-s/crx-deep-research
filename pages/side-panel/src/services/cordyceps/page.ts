@@ -186,6 +186,15 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().uncheck(selector);
   }
 
+  async dispatchEvent(
+    selector: string,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+    options?: { timeout?: number },
+  ): Promise<void> {
+    await this.frameManager.mainFrame().dispatchEvent(selector, type, eventInit, options);
+  }
+
   /**
    * Get bounding box for an element handle.
    * Similar to Playwright's Page._getBoundingBox method.

@@ -6,6 +6,7 @@ import {
   testCheckFunctionality,
   testClickFunctionality,
   testDblclickFunctionality,
+  testDispatchEventFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -73,6 +74,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test dblclick() functionality
       progress.log('Testing dblclick() method on various elements');
       await testDblclickFunctionality(page, progress, this.context);
+
+      // Test dispatchEvent() functionality
+      progress.log('Testing dispatchEvent() method on various elements');
+      await testDispatchEventFunctionality(page, progress, this.context);
 
       this.context.events.emit({
         timestamp: Date.now(),

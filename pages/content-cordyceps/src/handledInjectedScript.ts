@@ -693,4 +693,84 @@ export class HandledInjectedScript {
       };
     }
   }
+
+  /**
+   * Dispatch a custom event on an element by its handle.
+   * This method handles event creation and dispatching with proper browser compatibility.
+   */
+  dispatchEvent(
+    handle: string,
+    type: string,
+    eventInit: Record<string, unknown> = {},
+  ): { success: boolean; error?: string } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+      };
+    }
+
+    try {
+      const htmlElement = element as HTMLElement;
+
+      // Create the appropriate event based on type
+      let event: Event;
+
+      // Common event types with their proper constructors
+      if (type.startsWith('mouse') || ['click', 'dblclick', 'contextmenu'].includes(type)) {
+        event = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          ...eventInit,
+        });
+      } else if (type.startsWith('key')) {
+        event = new KeyboardEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          ...eventInit,
+        });
+      } else if (['focus', 'blur', 'focusin', 'focusout'].includes(type)) {
+        event = new FocusEvent(type, {
+          bubbles: type === 'focusin' || type === 'focusout',
+          cancelable: false,
+          ...eventInit,
+        });
+      } else if (['input', 'change'].includes(type)) {
+        event = new Event(type, {
+          bubbles: true,
+          cancelable: true,
+          ...eventInit,
+        });
+      } else {
+        // Generic event for custom event types
+        event = new CustomEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          detail: eventInit.detail,
+          ...eventInit,
+        });
+      }
+
+      // Dispatch the event
+      htmlElement.dispatchEvent(event);
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to dispatch event',
+      };
+    }
+  }
 }

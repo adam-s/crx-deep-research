@@ -137,4 +137,28 @@ export class Locator {
       },
     );
   }
+
+  async dispatchEvent(
+    type: string,
+    eventInit: Record<string, unknown> = {},
+    options?: { timeout?: number },
+  ): Promise<void> {
+    return await this._withElement(
+      async (h, timeout) => {
+        return executeWithProgress(
+          async progress => {
+            const result = await h._dispatchEvent(progress, type, eventInit);
+            if (result !== 'done') {
+              throw new Error(`Dispatch event failed: ${result}`);
+            }
+          },
+          { timeout: timeout || options?.timeout || 30000 },
+        );
+      },
+      {
+        title: 'Dispatch Event',
+        timeout: options?.timeout || 30000,
+      },
+    );
+  }
 }
