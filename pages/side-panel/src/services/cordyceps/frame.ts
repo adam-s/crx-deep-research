@@ -8,6 +8,7 @@ import type {
   LifecycleEvent,
   NavigateOptionsWithProgress,
   WaitForElementOptions,
+  ClickOptions,
 } from './types';
 import { Event } from 'vs/base/common/event';
 import * as dom from './utilsDOM';
@@ -692,38 +693,21 @@ export class Frame extends Disposable {
   /**
    * Click a selector, but only after the frame has loaded.
    */
-  async click(selector: string, options?: NavigateOptionsWithProgress): Promise<void> {
-    const waitUntil = options?.waitUntil ?? 'load';
-
-    return executeWithProgress(async p => {
-      // 1) Wait for the specified lifecycle event (default: load)
-      await this._waitForLifecycle(waitUntil, { ...options, progress: p });
-
-      // 2) Then run the click logic
-      p.log(`Clicking on selector "${selector}"`);
-      return dom.assertDone(
-        await this._retryWithProgressIfNotConnected(p, selector, false, false, async handle => {
-          try {
-            // Use the real click functionality via chrome.scripting
-            console.log(`###### Clicking selector "${selector}" in frame ${this.frameId}`);
-            await handle.click();
-            return 'done' as const;
-          } catch (e) {
-            const errorMessage = (e as Error).message;
-            // Handle specific chrome.scripting errors that indicate element issues
-            if (
-              errorMessage.includes('No element found for selector') ||
-              errorMessage.includes('detached') ||
-              errorMessage.includes('not connected') ||
-              errorMessage.includes('Script execution failed')
-            ) {
-              return 'error:notconnected' as const;
-            }
-            throw e;
-          }
-        }),
-      );
-    });
+  async click(selector: string, options?: ClickOptions): Promise<void> {
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+        try {
+          return await handle.clickWithProgress(progress, options);
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
   }
 
   /**

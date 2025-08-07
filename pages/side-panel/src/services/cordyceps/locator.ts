@@ -1,6 +1,6 @@
 import { escapeForTextSelector } from '@injected/isomorphic/stringUtils';
 import { Frame } from './frame';
-import { Rect, TimeoutOptions } from './types';
+import { Rect, TimeoutOptions, ClickOptions } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress } from './progress';
 
@@ -96,5 +96,25 @@ export class Locator {
       title: 'Uncheck',
       timeout: 30000,
     });
+  }
+
+  async click(options?: ClickOptions): Promise<void> {
+    return await this._withElement(
+      async (h, timeout) => {
+        return executeWithProgress(
+          async progress => {
+            const result = await h._click(progress, options);
+            if (result !== 'done') {
+              throw new Error(`Click failed: ${result}`);
+            }
+          },
+          { timeout: timeout || options?.timeout || 30000 },
+        );
+      },
+      {
+        title: 'Click',
+        timeout: options?.timeout || 30000,
+      },
+    );
   }
 }

@@ -76,3 +76,12 @@ export type CheckOptions = {
   force?: boolean;
   timeout?: number;
 };
+
+export type ClickOptions = {
+  position?: Point;
+  force?: boolean;
+  timeout?: number;
+  delay?: number;
+  button?: 'left' | 'right' | 'middle';
+  clickCount?: number;
+};

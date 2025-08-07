@@ -543,4 +543,134 @@ export class HandledInjectedScript {
       };
     }
   }
+
+  /**
+   * Enhanced click with position and options support.
+   * This method handles advanced clicking with validation.
+   */
+  clickElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+      button?: 'left' | 'right' | 'middle';
+      clickCount?: number;
+    } = {},
+  ): { success: boolean; error?: string; needsForce?: boolean } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+      };
+    }
+
+    const htmlElement = element as HTMLElement;
+
+    // Check if element is visible (unless forced)
+    if (!options.force && !this._injectedScript.utils.isElementVisible(element)) {
+      return {
+        success: false,
+        error: 'Element is not visible',
+        needsForce: true,
+      };
+    }
+
+    // Check if element is enabled (for form controls)
+    if (!options.force && htmlElement.tagName) {
+      const tagName = htmlElement.tagName.toLowerCase();
+      if (['button', 'input', 'select', 'textarea'].includes(tagName)) {
+        const formElement = htmlElement as
+          | HTMLInputElement
+          | HTMLButtonElement
+          | HTMLSelectElement
+          | HTMLTextAreaElement;
+        if (formElement.disabled) {
+          return {
+            success: false,
+            error: 'Element is disabled',
+          };
+        }
+      }
+    }
+
+    try {
+      // If position is specified, use a more sophisticated click
+      if (options.position) {
+        const rect = htmlElement.getBoundingClientRect();
+        const clientX = rect.left + options.position.x;
+        const clientY = rect.top + options.position.y;
+
+        // Create and dispatch mouse events
+        const mouseDownEvent = new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          button: options.button === 'right' ? 2 : options.button === 'middle' ? 1 : 0,
+        });
+
+        const mouseUpEvent = new MouseEvent('mouseup', {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          button: options.button === 'right' ? 2 : options.button === 'middle' ? 1 : 0,
+        });
+
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          button: options.button === 'right' ? 2 : options.button === 'middle' ? 1 : 0,
+          detail: options.clickCount || 1,
+        });
+
+        htmlElement.dispatchEvent(mouseDownEvent);
+        htmlElement.dispatchEvent(mouseUpEvent);
+        htmlElement.dispatchEvent(clickEvent);
+
+        // Handle multiple clicks
+        if (options.clickCount && options.clickCount > 1) {
+          for (let i = 1; i < options.clickCount; i++) {
+            const multiClickEvent = new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              clientX,
+              clientY,
+              button: options.button === 'right' ? 2 : options.button === 'middle' ? 1 : 0,
+              detail: i + 1,
+            });
+            htmlElement.dispatchEvent(multiClickEvent);
+          }
+        }
+      } else {
+        // Use simple click for better compatibility
+        htmlElement.click();
+
+        // Handle multiple clicks
+        if (options.clickCount && options.clickCount > 1) {
+          for (let i = 1; i < options.clickCount; i++) {
+            htmlElement.click();
+          }
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to click element',
+      };
+    }
+  }
 }

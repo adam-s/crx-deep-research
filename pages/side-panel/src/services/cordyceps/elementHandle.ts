@@ -1,6 +1,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { FrameExecutionContext } from './frameExecutionContext';
-import { Rect, WaitForElementOptions } from './types';
+import { Rect, WaitForElementOptions, ClickOptions } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
 
@@ -82,6 +82,89 @@ export class ElementHandle extends JSHandle {
       },
       { timeout: 30000 },
     );
+  }
+
+  async click(): Promise<void> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._click(progress);
+        if (result !== 'done') {
+          throw new Error(`Click failed: ${result}`);
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  /**
+   * Click an element following Playwright patterns.
+   * This method implements enhanced clicking with proper error handling.
+   */
+  async clickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
+    const result = await this._click(progress, options);
+    if (result !== 'done') {
+      throw new Error(`Click failed: ${result}`);
+    }
+  }
+
+  /**
+   * Simple click method using executeWithProgress wrapper.
+   */
+  async clickSimple(): Promise<void> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._click(progress);
+        if (result !== 'done') {
+          throw new Error(`Click failed: ${result}`);
+        }
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  /**
+   * Internal method to perform click following Playwright patterns.
+   * This method handles the core click logic with proper error handling.
+   */
+  async _click(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
+    // Use enhanced click if options are provided
+    if (options && (options.position || options.force || options.button || options.clickCount)) {
+      const clickResult = await progress.race(
+        this._context.clickElementWithOptions(this.remoteObject, {
+          position: options.position,
+          force: options.force,
+          button: options.button,
+          clickCount: options.clickCount,
+        }),
+      );
+
+      if (!clickResult) {
+        return 'error:notconnected';
+      }
+
+      if (!clickResult.success) {
+        throw new Error(clickResult.error || 'Failed to click element');
+      }
+
+      // Handle delay if specified
+      if (options.delay) {
+        await progress.race(new Promise(resolve => setTimeout(resolve, options.delay)));
+      }
+
+      return 'done';
+    }
+
+    // Use simple click for basic cases
+    const clickResult = await progress.race(this._context.clickElement(this.remoteObject));
+    if (!clickResult) {
+      return 'error:notconnected';
+    }
+
+    if (!clickResult.success) {
+      throw new Error(clickResult.error || 'Failed to click element');
+    }
+
+    return 'done';
   }
 
   /**

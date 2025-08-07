@@ -50,6 +50,15 @@ interface CordycepsInjectedScript {
     currentState: boolean;
   };
   clickElement(handle: string): { success: boolean; error?: string };
+  clickElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+      button?: 'left' | 'right' | 'middle';
+      clickCount?: number;
+    },
+  ): { success: boolean; error?: string; needsForce?: boolean };
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -434,6 +443,39 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       handle,
+    );
+  }
+
+  /**
+   * Click an element with advanced options using the content script method.
+   * This method handles enhanced clicking with position and options.
+   */
+  public async clickElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+      button?: 'left' | 'right' | 'middle';
+      clickCount?: number;
+    } = {},
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ success: boolean; error?: string; needsForce?: boolean } | undefined> {
+    return this.executeScript(
+      (
+        handle: string,
+        options: {
+          position?: { x: number; y: number };
+          force?: boolean;
+          button?: 'left' | 'right' | 'middle';
+          clickCount?: number;
+        },
+      ) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.clickElementWithOptions(handle, options);
+      },
+      world,
+      handle,
+      options,
     );
   }
 

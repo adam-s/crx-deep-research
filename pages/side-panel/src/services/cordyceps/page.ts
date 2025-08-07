@@ -4,7 +4,7 @@ import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './frameExecutionContext';
-import type { NavigateOptionsWithProgress, Rect } from './types';
+import type { NavigateOptionsWithProgress, Rect, ClickOptions } from './types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
@@ -170,7 +170,7 @@ export class Page extends Disposable {
     }, options);
   }
 
-  async click(selector: string, options?: NavigateOptionsWithProgress): Promise<void> {
+  async click(selector: string, options?: ClickOptions): Promise<void> {
     await this.frameManager.mainFrame().click(selector, options);
   }
 
