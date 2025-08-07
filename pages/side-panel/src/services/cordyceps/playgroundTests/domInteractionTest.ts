@@ -24,7 +24,7 @@ export class DOMInteractionTest extends PlaygroundTest {
       // Test clicking elements (if any exist)
       progress.log('Testing element interactions');
       try {
-        await page.click('body', { progress }); // Click on body as a safe target
+        await page.click('body'); // Click on body as a safe target
         progress.log('Element click test completed');
       } catch (error) {
         progress.log('Element click test skipped (no suitable elements)');

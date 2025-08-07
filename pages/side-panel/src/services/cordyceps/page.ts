@@ -186,6 +186,18 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().uncheck(selector);
   }
 
+  async fill(
+    selector: string,
+    value: string,
+    options?: { timeout?: number; force?: boolean },
+  ): Promise<void> {
+    await this.frameManager.mainFrame().fill(selector, value, options);
+  }
+
+  async clear(selector: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
+    await this.frameManager.mainFrame().clear(selector, options);
+  }
+
   async dispatchEvent(
     selector: string,
     type: string,

@@ -355,6 +355,106 @@ export class ElementHandle extends JSHandle {
     return this.frame.frameManager.page.getContentFrame(this);
   }
 
+  async fill(value: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
+    return executeElementOperation(
+      async progress => await this._fill(progress, value, options),
+      'Fill',
+      options?.timeout,
+    );
+  }
+
+  async fillWithProgress(
+    progress: Progress,
+    value: string,
+    options?: { force?: boolean },
+  ): Promise<void> {
+    const result = await this._fill(progress, value, options);
+    if (result !== 'done') {
+      throw new Error(`Fill failed: ${result}`);
+    }
+  }
+
+  async _fill(
+    progress: Progress,
+    value: string,
+    options?: { force?: boolean },
+  ): Promise<'error:notconnected' | 'done'> {
+    progress.log(`  fill("${value}")`);
+
+    // Create a function to fill the element
+    const fillElement = (handle: string, fillValue: string, force: boolean) => {
+      const injected = window.__cordyceps_handledInjectedScript;
+      const element = injected.getElementByHandle(handle);
+      if (!element) {
+        throw new Error('Element not found for handle');
+      }
+
+      const inputElement = element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+      // Check if element is editable unless force is true
+      if (!force) {
+        // Check if element is visible
+        const rect = element.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          throw new Error('Element is not visible');
+        }
+
+        // Check if element is enabled
+        if ('disabled' in inputElement && inputElement.disabled) {
+          throw new Error('Element is disabled');
+        }
+
+        // Check if element is editable
+        if ('readOnly' in inputElement && inputElement.readOnly) {
+          throw new Error('Element is readonly');
+        }
+      }
+
+      // Focus the element first
+      inputElement.focus();
+
+      // Clear existing value and set new value
+      if ('value' in inputElement) {
+        inputElement.value = fillValue;
+
+        // Trigger input events to simulate user typing
+        const inputEvent = new Event('input', { bubbles: true });
+        const changeEvent = new Event('change', { bubbles: true });
+
+        inputElement.dispatchEvent(inputEvent);
+        inputElement.dispatchEvent(changeEvent);
+
+        return 'done';
+      } else {
+        throw new Error('Element is not fillable');
+      }
+    };
+
+    try {
+      const result = await progress.race(
+        this._context.executeScript(
+          fillElement,
+          'ISOLATED',
+          this.remoteObject,
+          value,
+          options?.force || false,
+        ),
+      );
+      return result === 'done' ? 'done' : 'error:notconnected';
+    } catch (error) {
+      console.error('Fill operation failed:', error);
+      return 'error:notconnected';
+    }
+  }
+
+  async clear(options?: { timeout?: number; force?: boolean }): Promise<void> {
+    return this.fill('', { ...options });
+  }
+
+  async clearWithProgress(progress: Progress, options?: { force?: boolean }): Promise<void> {
+    return this.fillWithProgress(progress, '', options);
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (element: Element, arg: Arg) => R,
     arg?: Arg,

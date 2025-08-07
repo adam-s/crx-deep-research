@@ -4,10 +4,12 @@ import { Page } from '../page';
 import { Severity } from '../../../utils/types';
 import {
   testCheckFunctionality,
+  testClearFunctionality,
   testClickFunctionality,
   testDblclickFunctionality,
   testDispatchEventFunctionality,
   testEvaluateFunctionality,
+  testFillFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -79,6 +81,14 @@ export class LocatorTest extends PlaygroundTest {
       // Test dispatchEvent() functionality
       progress.log('Testing dispatchEvent() method on various elements');
       await testDispatchEventFunctionality(page, progress, this.context);
+
+      // Test fill() functionality
+      progress.log('Testing fill() method on form inputs');
+      await testFillFunctionality(page, progress, this.context);
+
+      // Test clear() functionality
+      progress.log('Testing clear() method on form inputs');
+      await testClearFunctionality(page, progress, this.context);
 
       // Test evaluate() and evaluateHandle() functionality
       progress.log('Testing evaluate() and evaluateHandle() methods');

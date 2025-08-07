@@ -756,6 +756,22 @@ export class Frame extends Disposable {
     );
   }
 
+  async fill(
+    selector: string,
+    value: string,
+    options?: { timeout?: number; force?: boolean },
+  ): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.fillWithProgress(progress, value, options),
+    );
+  }
+
+  async clear(selector: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.clearWithProgress(progress, options),
+    );
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,

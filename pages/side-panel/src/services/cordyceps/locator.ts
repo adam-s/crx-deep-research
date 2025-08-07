@@ -134,6 +134,20 @@ export class Locator {
     });
   }
 
+  async fill(value: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
+    return await this._withElement(h => h.fill(value, options), {
+      title: 'Fill',
+      timeout: options?.timeout || 30000,
+    });
+  }
+
+  async clear(options?: { timeout?: number; force?: boolean }): Promise<void> {
+    return await this._withElement(h => h.clear(options), {
+      title: 'Clear',
+      timeout: options?.timeout || 30000,
+    });
+  }
+
   async click(options?: ClickOptions): Promise<void> {
     return executeProgressElementOperation(
       this._selector,
