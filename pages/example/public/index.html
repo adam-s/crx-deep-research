@@ -144,6 +144,177 @@
       <button id="log-button" onclick="logStatus()">Log Status</button>
     </div>
 
+    <!-- Comprehensive Form Section -->
+    <div class="controls">
+      <h3>🎯 Form Elements Testing</h3>
+      <form id="test-form" onsubmit="handleFormSubmit(event)">
+
+        <!-- Text Inputs -->
+        <div style="margin: 1em 0;">
+          <h4>Text Inputs</h4>
+          <label for="text-input">Text Input:</label><br>
+          <input type="text" id="text-input" name="text-input"
+            placeholder="Enter text..."
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="email-input">Email Input:</label><br>
+          <input type="email" id="email-input" name="email-input"
+            placeholder="user@example.com"
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="password-input">Password Input:</label><br>
+          <input type="password" id="password-input" name="password-input"
+            placeholder="Password"
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="search-input">Search Input:</label><br>
+          <input type="search" id="search-input" name="search-input"
+            placeholder="Search..."
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+        </div>
+
+        <!-- Number and Range Inputs -->
+        <div style="margin: 1em 0;">
+          <h4>Number and Range Inputs</h4>
+          <label for="number-input">Number Input:</label><br>
+          <input type="number" id="number-input" name="number-input" min="0"
+            max="100" value="42"
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="range-input">Range Input: <span
+              id="range-value">50</span></label><br>
+          <input type="range" id="range-input" name="range-input" min="0"
+            max="100" value="50" style="width: 200px; margin: 0.25em 0;"
+            oninput="updateRangeValue(this.value)">
+        </div>
+
+        <!-- Date and Time Inputs -->
+        <div style="margin: 1em 0;">
+          <h4>Date and Time Inputs</h4>
+          <label for="date-input">Date Input:</label><br>
+          <input type="date" id="date-input" name="date-input"
+            style="padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="time-input">Time Input:</label><br>
+          <input type="time" id="time-input" name="time-input"
+            style="padding: 0.5em; margin: 0.25em 0;">
+
+          <br><label for="datetime-input">DateTime-Local Input:</label><br>
+          <input type="datetime-local" id="datetime-input" name="datetime-input"
+            style="padding: 0.5em; margin: 0.25em 0;">
+        </div>
+
+        <!-- Checkboxes and Radio Buttons -->
+        <div style="margin: 1em 0;">
+          <h4>Checkboxes and Radio Buttons</h4>
+
+          <fieldset
+            style="border: 1px solid #ccc; padding: 0.5em; margin: 0.5em 0;">
+            <legend>Checkbox Options</legend>
+            <label><input type="checkbox" id="checkbox-1" name="features"
+                value="feature1"> Feature 1</label><br>
+            <label><input type="checkbox" id="checkbox-2" name="features"
+                value="feature2" checked> Feature 2 (checked)</label><br>
+            <label><input type="checkbox" id="checkbox-3" name="features"
+                value="feature3"> Feature 3</label>
+          </fieldset>
+
+          <fieldset
+            style="border: 1px solid #ccc; padding: 0.5em; margin: 0.5em 0;">
+            <legend>Radio Button Options</legend>
+            <label><input type="radio" id="radio-1" name="size" value="small">
+              Small</label><br>
+            <label><input type="radio" id="radio-2" name="size" value="medium"
+                checked> Medium (selected)</label><br>
+            <label><input type="radio" id="radio-3" name="size" value="large">
+              Large</label>
+          </fieldset>
+        </div>
+
+        <!-- Select Elements -->
+        <div style="margin: 1em 0;">
+          <h4>Select Elements</h4>
+
+          <label for="single-select">Single Select:</label><br>
+          <select id="single-select" name="single-select"
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+            <option value="">Choose an option...</option>
+            <option value="option1">Option 1</option>
+            <option value="option2" selected>Option 2 (selected)</option>
+            <option value="option3">Option 3</option>
+            <option value="option4">Option 4</option>
+          </select>
+
+          <br><label for="multiple-select">Multiple Select (Ctrl+click for
+            multiple):</label><br>
+          <select id="multiple-select" name="multiple-select" multiple size="4"
+            style="width: 200px; margin: 0.25em 0;">
+            <option value="item1" selected>Item 1 (selected)</option>
+            <option value="item2">Item 2</option>
+            <option value="item3" selected>Item 3 (selected)</option>
+            <option value="item4">Item 4</option>
+            <option value="item5">Item 5</option>
+          </select>
+        </div>
+
+        <!-- Textarea -->
+        <div style="margin: 1em 0;">
+          <h4>Textarea</h4>
+          <label for="textarea-input">Message:</label><br>
+          <textarea id="textarea-input" name="textarea-input" rows="4" cols="50"
+            placeholder="Enter your message here..."
+            style="padding: 0.5em; margin: 0.25em 0; resize: vertical;">Default textarea content...</textarea>
+        </div>
+
+        <!-- File Input -->
+        <div style="margin: 1em 0;">
+          <h4>File Input</h4>
+          <label for="file-input">Choose File:</label><br>
+          <input type="file" id="file-input" name="file-input"
+            accept=".txt,.json,.html" style="margin: 0.25em 0;">
+
+          <br><label for="multiple-files">Multiple Files:</label><br>
+          <input type="file" id="multiple-files" name="multiple-files" multiple
+            style="margin: 0.25em 0;">
+        </div>
+
+        <!-- Color and URL Inputs -->
+        <div style="margin: 1em 0;">
+          <h4>Color and URL Inputs</h4>
+          <label for="color-input">Color Picker:</label><br>
+          <input type="color" id="color-input" name="color-input"
+            value="#38488f" style="margin: 0.25em 0;">
+
+          <br><label for="url-input">URL Input:</label><br>
+          <input type="url" id="url-input" name="url-input"
+            placeholder="https://example.com"
+            style="width: 200px; padding: 0.5em; margin: 0.25em 0;">
+        </div>
+
+        <!-- Hidden Input -->
+        <input type="hidden" id="hidden-input" name="hidden-input"
+          value="secret-value">
+
+        <!-- Form Buttons -->
+        <div
+          style="margin: 1.5em 0; padding: 1em; background-color: #e9ecef; border-radius: 0.25em;">
+          <button type="submit" style="margin-right: 0.5em;">Submit
+            Form</button>
+          <button type="reset" style="margin-right: 0.5em;">Reset Form</button>
+          <button type="button" onclick="validateForm()"
+            style="margin-right: 0.5em;">Validate Form</button>
+          <button type="button" onclick="fillSampleData()">Fill Sample
+            Data</button>
+        </div>
+
+        <!-- Form Status Display -->
+        <div id="form-status"
+          style="margin: 1em 0; padding: 0.5em; background-color: #d4edda; border-radius: 0.25em; display: none;">
+          Form interaction status will appear here...
+        </div>
+      </form>
+    </div>
+
     <!-- Shadow DOM Section -->
     <div class="shadow-host" id="shadow-host">
       <h3>Shadow DOM Container</h3>
@@ -250,6 +421,142 @@
                 Advanced Mode: ${advancedMode ? '✅' : '❌'}<br>
                 Time: ${status.timestamp}
             `;
+    }
+
+    // Form handling functions
+    function updateRangeValue(value) {
+      document.getElementById('range-value').textContent = value;
+    }
+
+    function handleFormSubmit(event) {
+      event.preventDefault();
+      const formData = new FormData(event.target);
+      const data = {};
+
+      // Convert FormData to regular object
+      for (let [key, value] of formData.entries()) {
+        if (data[key]) {
+          // Handle multiple values (like checkboxes with same name)
+          if (Array.isArray(data[key])) {
+            data[key].push(value);
+          } else {
+            data[key] = [data[key], value];
+          }
+        } else {
+          data[key] = value;
+        }
+      }
+
+      console.log('📝 Form submitted with data:', data);
+      showFormStatus('Form submitted successfully! Check console for data.', 'success');
+    }
+
+    function validateForm() {
+      const form = document.getElementById('test-form');
+      const requiredFields = form.querySelectorAll('[required]');
+      let isValid = true;
+      let messages = [];
+
+      // Check required fields
+      requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+          isValid = false;
+          messages.push(`${field.name || field.id} is required`);
+        }
+      });
+
+      // Check email format
+      const emailInput = document.getElementById('email-input');
+      if (emailInput.value && !emailInput.validity.valid) {
+        isValid = false;
+        messages.push('Invalid email format');
+      }
+
+      // Check URL format
+      const urlInput = document.getElementById('url-input');
+      if (urlInput.value && !urlInput.validity.valid) {
+        isValid = false;
+        messages.push('Invalid URL format');
+      }
+
+      const status = isValid ? 'Form is valid! ✅' : `Form validation errors: ${messages.join(', ')}`;
+      const type = isValid ? 'success' : 'error';
+
+      console.log(`🔍 Form validation: ${status}`);
+      showFormStatus(status, type);
+    }
+
+    function fillSampleData() {
+      // Fill text inputs
+      document.getElementById('text-input').value = 'Sample text input';
+      document.getElementById('email-input').value = 'test@example.com';
+      document.getElementById('password-input').value = 'password123';
+      document.getElementById('search-input').value = 'sample search';
+
+      // Fill number and range
+      document.getElementById('number-input').value = 75;
+      document.getElementById('range-input').value = 80;
+      updateRangeValue(80);
+
+      // Fill date and time
+      const now = new Date();
+      document.getElementById('date-input').value = now.toISOString().split('T')[0];
+      document.getElementById('time-input').value = '14:30';
+      document.getElementById('datetime-input').value = now.toISOString().slice(0, 16);
+
+      // Set checkboxes
+      document.getElementById('checkbox-1').checked = true;
+      document.getElementById('checkbox-3').checked = true;
+
+      // Set radio button
+      document.getElementById('radio-3').checked = true;
+
+      // Set selects
+      document.getElementById('single-select').value = 'option3';
+      const multiSelect = document.getElementById('multiple-select');
+      multiSelect.options[1].selected = true; // Item 2
+      multiSelect.options[4].selected = true; // Item 5
+
+      // Fill textarea
+      document.getElementById('textarea-input').value = 'This is sample content for the textarea field. It demonstrates multi-line text input.';
+
+      // Set color and URL
+      document.getElementById('color-input').value = '#ff6b35';
+      document.getElementById('url-input').value = 'https://cordyceps-example.com';
+
+      console.log('📝 Sample data filled in form');
+      showFormStatus('Sample data has been filled into the form!', 'info');
+    }
+
+    function showFormStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('form-status');
+      statusDiv.style.display = 'block';
+      statusDiv.textContent = message;
+
+      // Set background color based on type
+      switch (type) {
+        case 'success':
+          statusDiv.style.backgroundColor = '#d4edda';
+          statusDiv.style.borderColor = '#c3e6cb';
+          statusDiv.style.color = '#155724';
+          break;
+        case 'error':
+          statusDiv.style.backgroundColor = '#f8d7da';
+          statusDiv.style.borderColor = '#f5c6cb';
+          statusDiv.style.color = '#721c24';
+          break;
+        case 'info':
+        default:
+          statusDiv.style.backgroundColor = '#d1ecf1';
+          statusDiv.style.borderColor = '#bee5eb';
+          statusDiv.style.color = '#0c5460';
+          break;
+      }
+
+      // Hide after 5 seconds
+      setTimeout(() => {
+        statusDiv.style.display = 'none';
+      }, 5000);
     }
 
     // Initialize when page loads
