@@ -92,3 +92,8 @@ export type SelectOptionOptions = {
   timeout?: number;
   force?: boolean;
 };
+
+export type CommonActionOptions = {
+  timeout?: number;
+  force?: boolean;
+};

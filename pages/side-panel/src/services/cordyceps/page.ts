@@ -241,12 +241,26 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().dblclick(selector, options);
   }
 
-  async check(selector: string): Promise<void> {
-    await this.frameManager.mainFrame().check(selector);
+  async check(
+    selector: string,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    await this.frameManager.mainFrame().check(selector, options);
   }
 
-  async uncheck(selector: string): Promise<void> {
-    await this.frameManager.mainFrame().uncheck(selector);
+  async uncheck(
+    selector: string,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    await this.frameManager.mainFrame().uncheck(selector, options);
+  }
+
+  async setChecked(
+    selector: string,
+    checked: boolean,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    await this.frameManager.mainFrame().setChecked(selector, checked, options);
   }
 
   async fill(

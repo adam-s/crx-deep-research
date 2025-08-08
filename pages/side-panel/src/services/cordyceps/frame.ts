@@ -738,7 +738,10 @@ export class Frame extends Disposable {
     return new FrameLocator(this, selector);
   }
 
-  async check(selector: string): Promise<void> {
+  async check(
+    selector: string,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
     return await executeWithProgress(
       async progress => {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
@@ -751,11 +754,14 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: 30000 },
+      { timeout: options?.timeout || 30000 },
     );
   }
 
-  async uncheck(selector: string): Promise<void> {
+  async uncheck(
+    selector: string,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
     return await executeWithProgress(
       async progress => {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
@@ -768,8 +774,20 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: 30000 },
+      { timeout: options?.timeout || 30000 },
     );
+  }
+
+  async setChecked(
+    selector: string,
+    checked: boolean,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    if (checked) {
+      await this.check(selector, options);
+    } else {
+      await this.uncheck(selector, options);
+    }
   }
 
   async fill(

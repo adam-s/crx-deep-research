@@ -19,6 +19,7 @@ import {
   testPageMissingMethodsFunctionality,
   testScrollIntoViewIfNeededFunctionality,
   testSelectOptionFunctionality,
+  testSetCheckedFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -78,6 +79,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test check() functionality
       progress.log('Testing check() method on checkboxes');
       await testCheckFunctionality(page, progress, this.context);
+
+      // Test setChecked() functionality
+      progress.log('Testing setChecked() method on checkboxes');
+      await testSetCheckedFunctionality(page, progress, this.context);
 
       // Test click() functionality
       progress.log('Testing click() method on various elements');

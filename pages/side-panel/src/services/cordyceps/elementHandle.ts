@@ -7,6 +7,7 @@ import {
   TimeoutOptions,
   SelectOption,
   SelectOptionOptions,
+  CommonActionOptions,
 } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
@@ -92,17 +93,27 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  async check(): Promise<void> {
+  async check(options?: {
+    force?: boolean;
+    position?: { x: number; y: number };
+    timeout?: number;
+  }): Promise<void> {
     return executeElementOperation(
       async progress => await this._setChecked(progress, true),
       'Check',
+      options?.timeout,
     );
   }
 
-  async uncheck(): Promise<void> {
+  async uncheck(options?: {
+    force?: boolean;
+    position?: { x: number; y: number };
+    timeout?: number;
+  }): Promise<void> {
     return executeElementOperation(
       async progress => await this._setChecked(progress, false),
       'Uncheck',
+      options?.timeout,
     );
   }
 
@@ -655,15 +666,20 @@ export class ElementHandle extends JSHandle {
   }
 
   /**
-   * Set checked state - simple and clean
+   * Set checked state of an input element by calling check() or uncheck()
    * Replaces: await handle.evaluate((el, checked) => { el.checked = checked; }, newState)
    * With: await handle.setChecked(newState)
    */
-  async setChecked(checked: boolean): Promise<void> {
-    await this._executeElementOp<void>({ op: 'set', prop: 'checked', value: checked });
-  }
-
-  /**
+  async setChecked(
+    checked: boolean,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    if (checked) {
+      await this.check(options);
+    } else {
+      await this.uncheck(options);
+    }
+  } /**
    * Select option(s) in a select element
    * Supports selection by value, label text, or index
    *
@@ -810,6 +826,89 @@ export class ElementHandle extends JSHandle {
       }
 
       return result as string[];
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Element not found')) {
+        return 'error:notconnected';
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Selects all text content within the element.
+   *
+   * @param options Action options including timeout and force
+   * @returns Promise that resolves when text selection is complete
+   */
+  async selectText(options?: CommonActionOptions): Promise<void> {
+    return executeElementOperation(
+      async progress => await this._selectText(progress, options),
+      'SelectText',
+      options?.timeout,
+    );
+  }
+
+  async selectTextWithProgress(progress: Progress, options?: CommonActionOptions): Promise<void> {
+    const result = await this._selectText(progress, options);
+    if (result !== 'done') {
+      throw new Error(`SelectText failed: ${result}`);
+    }
+  }
+
+  async _selectText(
+    progress: Progress,
+    options?: CommonActionOptions,
+  ): Promise<'error:notconnected' | 'done'> {
+    progress.log('  selectText()');
+
+    const selectTextScript = (handle: string, force: boolean) => {
+      const injected = window.__cordyceps_handledInjectedScript;
+      const element = injected.getElementByHandle(handle);
+      if (!element) {
+        return 'error:notconnected';
+      }
+
+      // Check if element is visible unless force is true
+      if (!force) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          throw new Error('Element is not visible');
+        }
+      }
+
+      // Select text based on element type
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        // For input and textarea elements, select all text
+        element.select();
+      } else {
+        // For other elements, create a text range selection
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      return 'done';
+    };
+
+    try {
+      const result = await progress.race(
+        this._context.evaluate(
+          selectTextScript,
+          'ISOLATED',
+          this.remoteObject,
+          options?.force || false,
+        ),
+      );
+
+      if (result === 'error:notconnected') {
+        return 'error:notconnected';
+      }
+
+      return 'done';
     } catch (error) {
       if (error instanceof Error && error.message.includes('Element not found')) {
         return 'error:notconnected';

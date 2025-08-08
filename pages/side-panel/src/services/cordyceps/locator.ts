@@ -10,7 +10,14 @@ import {
   getByRoleSelector,
 } from '@injected/isomorphic/locatorUtils';
 import { Frame, FrameLocator, testIdAttributeName } from './frame';
-import { Rect, TimeoutOptions, ClickOptions, SelectOption, SelectOptionOptions } from './types';
+import {
+  Rect,
+  TimeoutOptions,
+  ClickOptions,
+  SelectOption,
+  SelectOptionOptions,
+  CommonActionOptions,
+} from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress, Progress } from './progress';
 import { OperationResult, STANDARD_TIMEOUT } from './utils';
@@ -162,12 +169,20 @@ export class Locator {
     });
   }
 
-  async check(): Promise<void> {
-    return this._executeElementMethod<void>('check');
+  async check(options?: {
+    force?: boolean;
+    position?: { x: number; y: number };
+    timeout?: number;
+  }): Promise<void> {
+    return this._executeElementMethod<void>('check', options);
   }
 
-  async uncheck(): Promise<void> {
-    return this._executeElementMethod<void>('uncheck');
+  async uncheck(options?: {
+    force?: boolean;
+    position?: { x: number; y: number };
+    timeout?: number;
+  }): Promise<void> {
+    return this._executeElementMethod<void>('uncheck', options);
   }
 
   async fill(value: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
@@ -500,6 +515,27 @@ export class Locator {
   }
 
   /**
+   * Selects all text content within the first matching element.
+   * For input/textarea elements, this will select all text in the field.
+   * For other elements, this will select all text content within the element.
+   *
+   * @param options Action options including timeout and force
+   * @returns Promise that resolves when text selection is complete
+   */
+  async selectText(options?: CommonActionOptions): Promise<void> {
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (handle, progress) => {
+        await handle.selectTextWithProgress(progress, options);
+        return 'done';
+      },
+      'SelectText',
+      options?.timeout,
+    );
+  }
+
+  /**
    * Set text content of the first matching element
    */
   async setTextContent(text: string): Promise<void> {
@@ -507,10 +543,17 @@ export class Locator {
   }
 
   /**
-   * Set checked state of the first matching input element
+   * Set checked state of the first matching input element by calling check() or uncheck()
    */
-  async setChecked(checked: boolean): Promise<void> {
-    return this._executeElementMethod<void>('setChecked', checked);
+  async setChecked(
+    checked: boolean,
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+  ): Promise<void> {
+    if (checked) {
+      await this.check(options);
+    } else {
+      await this.uncheck(options);
+    }
   }
 
   /**
