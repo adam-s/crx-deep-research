@@ -21,4 +21,5 @@ export { testSelectTextWithExistingElements } from './selectTextWithExistingElem
 export { testSetCheckedFunctionality } from './setCheckedFunctionality';
 export { testTapFunctionality } from './tapFunctionality';
 export { testTextContentFunctionality } from './textContentFunctionality';
+export { testTypeFunctionality } from './typeFunctionality';
 export * from './testUtils';

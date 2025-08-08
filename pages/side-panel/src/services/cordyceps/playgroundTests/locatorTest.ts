@@ -22,6 +22,7 @@ import {
   testSetCheckedFunctionality,
   testTapFunctionality,
   testTextContentFunctionality,
+  testTypeFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -113,6 +114,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test textContent() functionality
       progress.log('Testing textContent() method across all layers');
       await testTextContentFunctionality(page, progress, this.context);
+
+      // Test type() functionality
+      progress.log('Testing type() method across all layers');
+      await testTypeFunctionality(page, progress, this.context);
 
       // Test highlight() functionality
       progress.log('Testing highlight() and hideHighlight() methods');

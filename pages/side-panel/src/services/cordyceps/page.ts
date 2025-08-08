@@ -398,6 +398,17 @@ export class Page extends Disposable {
     return await this.mainFrame().press(selector, key, options);
   }
 
+  /**
+   * Type text into the first matching element
+   */
+  async type(
+    selector: string,
+    text: string,
+    options?: { delay?: number; timeout?: number },
+  ): Promise<void> {
+    return await this.mainFrame().type(selector, text, options);
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,

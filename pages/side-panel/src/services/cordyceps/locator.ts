@@ -678,6 +678,13 @@ export class Locator {
   }
 
   /**
+   * Type text into the first matching element
+   */
+  async type(text: string, options: { delay?: number; timeout?: number } = {}): Promise<void> {
+    return this._executeElementMethod<void>('type', text, options);
+  }
+
+  /**
    * Get the innerHTML of the first matching element
    */
   async innerHTML(): Promise<string> {

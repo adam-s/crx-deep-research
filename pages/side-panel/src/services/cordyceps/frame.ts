@@ -1037,6 +1037,19 @@ export class Frame extends Disposable {
   }
 
   /**
+   * Type text into the first matching element
+   */
+  async type(
+    selector: string,
+    text: string,
+    options?: { delay?: number; timeout?: number },
+  ): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.type(text, { delay: options?.delay }),
+    );
+  }
+
+  /**
    * Generate an ARIA snapshot for the frame or a specific element within it.
    *
    * @param options Configuration options for the ARIA snapshot

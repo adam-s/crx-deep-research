@@ -30,8 +30,6 @@ export async function demoSelectTextFunctionality(
       }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     // Demo 2: Select text in textarea
     progress.log('Demo 2: Selecting text in the textarea field');
     await page
@@ -46,8 +44,6 @@ export async function demoSelectTextFunctionality(
         statusDiv.innerHTML += '<br><strong>📝 Demo 2:</strong> Textarea text selected!';
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Demo 3: Select text in password field using ElementHandle
     progress.log('Demo 3: Selecting text in password field using ElementHandle');
@@ -66,8 +62,6 @@ export async function demoSelectTextFunctionality(
       }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     // Demo 4: Select content text
     progress.log('Demo 4: Selecting content text from a page element');
     await page.locator('h1').selectText();
@@ -79,8 +73,6 @@ export async function demoSelectTextFunctionality(
         statusDiv.innerHTML += '<br><strong>📄 Demo 4:</strong> Page heading text selected!';
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Final summary
     await page.evaluate(() => {

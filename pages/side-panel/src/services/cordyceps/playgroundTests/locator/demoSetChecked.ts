@@ -29,8 +29,6 @@ export async function demoSetCheckedFunctionality(
       }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     // Demo 2: Set checkbox to unchecked state
     progress.log('Demo 2: Setting test checkbox to unchecked state');
     await page.locator('#test-checkbox').setChecked(false);
@@ -42,8 +40,6 @@ export async function demoSetCheckedFunctionality(
         statusDiv.innerHTML += '<br><strong>☐ Demo 2:</strong> Test checkbox set to unchecked!';
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Demo 3: Use setChecked with ElementHandle
     progress.log('Demo 3: Using setChecked with ElementHandle on advanced-mode checkbox');
@@ -63,8 +59,6 @@ export async function demoSetCheckedFunctionality(
       }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     // Demo 4: Use Page-level setChecked
     progress.log('Demo 4: Using Page-level setChecked method');
     await page.setChecked('#test-checkbox', true);
@@ -78,8 +72,6 @@ export async function demoSetCheckedFunctionality(
           '<br><strong>📄 Demo 4:</strong> Page-level setChecked operations complete!';
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Final summary
     await page.evaluate(() => {

@@ -1212,6 +1212,32 @@ export class ElementHandle extends JSHandle {
     );
   }
 
+  /**
+   * Type text into the focused element. Focuses first if needed.
+   * Types each character with optional delay between characters.
+   */
+  async type(text: string, options: { delay?: number } = {}): Promise<void> {
+    await executeWithProgress(
+      async progress => {
+        progress.log(`elementHandle.type("${text}")`);
+
+        // Ensure focus first (similar to Playwright's _focus call)
+        await this.focus();
+
+        // Type each character with delay
+        for (const char of text) {
+          await this.press(char, { delay: 0 }); // Individual character press without delay
+
+          // Apply delay between characters if specified
+          if (options.delay && options.delay > 0) {
+            await progress.race(new Promise(resolve => setTimeout(resolve, options.delay)));
+          }
+        }
+      },
+      { timeout: STANDARD_TIMEOUT },
+    );
+  }
+
   /** Convenience alias for getInnerHTML */
   async innerHTML(): Promise<string> {
     return this.getInnerHTML();
