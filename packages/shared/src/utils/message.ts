@@ -43,6 +43,28 @@ export interface IContentScriptLoadedMessage extends IBaseMessage {
   type: typeof CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED;
 }
 
+export const CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_CREATE =
+  'crx-deep-research:fileTransferPortCreate';
+export interface IFileTransferPortCreateMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_CREATE;
+  portId: string;
+}
+
+export const CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_EVENT = 'crx-deep-research:fileTransferPortEvent';
+export interface IFileTransferPortEventMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_EVENT;
+  portId: string;
+  event: unknown;
+}
+
+export const CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND =
+  'crx-deep-research:fileTransferPortCommand';
+export interface IFileTransferPortCommandMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND;
+  portId: string;
+  command: unknown;
+}
+
 export interface IInformationResponse {
   documentId?: string;
   windowId?: number;
@@ -60,6 +82,9 @@ export type DocumentMessage =
   | ISidePanelReloadMessage
   | IContentScriptLoadedMessage
   | IContentScriptReloadPostMessage
+  | IFileTransferPortCreateMessage
+  | IFileTransferPortEventMessage
+  | IFileTransferPortCommandMessage
   | { type: 'crx-deep-research:requestInformation' }
   | IIPCMessageTypes;
 

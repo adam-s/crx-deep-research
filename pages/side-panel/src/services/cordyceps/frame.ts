@@ -34,6 +34,7 @@ import {
   testIdAttributeName,
   createDragAndDropScript,
 } from './frameUtils';
+import { FileTransferPortController } from './fileTransferPortController';
 // #region Helper Functions
 
 /**
@@ -63,6 +64,7 @@ export class Frame extends Disposable {
   private _url?: string;
   private _context?: FrameExecutionContext;
   readonly selectors: FrameSelectors;
+  readonly fileTransferPortController: FileTransferPortController;
 
   // Buffering for navigation events to solve race conditions
   private _navigationBuffer: NavigationEvent[] = [];
@@ -83,6 +85,7 @@ export class Frame extends Disposable {
     this._parentFrame = parentFrame;
     this._url = url;
     this.selectors = new FrameSelectors(this);
+    this.fileTransferPortController = this._register(new FileTransferPortController());
 
     // Set up navigation event buffering - capture all navigation events for this frame
     this._register(
@@ -784,6 +787,57 @@ export class Frame extends Disposable {
     );
   }
 
+  /**
+   * Sets files on an input element following Playwright patterns.
+   * This method provides a high-level interface for setting files with proper validation.
+   *
+   * @param selector CSS selector for the input element
+   * @param files Array of file payloads or File objects to set
+   * @param options Options for the operation including timeout and force
+   * @returns Promise that resolves when files are set
+   *
+   * @example
+   * ```typescript
+   * // Set files from File objects
+   * await frame.setInputFiles('#file-input', [file1, file2]);
+   *
+   * // Set files from data with custom options
+   * await frame.setInputFiles('#file-input', [
+   *   { name: 'test.txt', mimeType: 'text/plain', buffer: textBuffer }
+   * ], { force: true, timeout: 60000 });
+   * ```
+   */
+  async setInputFiles(
+    selector: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+  ): Promise<void> {
+    // For hidden elements with force option, wait for attached state instead of visible
+    const waitState = options?.force ? 'attached' : 'visible';
+
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, {
+          strict: true,
+          state: waitState,
+        });
+
+        if (!handle) {
+          const error = `Element not found for selector: ${selector}`;
+          throw new Error(error);
+        }
+
+        try {
+          const result = await handle.setInputFilesWithProgress(progress, files, options);
+          return result;
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
   async highlight(selector: string, options?: { timeout?: number }): Promise<void> {
     return await executeWithProgress(
       async () => {
@@ -1020,6 +1074,47 @@ export class Frame extends Disposable {
       const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED');
       return typeof result === 'string' ? result : '';
     }
+  }
+
+  /**
+   * Creates a file transfer port in the content script for transferring files and buffers.
+   * This creates a temporary communication channel between the content script and side panel
+   * specifically for file and buffer transfers.
+   *
+   * @param options Configuration options for the file transfer port
+   * @param options.timeout Maximum time to wait for port creation in milliseconds (default: 30000)
+   * @returns The port ID that can be used to communicate with the created port
+   *
+   * @example
+   * ```typescript
+   * // Create a file transfer port
+   * const portId = await frame.createFileTransferPort();
+   *
+   * // Use the port ID with FileTransferPortController to manage transfers
+   * const controller = new FileTransferPortController();
+   * const port = controller.getPort(portId);
+   * if (port) {
+   *   await port.requestFile('#file-input');
+   * }
+   * ```
+   */
+  async createFileTransferPort(options?: { timeout?: number }): Promise<string> {
+    if (!this._context) {
+      throw new Error('Frame context not available');
+    }
+
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async () => {
+        const portId = await this._context!.createFileTransferPort();
+        if (!portId) {
+          throw new Error('Failed to create file transfer port');
+        }
+        return portId;
+      },
+      { timeout },
+    );
   }
 }
 

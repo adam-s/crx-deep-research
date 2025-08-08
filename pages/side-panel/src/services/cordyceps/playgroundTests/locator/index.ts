@@ -17,6 +17,7 @@ export { testMissingMethodsFunctionality } from './missingMethodsFunctionality';
 export { testPageMissingMethodsFunctionality } from './pageMissingMethodsFunctionality';
 export { testScrollIntoViewIfNeededFunctionality } from './scrollIntoViewIfNeededFunctionality';
 export { testSelectOptionFunctionality } from './selectOptionFunctionality';
+export { testSetInputFilesFunctionality } from './setInputFilesFunctionality';
 export { testSelectTextFunctionality } from './selectTextFunctionality';
 export { testSelectTextWithExistingElements } from './selectTextWithExistingElements';
 export { testSetCheckedFunctionality } from './setCheckedFunctionality';

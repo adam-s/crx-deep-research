@@ -907,23 +907,10 @@ export class ElementHandle extends JSHandle {
   }
 
   /**
-   * Generate an ARIA snapshot for this element.
+   * Generates an ARIA snapshot for this element.
    *
    * @param options Configuration options for the ARIA snapshot
-   * @param options.forAI Whether to optimize the snapshot for AI consumption (default: true)
-   * @param options.refPrefix Prefix to use for element references in the snapshot (default: '')
-   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
-   * @returns A string representation of the ARIA accessibility tree for this element
-   *
-   * @example
-   * ```typescript
-   * const buttonHandle = await page.locator('#submit-button').elementHandle();
-   * const snapshot = await buttonHandle.ariaSnapshot({
-   *   forAI: true,
-   *   refPrefix: 'button'
-   * });
-   * buttonHandle.dispose();
-   * ```
+   * @returns A string representation of the ARIA accessibility tree
    */
   async ariaSnapshot(options?: {
     forAI?: boolean;
@@ -941,5 +928,108 @@ export class ElementHandle extends JSHandle {
       },
       { timeout },
     );
+  }
+
+  /**
+   * Sets files on this input element, following Playwright patterns.
+   * This method provides a high-level interface for setting files with proper validation and progress tracking.
+   *
+   * @param files Array of file payloads or File objects to set
+   * @param options Options for the operation
+   * @returns Promise that resolves when files are set
+   */
+  async setInputFiles(
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+  ): Promise<void> {
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async progress => {
+        return this.setInputFilesWithProgress(progress, files, options);
+      },
+      { timeout },
+    );
+  }
+
+  /**
+   * Set files on this input element - version that returns OperationResult for Locator use.
+   * @internal
+   */
+  async _setInputFiles(
+    progress: Progress,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean },
+  ): Promise<OperationResult> {
+    try {
+      await this.setInputFilesWithProgress(progress, files, options);
+      return 'done';
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not attached')) {
+        return 'error:notconnected';
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Sets files on this input element with progress tracking.
+   * This is the core implementation that handles validation and file setting.
+   *
+   * @param progress Progress tracker for the operation
+   * @param files Array of file payloads or File objects to set
+   * @param options Options for the operation
+   * @returns Promise that resolves when files are set
+   */
+  async setInputFilesWithProgress(
+    progress: Progress,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean },
+  ): Promise<void> {
+    progress.log(`setInputFiles(${files.length} files)`);
+
+    // Convert File objects to our payload format if needed
+    const filePayloads = await this._convertToFilePayloads(files);
+
+    // Set the files on the input element
+    const result = await progress.race(
+      this._context.setInputFiles(this.remoteObject, filePayloads, {
+        force: options?.force,
+        directoryUpload: options?.directoryUpload,
+      }),
+    );
+
+    if (!result?.success) {
+      throw new Error(`Failed to set input files: ${result?.error || 'Unknown error'}`);
+    }
+
+    progress.log(`✓ Set ${result.filesSet} files on input element`);
+  }
+
+  /**
+   * Converts File objects or file payloads to a consistent format.
+   * This handles both File objects (from file inputs) and our custom payload format.
+   */
+  private async _convertToFilePayloads(
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+  ): Promise<{ name: string; mimeType: string; buffer: ArrayBuffer }[]> {
+    const payloads: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
+
+    for (const file of files) {
+      if (file instanceof File) {
+        // Convert File object to our payload format
+        const buffer = await file.arrayBuffer();
+        payloads.push({
+          name: file.name,
+          mimeType: file.type,
+          buffer,
+        });
+      } else {
+        // Already in our payload format
+        payloads.push(file);
+      }
+    }
+
+    return payloads;
   }
 }

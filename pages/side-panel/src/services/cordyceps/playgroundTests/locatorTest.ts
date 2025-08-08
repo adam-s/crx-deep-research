@@ -22,6 +22,7 @@ import {
   testScrollIntoViewIfNeededFunctionality,
   testSelectOptionFunctionality,
   testSetCheckedFunctionality,
+  testSetInputFilesFunctionality,
   testTapFunctionality,
   testTextContentFunctionality,
   testTypeFunctionality,
@@ -177,6 +178,12 @@ export class LocatorTest extends PlaygroundTest {
         'Testing selectOption functionality across ElementHandle, Locator, Frame, and Page',
       );
       await testSelectOptionFunctionality(page, progress, this.context);
+
+      // Test setInputFiles functionality across all layers
+      progress.log(
+        'Testing setInputFiles functionality across ElementHandle, Locator, Frame, and Page',
+      );
+      await testSetInputFilesFunctionality(page, progress, this.context);
 
       this.context.events.emit({
         timestamp: Date.now(),

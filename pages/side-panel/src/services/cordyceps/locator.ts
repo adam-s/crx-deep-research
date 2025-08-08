@@ -24,6 +24,7 @@ import {
 } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress } from './progress';
+import type { FilePayload } from '@shared/utils/fileInputTypes';
 import {
   executeProgressElementOperation,
   buildSelectorWithOptions,
@@ -182,6 +183,32 @@ export class Locator {
       title: 'Clear',
       timeout: options?.timeout || 30000,
     });
+  }
+
+  /**
+   * Set files on an input element.
+   * Similar to Playwright's Locator.setInputFiles method.
+   *
+   * @example
+   * ```typescript
+   * await locator.setInputFiles([file1, file2]);
+   *
+   * await locator.setInputFiles([
+   *   { name: 'data.json', mimeType: 'application/json', buffer: jsonBuffer }
+   * ]);
+   * ```
+   */
+  async setInputFiles(
+    files: FilePayload[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+  ): Promise<void> {
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (h, progress) => h._setInputFiles(progress, files, options),
+      'Set input files',
+      options?.timeout,
+    );
   }
 
   async highlight(options?: { timeout?: number }): Promise<void> {

@@ -14,6 +14,9 @@ import {
   CRX_DEEP_RESEARCH_SIDE_PANEL_VISIBILITY_CHANGE,
   CRX_DEEP_RESEARCH_SIDE_PANEL_RELOAD,
   CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED,
+  CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_CREATE,
+  CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_EVENT,
+  CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND,
 } from '@shared/utils/message';
 import { MessageServer } from '@shared/ipc/message/MessageServer';
 import { MessageServerManagerService } from './services/messageServerManager.service';
@@ -64,10 +67,10 @@ export class BackgroundApp extends Disposable {
         sendResponse: (response: DocumentResponse) => void,
       ) => {
         if (!message?.type) {
+          console.error('[BackgroundApp.onMessage] Invalid message format', { message, sender });
           sendErrorResponse('Invalid message format', sendResponse);
           return false;
         }
-
         switch (message.type) {
           case 'crx-deep-research:requestDocumentId':
             getDocumentId(sender)
@@ -105,7 +108,25 @@ export class BackgroundApp extends Disposable {
           case CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED:
             return false;
 
+          case CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_CREATE:
+            // Port creation is handled by content script, just acknowledge
+            return false;
+
+          case CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_EVENT:
+            // Events are sent from content to side panel, just pass through
+            return false;
+
+          case CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND:
+            // Commands are sent from side panel to content script
+            // Background script just acknowledges, the content script handles the command directly
+            return false;
+
           default:
+            console.error('[BackgroundApp.onMessage] Unknown message type', {
+              type: message.type,
+              message,
+              sender,
+            });
             sendErrorResponse(
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               `Unknown message type: ${message.type}`,

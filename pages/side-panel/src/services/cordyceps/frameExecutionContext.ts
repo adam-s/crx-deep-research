@@ -76,6 +76,25 @@ interface CordycepsInjectedScript {
   highlight(parsedSelector: unknown): void;
   hideHighlight(): void;
   markTargetElements(markedElements: Set<Element>, callId: string): void;
+  createFileTransferPort(): string;
+  fileTransferPortManager: {
+    getPort(portId: string):
+      | {
+          getIncomingBuffer(
+            transferId: string,
+          ): { buffer: ArrayBuffer; mimeType: string; name: string } | undefined;
+        }
+      | undefined;
+  };
+  setInputFiles(
+    handle: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
+    options: { force?: boolean; directoryUpload?: boolean },
+  ): {
+    success: boolean;
+    error?: string;
+    filesSet: number;
+  };
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -617,6 +636,115 @@ export class FrameExecutionContext extends Disposable {
       elementHandles,
       callId,
     );
+  }
+
+  /**
+   * Creates a new file transfer port in the content script for transferring files.
+   * @param world The execution world to run the script in
+   * @returns The port ID that can be used to communicate with the created port
+   */
+  public async createFileTransferPort(
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<string | undefined> {
+    const portId = await this.executeScript(() => {
+      const injected = window.__cordyceps_handledInjectedScript;
+      const portId = injected.createFileTransferPort();
+      return portId;
+    }, world);
+
+    return portId;
+  }
+
+  /**
+   * Sets files on an input element using its handle, following Playwright patterns.
+   * This method validates the input element and sets the files with proper error handling.
+   *
+   * @param handle The element handle for the input element
+   * @param files Array of file payloads to set
+   * @param options Options for the operation
+   * @param world The execution world to run the script in
+   * @returns Result of the operation
+   */
+  public async setInputFiles(
+    handle: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
+    options: { force?: boolean; directoryUpload?: boolean } = {},
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<
+    | {
+        success: boolean;
+        error?: string;
+        filesSet: number;
+      }
+    | undefined
+  > {
+    // 1) Create a file transfer port in the content script
+    const portId = await this.createFileTransferPort(world);
+    if (!portId) {
+      throw new Error('Failed to create file transfer port');
+    }
+
+    // 2) Wait for the port connection to be established in the side panel
+    let portConnection = this.frame.fileTransferPortController.getPort(portId);
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max wait
+
+    while (!portConnection && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      portConnection = this.frame.fileTransferPortController.getPort(portId);
+      attempts++;
+    }
+
+    if (!portConnection) {
+      throw new Error('Failed to establish port connection');
+    }
+    // 3) Transfer each file buffer via the port
+    const transferIds: string[] = [];
+
+    for (const file of files) {
+      const transferId = await portConnection.sendBuffer(file.buffer, {
+        filename: file.name,
+        mimeType: file.mimeType,
+      });
+
+      transferIds.push(transferId);
+    }
+
+    // 4) Execute setInputFiles in the content script with the transfer IDs
+    const result = await this.executeScript(
+      (
+        handle: string,
+        portId: string,
+        transferIds: string[],
+        options: { force?: boolean; directoryUpload?: boolean },
+      ) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        const port = injected.fileTransferPortManager.getPort(portId);
+        if (!port) {
+          return { success: false, error: 'Transfer port not found', filesSet: 0 };
+        }
+
+        // Build files array from incoming buffers
+        const built: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
+        for (const id of transferIds) {
+          const data = port.getIncomingBuffer(id);
+          if (!data) {
+            return { success: false, error: 'Missing transferred data', filesSet: 0 };
+          }
+
+          built.push({ name: data.name, mimeType: data.mimeType, buffer: data.buffer });
+        }
+
+        return injected.setInputFiles(handle, built, options);
+      },
+      world,
+      handle,
+      portId,
+      transferIds,
+      options,
+    );
+
+    return result;
   }
 
   public toString(): string {

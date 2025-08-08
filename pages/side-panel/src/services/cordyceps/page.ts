@@ -15,6 +15,7 @@ import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
 import { getContentFrameId, createPageSnapshotForAI } from './pageUtils';
+import type { FilePayload } from '@shared/utils/fileInputTypes';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
@@ -366,5 +367,26 @@ export class Page extends Disposable {
    */
   async _getBoundingBox(handle: ElementHandle): Promise<Rect | null> {
     return await handle.boundingBox();
+  }
+
+  /**
+   * Set files on an input element.
+   * Similar to Playwright's Page.setInputFiles method.
+   *
+   * @example
+   * ```typescript
+   * await page.setInputFiles('#file-input', [file1, file2]);
+   *
+   * await page.setInputFiles('#file-input', [
+   *   { name: 'data.json', mimeType: 'application/json', buffer: jsonBuffer }
+   * ]);
+   * ```
+   */
+  async setInputFiles(
+    selector: string,
+    files: FilePayload[] | File[],
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+  ): Promise<void> {
+    return await this.mainFrame().setInputFiles(selector, files, options);
   }
 }

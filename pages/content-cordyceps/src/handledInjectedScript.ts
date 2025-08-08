@@ -10,6 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { InjectedScript } from '@injected/injectedScript';
 import type { ParsedSelector } from '@injected/isomorphic/selectorParser';
 import type { SelectorEngine } from '@injected/selectorEngine';
+import { FileTransferPortManager } from './fileTransferPortManager';
 
 /**
  * HandleManager is responsible for managing the bidirectional mapping between
@@ -167,6 +168,7 @@ export class HandleManager {
 export class HandledInjectedScript {
   private readonly _injectedScript: InjectedScript;
   private readonly _handleManager: HandleManager;
+  private readonly _fileTransferPortManager: FileTransferPortManager;
 
   constructor(
     window: Window & typeof globalThis,
@@ -188,6 +190,7 @@ export class HandledInjectedScript {
     });
 
     this._handleManager = handleManager || new HandleManager();
+    this._fileTransferPortManager = new FileTransferPortManager();
   }
 
   // Delegate all non-overridden methods to the wrapped InjectedScript
@@ -1025,5 +1028,229 @@ export class HandledInjectedScript {
    */
   hideHighlight(): void {
     this._injectedScript.hideHighlight();
+  }
+
+  /**
+   * Creates a new file transfer port for communication with the side panel.
+   * This allows for transferring files and buffers between content script and side panel.
+   *
+   * @returns The port ID that can be used by the side panel to communicate with this port
+   */
+  createFileTransferPort(): string {
+    const port = this._fileTransferPortManager.createPort();
+    return port.portId;
+  }
+
+  /**
+   * Sets files on an input element following Playwright patterns.
+   * This method validates the input element and creates File objects from the provided data.
+   *
+   * @param handle The element handle for the input element
+   * @param files Array of file payloads to set
+   * @param options Options for the operation
+   * @returns Result of the operation
+   */
+  setInputFiles(
+    handle: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
+    options: { force?: boolean; directoryUpload?: boolean } = {},
+  ): {
+    success: boolean;
+    error?: string;
+    filesSet: number;
+  } {
+    try {
+      const element = this.getElementByHandle(handle);
+      if (!element) {
+        return {
+          success: false,
+          error: 'Element not found for handle',
+          filesSet: 0,
+        };
+      }
+      // Check if element is connected to the DOM
+      if (!element.isConnected) {
+        return {
+          success: false,
+          error: 'Element is not connected to the DOM',
+          filesSet: 0,
+        };
+      }
+
+      // Validate it's an input element
+      if (element.tagName !== 'INPUT') {
+        return {
+          success: false,
+          error: 'Element is not an INPUT element',
+          filesSet: 0,
+        };
+      }
+
+      const inputElement = element as HTMLInputElement;
+
+      // Validate input type
+      if (inputElement.type !== 'file') {
+        return {
+          success: false,
+          error: 'Input element is not of type "file"',
+          filesSet: 0,
+        };
+      }
+
+      // Validate multiple files support
+      const multiple = files.length > 1;
+      if (multiple && !inputElement.multiple && !inputElement.webkitdirectory) {
+        return {
+          success: false,
+          error: 'Input element does not support multiple files',
+          filesSet: 0,
+        };
+      }
+
+      // Validate directory upload
+      if (options.directoryUpload && !inputElement.webkitdirectory) {
+        return {
+          success: false,
+          error: 'Input element does not support directory upload (webkitdirectory)',
+          filesSet: 0,
+        };
+      }
+
+      if (!options.directoryUpload && inputElement.webkitdirectory) {
+        return {
+          success: false,
+          error: 'Directory input requires directoryUpload option',
+          filesSet: 0,
+        };
+      }
+
+      // Check if element is disabled (unless forced)
+      if (!options.force && inputElement.disabled) {
+        return {
+          success: false,
+          error: 'Input element is disabled',
+          filesSet: 0,
+        };
+      }
+
+      // Check if element is visible (unless forced)
+      if (!options.force && !this._injectedScript.utils.isElementVisible(element)) {
+        return {
+          success: false,
+          error: 'Input element is not visible',
+          filesSet: 0,
+        };
+      }
+
+      // Convert ArrayBuffers to File objects
+      const fileObjects: File[] = files.map(fileData => {
+        const blob = new Blob([fileData.buffer], { type: fileData.mimeType });
+        const file = new File([blob], fileData.name, { type: fileData.mimeType });
+
+        return file;
+      });
+
+      // Create a new FileList-like object
+      const fileList = this._createFileList(fileObjects);
+
+      // Set the files on the input element
+      Object.defineProperty(inputElement, 'files', {
+        value: fileList,
+        writable: false,
+        configurable: true,
+      });
+
+      // Dispatch input and change events to notify the page
+      this._dispatchFileEvents(inputElement);
+
+      const result = {
+        success: true,
+        filesSet: files.length,
+      };
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        filesSet: 0,
+      };
+    }
+  }
+
+  /**
+   * Creates a FileList-like object from an array of File objects.
+   * This mimics the native FileList interface that input elements use.
+   */
+  private _createFileList(files: File[]): FileList {
+    const fileList = Object.create(FileList.prototype);
+
+    // Add files as indexed properties
+    files.forEach((file, index) => {
+      Object.defineProperty(fileList, index, {
+        value: file,
+        enumerable: true,
+        configurable: true,
+      });
+    });
+
+    // Add length property
+    Object.defineProperty(fileList, 'length', {
+      value: files.length,
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
+
+    // Add item method
+    Object.defineProperty(fileList, 'item', {
+      value: function (index: number): File | null {
+        return index >= 0 && index < files.length ? files[index] : null;
+      },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
+
+    // Add iterator support
+    Object.defineProperty(fileList, Symbol.iterator, {
+      value: function* () {
+        for (let i = 0; i < files.length; i++) {
+          yield files[i];
+        }
+      },
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    });
+
+    return fileList as FileList;
+  }
+
+  /**
+   * Dispatches appropriate events after setting files on an input element.
+   * This ensures that event listeners on the page are properly notified.
+   */
+  private _dispatchFileEvents(inputElement: HTMLInputElement): void {
+    // Dispatch input event (fires during the file selection)
+    const inputEvent = new Event('input', {
+      bubbles: true,
+      cancelable: false,
+    });
+    inputElement.dispatchEvent(inputEvent);
+
+    // Dispatch change event (fires after file selection is complete)
+    const changeEvent = new Event('change', {
+      bubbles: true,
+      cancelable: false,
+    });
+    inputElement.dispatchEvent(changeEvent);
+  }
+
+  /**
+   * Gets access to the file transfer port manager for advanced operations.
+   */
+  get fileTransferPortManager(): FileTransferPortManager {
+    return this._fileTransferPortManager;
   }
 }

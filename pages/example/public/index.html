@@ -410,14 +410,65 @@
 
         <!-- File Input -->
         <div style="margin: 1em 0;">
-          <h4>File Input</h4>
-          <label for="file-input">Choose File:</label><br>
+          <h4>📁 File Input Testing</h4>
+
+          <!-- Single File Input -->
+          <label for="file-input">Single File (Text/JSON/HTML):</label><br>
           <input type="file" id="file-input" name="file-input"
             accept=".txt,.json,.html" style="margin: 0.25em 0;">
 
+          <!-- Multiple Files Input -->
           <br><label for="multiple-files">Multiple Files:</label><br>
           <input type="file" id="multiple-files" name="multiple-files" multiple
             style="margin: 0.25em 0;">
+
+          <!-- Image Files Only -->
+          <br><label for="image-files">Image Files Only:</label><br>
+          <input type="file" id="image-files" name="image-files" multiple
+            accept="image/*" style="margin: 0.25em 0;">
+
+          <!-- Directory Upload -->
+          <br><label for="directory-upload">Directory Upload:</label><br>
+          <input type="file" id="directory-upload" name="directory-upload"
+            webkitdirectory directory style="margin: 0.25em 0;">
+
+          <!-- Hidden File Input (for programmatic use) -->
+          <input type="file" id="hidden-file-input" name="hidden-file-input"
+            style="display: none;" multiple>
+
+          <!-- Force Upload (initially disabled) -->
+          <br><label for="disabled-file-input">Disabled File Input:</label><br>
+          <input type="file" id="disabled-file-input" name="disabled-file-input"
+            disabled style="margin: 0.25em 0;">
+
+          <!-- Any File Type -->
+          <br><label for="any-file-input">Any File Type:</label><br>
+          <input type="file" id="any-file-input" name="any-file-input" multiple
+            style="margin: 0.25em 0;">
+
+          <!-- Required File Input -->
+          <br><label for="required-file-input">Required File Input:</label><br>
+          <input type="file" id="required-file-input" name="required-file-input"
+            required style="margin: 0.25em 0;">
+
+          <!-- File Input Display -->
+          <div id="file-status"
+            style="margin: 1em 0; padding: 0.5em; background-color: #f8f9fa; border-radius: 0.25em; display: none;">
+            <strong>File Upload Status:</strong>
+            <div id="file-list"></div>
+          </div>
+
+          <!-- File Test Buttons -->
+          <div style="margin: 1em 0;">
+            <button type="button" onclick="enableDisabledInput()">Enable
+              Disabled Input</button>
+            <button type="button" onclick="showFileStatus()">Show File
+              Status</button>
+            <button type="button" onclick="clearAllFiles()">Clear All
+              Files</button>
+            <button type="button" onclick="triggerHiddenInput()">Trigger Hidden
+              Input</button>
+          </div>
         </div>
 
         <!-- Color and URL Inputs -->
@@ -701,10 +752,159 @@
       }, 5000);
     }
 
+    // File Input Handler Functions
+    function enableDisabledInput() {
+      const disabledInput = document.getElementById('disabled-file-input');
+      disabledInput.disabled = false;
+      console.log('✅ Disabled file input has been enabled');
+      showFormStatus('Disabled file input has been enabled!', 'success');
+    }
+
+    function showFileStatus() {
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      const statusDiv = document.getElementById('file-status');
+      const fileListDiv = document.getElementById('file-list');
+
+      let statusHTML = '';
+      let totalFiles = 0;
+      let firstInputWithFiles = null;
+
+      fileInputs.forEach(input => {
+        if (input.files && input.files.length > 0) {
+          // Track the first input that has files for scrolling
+          if (!firstInputWithFiles) {
+            firstInputWithFiles = input;
+          }
+
+          const inputName = input.id || input.name || 'file-input';
+          const fileCount = input.files.length;
+
+          if (fileCount === 1) {
+            // Single file: "file-input: 1 file(s) • package.json (application/json, 3.41 KB)"
+            const file = input.files[0];
+            const fileType = file.type || 'unknown type';
+            const fileSize = formatFileSize(file.size);
+            statusHTML += `<div><strong>${inputName}:</strong> ${fileCount} file(s) • ${file.name} (${fileType}, ${fileSize})</div>`;
+          } else {
+            // Multiple files: show count first, then list each file
+            statusHTML += `<div><strong>${inputName}:</strong> ${fileCount} file(s)</div>`;
+            Array.from(input.files).forEach((file) => {
+              const fileType = file.type || 'unknown type';
+              const fileSize = formatFileSize(file.size);
+              statusHTML += `<div style="margin-left: 1em;">• ${file.name} (${fileType}, ${fileSize})</div>`;
+            });
+          }
+          totalFiles += fileCount;
+        }
+      });
+
+      if (totalFiles > 0) {
+        fileListDiv.innerHTML = statusHTML;
+        statusDiv.style.display = 'block';
+        console.log(`📁 File status updated: ${totalFiles} total files across all inputs`);
+      } else {
+        statusDiv.style.display = 'none';
+        console.log('📁 File status: No files selected.');
+      }
+    }
+
+    // Make showFileStatus available globally for programmatic access
+    window.showFileStatus = showFileStatus;
+
+    // Add a function to force refresh all file status displays
+    function refreshFileStatus() {
+      console.log('🔄 Force refreshing file status display...');
+      showFileStatus();
+    }
+    window.refreshFileStatus = refreshFileStatus;
+
+    function clearAllFiles() {
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      fileInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+          input.value = '';
+        }
+      });
+
+      document.getElementById('file-status').style.display = 'none';
+      console.log('🗑️ All file inputs have been cleared');
+      showFormStatus('All file inputs have been cleared!', 'info');
+      showFileStatus(); // Update status after clearing
+    }
+
+    function triggerHiddenInput() {
+      const hiddenInput = document.getElementById('hidden-file-input');
+      hiddenInput.click();
+      console.log('👆 Hidden file input triggered');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Add event listeners for file inputs
+    function setupFileInputListeners() {
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      fileInputs.forEach(input => {
+        // Listen for multiple events to catch programmatic changes
+        ['change', 'input'].forEach(eventType => {
+          input.addEventListener(eventType, function (e) {
+            const files = e.target.files;
+            if (files) {
+              console.log(`📁 File input ${e.target.id} ${eventType} event: ${files.length} file(s) selected`);
+              if (files.length > 0) {
+                Array.from(files).forEach((file, index) => {
+                  console.log(`  • File ${index + 1}: ${file.name} (${file.type || 'unknown type'}, ${formatFileSize(file.size)})`);
+                });
+              }
+              // Automatically update the visual status on any change
+              showFileStatus();
+            }
+          });
+        });
+
+        // Add a property observer to detect when files property changes programmatically
+        let lastFileCount = input.files ? input.files.length : 0;
+
+        // Use a MutationObserver to watch for attribute changes
+        const observer = new MutationObserver(() => {
+          const currentFileCount = input.files ? input.files.length : 0;
+          if (currentFileCount !== lastFileCount) {
+            console.log(`📁 File input ${input.id} detected programmatic change: ${lastFileCount} → ${currentFileCount} files`);
+            lastFileCount = currentFileCount;
+            showFileStatus();
+          }
+        });
+
+        observer.observe(input, {
+          attributes: true,
+          attributeFilter: ['value']
+        });
+
+        // Also set up a periodic check for programmatic changes
+        setInterval(() => {
+          const currentFileCount = input.files ? input.files.length : 0;
+          if (currentFileCount !== lastFileCount) {
+            console.log(`📁 File input ${input.id} periodic check detected change: ${lastFileCount} → ${currentFileCount} files`);
+            lastFileCount = currentFileCount;
+            showFileStatus();
+          }
+        }, 500); // Check every 500ms
+      });
+    }
+
     // Initialize when page loads
     document.addEventListener('DOMContentLoaded', function () {
       console.log('🚀 Cordyceps Example Page loaded');
       createShadowDOM();
+
+      // Setup file input listeners
+      setupFileInputListeners();
 
       // Initialize drag and drop functionality
       initializeDragAndDrop();
