@@ -9,7 +9,6 @@ import { Severity, EventMessage } from '../../utils/types';
 import { SimpleEventEmitter } from '../../utils/SimpleEventEmitter';
 import { TestContext } from './playgroundTests/api';
 import { NavigationTest } from './playgroundTests/navigationTest';
-import { FrameExecutionTest } from './playgroundTests/frameExecutionTest';
 import { DOMInteractionTest } from './playgroundTests/domInteractionTest';
 import { LocatorTest } from './playgroundTests/locatorTest';
 import { PerformanceTest } from './playgroundTests/performanceTest';
@@ -26,8 +25,6 @@ export interface ICordycepsPlaygroundService {
   runAllTests: () => Promise<void>;
   /** Run basic navigation test */
   runNavigationTest: () => Promise<void>;
-  /** Run frame execution context test */
-  runFrameExecutionTest: () => Promise<void>;
   /** Run DOM interaction test */
   runDOMInteractionTest: () => Promise<void>;
   /** Run performance test */
@@ -46,7 +43,6 @@ export class CordycepsPlaygroundService
   public readonly onEvent: Event<EventMessage> = this.events.event;
 
   private readonly _navigationTest = new NavigationTest(this);
-  private readonly _frameExecutionTest = new FrameExecutionTest(this);
   private readonly _domInteractionTest = new DOMInteractionTest(this);
   private readonly _locatorTest = new LocatorTest(this);
   private readonly _performanceTest = new PerformanceTest(this);
@@ -68,7 +64,6 @@ export class CordycepsPlaygroundService
 
     try {
       await this.runNavigationTest();
-      await this.runFrameExecutionTest();
       await this.runDOMInteractionTest();
       await this.runLocatorTest();
       await this.runPerformanceTest();
@@ -99,10 +94,6 @@ export class CordycepsPlaygroundService
 
   public async runNavigationTest(): Promise<void> {
     await this._navigationTest.run(10_000, 'Navigation Test');
-  }
-
-  public async runFrameExecutionTest(): Promise<void> {
-    await this._frameExecutionTest.run(15_000, 'Frame Execution Test');
   }
 
   public async runDOMInteractionTest(): Promise<void> {

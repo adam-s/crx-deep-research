@@ -14,37 +14,22 @@ import { Frame } from './frame';
 import {
   throwRetargetableDOMError,
   throwElementIsNotAttached,
-  handleOperationResult,
   OperationResult,
   STANDARD_TIMEOUT,
 } from './utils';
 import { ElementAction, executeElementOp } from './elementOperations';
-
-// #region Helper Functions
-
-/**
- * Helper function to validate element handle operation results
- */
-function validateElementOperationResult(result: OperationResult, operation: string): void {
-  handleOperationResult(result, operation);
-}
-
-/**
- * Execute element operation with standard error handling
- */
-async function executeElementOperation(
-  operation: (progress: Progress) => Promise<OperationResult>,
-  operationName: string,
-  timeout: number = STANDARD_TIMEOUT,
-): Promise<void> {
-  return executeWithProgress(
-    async progress => {
-      const result = await operation(progress);
-      validateElementOperationResult(result, operationName);
-    },
-    { timeout },
-  );
-}
+import {
+  executeElementOperation,
+  createFillElementScript,
+  createSelectOptionScript,
+  createSelectTextScript,
+  createKeyboardEventScript,
+  isPrintableKey,
+  normalizeSelectOptions,
+  isElementDisconnected,
+  extractErrorMessage,
+  createScrollIntoViewScript,
+} from './elementHandleUtils';
 
 // This needs to know it's world, tab id, frame id, and element id that
 // exists in the dom
@@ -121,10 +106,6 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(async progress => await this._click(progress), 'Click');
   }
 
-  /**
-   * Click an element following Playwright patterns.
-   * This method implements enhanced clicking with proper error handling.
-   */
   async clickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
     const result = await this._click(progress, options);
     if (result !== 'done') {
@@ -132,9 +113,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Simple click method using executeWithProgress wrapper.
-   */
   async clickSimple(): Promise<void> {
     return executeWithProgress(
       async progress => {
@@ -147,10 +125,6 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Internal method to perform click following Playwright patterns.
-   * This method handles the core click logic with proper error handling.
-   */
   async _click(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
     // Use enhanced click if options are provided
     if (options && (options.position || options.force || options.button || options.clickCount)) {
@@ -200,10 +174,6 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Double click an element following Playwright patterns.
-   * This method implements enhanced double clicking with proper error handling.
-   */
   async dblclickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
     const result = await this._dblclick(progress, options);
     if (result !== 'done') {
@@ -211,10 +181,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Internal method to perform double click following Playwright patterns.
-   * Double click is essentially a click with clickCount: 2.
-   */
   async _dblclick(
     progress: Progress,
     options?: ClickOptions,
@@ -237,10 +203,6 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Tap an element following Playwright patterns.
-   * This method implements touch-based interaction with proper error handling.
-   */
   async tapWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
     await this._markAsTargetElement(progress);
     const result = await this._tap(progress, options);
@@ -249,10 +211,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Internal method to perform tap following Playwright patterns.
-   * Tap is essentially a touch-based click operation.
-   */
   async _tap(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
     progress.log('  tap()');
 
@@ -296,10 +254,6 @@ export class ElementHandle extends JSHandle {
     return 'done';
   }
 
-  /**
-   * Check a checkbox or radio button following Playwright patterns.
-   * This method implements the _setChecked logic similar to Playwright's ElementHandle.
-   */
   async checkWithProgress(progress: Progress): Promise<void> {
     const result = await this._setChecked(progress, true);
     if (result !== 'done') {
@@ -307,9 +261,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Uncheck a checkbox or radio button following Playwright patterns.
-   */
   async uncheckWithProgress(progress: Progress): Promise<void> {
     const result = await this._setChecked(progress, false);
     if (result !== 'done') {
@@ -317,10 +268,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Internal method to set checked state following Playwright patterns.
-   * This method handles the core check/uncheck logic with proper error handling.
-   */
   async _setChecked(progress: Progress, state: boolean): Promise<'error:notconnected' | 'done'> {
     // Helper function to check current state
     const isChecked = async (): Promise<boolean> => {
@@ -368,10 +315,6 @@ export class ElementHandle extends JSHandle {
     return 'done';
   }
 
-  /**
-   * Get bounding box with progress tracking.
-   * Similar to Playwright's ElementHandle.boundingBox method with progress.
-   */
   async boundingBoxWithProgress(progress: Progress): Promise<Rect | null> {
     const value = await progress.race(this.boundingBox());
     return value || null;
@@ -467,54 +410,8 @@ export class ElementHandle extends JSHandle {
   ): Promise<'error:notconnected' | 'done'> {
     progress.log(`  fill("${value}")`);
 
-    // Create a function to fill the element
-    const fillElement = (handle: string, fillValue: string, force: boolean) => {
-      const injected = window.__cordyceps_handledInjectedScript;
-      const element = injected.getElementByHandle(handle);
-      if (!element) {
-        throw new Error('Element not found for handle');
-      }
-
-      const inputElement = element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-
-      // Check if element is editable unless force is true
-      if (!force) {
-        // Check if element is visible
-        const rect = element.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-          throw new Error('Element is not visible');
-        }
-
-        // Check if element is enabled
-        if ('disabled' in inputElement && inputElement.disabled) {
-          throw new Error('Element is disabled');
-        }
-
-        // Check if element is editable
-        if ('readOnly' in inputElement && inputElement.readOnly) {
-          throw new Error('Element is readonly');
-        }
-      }
-
-      // Focus the element first
-      inputElement.focus();
-
-      // Clear existing value and set new value
-      if ('value' in inputElement) {
-        inputElement.value = fillValue;
-
-        // Trigger input events to simulate user typing
-        const inputEvent = new Event('input', { bubbles: true });
-        const changeEvent = new Event('change', { bubbles: true });
-
-        inputElement.dispatchEvent(inputEvent);
-        inputElement.dispatchEvent(changeEvent);
-
-        return 'done';
-      } else {
-        throw new Error('Element is not fillable');
-      }
-    };
+    // Use the extracted fill element script
+    const fillElement = createFillElementScript();
 
     try {
       const result = await progress.race(
@@ -614,10 +511,6 @@ export class ElementHandle extends JSHandle {
 
   // #region Simple Element Operations
 
-  /**
-   * Execute element operation with standard wrapper
-   * This reduces repetition across all element operation methods
-   */
   private async _executeElementOp<T>(action: ElementAction): Promise<T> {
     return await executeWithProgress(
       async () => {
@@ -633,93 +526,43 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Get text content - simple and clean
-   * Replaces: await handle.evaluate(el => el.textContent)
-   * With: await handle.getTextContent()
-   */
   async getTextContent(): Promise<string> {
     const result = await this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
     return result;
   }
 
-  /**
-   * Get inner text - simple and clean
-   * Replaces: await handle.evaluate(el => el.innerText)
-   * With: await handle.getInnerText()
-   */
   async getInnerText(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'innerText' });
   }
 
-  /**
-   * Get input value - simple and clean
-   * Replaces: await handle.evaluate(el => el.value)
-   * With: await handle.getValue()
-   */
   async getValue(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'value' });
   }
 
-  /**
-   * Check if input is checked - simple and clean
-   * Replaces: await handle.evaluate(el => el.checked)
-   * With: await handle.isChecked()
-   */
   async isChecked(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'checked' });
   }
 
-  /**
-   * Get tag name - simple and clean
-   * Replaces: await handle.evaluate(el => el.tagName)
-   * With: await handle.getTagName()
-   */
   async getTagName(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'tagName' });
   }
 
-  /**
-   * Get inner HTML - simple and clean
-   * Replaces: await handle.evaluate(el => el.innerHTML)
-   * With: await handle.getInnerHTML()
-   */
   async getInnerHTML(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'innerHTML' });
   }
 
-  /**
-   * Get outer HTML - simple and clean
-   * Replaces: await handle.evaluate(el => el.outerHTML)
-   * With: await handle.getOuterHTML()
-   */
   async getOuterHTML(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'outerHTML' });
   }
 
-  /**
-   * Get class name - simple and clean
-   * Replaces: await handle.evaluate(el => el.className)
-   * With: await handle.getClassName()
-   */
   async getClassName(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'className' });
   }
 
-  /**
-   * Get element ID - simple and clean
-   * Replaces: await handle.evaluate(el => el.id)
-   * With: await handle.getId()
-   */
   async getId(): Promise<string> {
     return this._executeElementOp<string>({ op: 'get', prop: 'id' });
   }
 
-  /**
-   * Set input value - simple and clean
-   * Replaces: await handle.evaluate((el, value) => { el.value = value; }, newValue)
-   * With: await handle.setValue(newValue)
-   */
   async setValue(value: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'set', prop: 'value', value });
   }
@@ -733,11 +576,6 @@ export class ElementHandle extends JSHandle {
     await this._executeElementOp<void>({ op: 'set', prop: 'textContent', value: text });
   }
 
-  /**
-   * Set checked state of an input element by calling check() or uncheck()
-   * Replaces: await handle.evaluate((el, checked) => { el.checked = checked; }, newState)
-   * With: await handle.setChecked(newState)
-   */
   async setChecked(
     checked: boolean,
     options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
@@ -747,28 +585,7 @@ export class ElementHandle extends JSHandle {
     } else {
       await this.uncheck(options);
     }
-  } /**
-   * Select option(s) in a select element
-   * Supports selection by value, label text, or index
-   *
-   * @example
-   * // Select by value
-   * await handle.selectOption('option-value');
-   * await handle.selectOption(['value1', 'value2']); // Multiple selection
-   *
-   * // Select by label text
-   * await handle.selectOption({ label: 'Option Label' });
-   *
-   * // Select by index
-   * await handle.selectOption({ index: 0 });
-   *
-   * // Mixed selection (multiple)
-   * await handle.selectOption([
-   *   'value1',
-   *   { label: 'Second Option' },
-   *   { index: 2 }
-   * ]);
-   */
+  }
   async selectOption(
     values: SelectOption | SelectOption[],
     options?: SelectOptionOptions,
@@ -796,76 +613,11 @@ export class ElementHandle extends JSHandle {
     values: SelectOption | SelectOption[],
     options?: SelectOptionOptions,
   ): Promise<string[] | 'error:notconnected'> {
-    const valuesArray = Array.isArray(values) ? values : [values];
+    const valuesArray = normalizeSelectOptions(values);
     progress.log(`  selectOption(${JSON.stringify(valuesArray)})`);
 
-    const selectOptionScript = (handle: string, selectValues: SelectOption[], force: boolean) => {
-      const injected = window.__cordyceps_handledInjectedScript;
-      const element = injected.getElementByHandle(handle) as HTMLSelectElement;
-      if (!element) {
-        return 'error:notconnected';
-      }
-
-      if (element.tagName.toLowerCase() !== 'select') {
-        return { error: 'Element is not a select element' };
-      }
-
-      // Check visibility and enabled state unless force is true
-      if (!force) {
-        const style = window.getComputedStyle(element);
-        if (style.display === 'none' || style.visibility === 'hidden' || element.disabled) {
-          return { error: 'Element is not visible or enabled' };
-        }
-      }
-
-      const selectedValues: string[] = [];
-      const options = Array.from(element.options);
-
-      // Clear all selections first for single select, or only clear if not multiple
-      if (!element.multiple) {
-        options.forEach(option => {
-          option.selected = false;
-        });
-      } else {
-        // For multiple select, only clear if we're not adding to selection
-        options.forEach(option => {
-          option.selected = false;
-        });
-      }
-
-      for (const selectValue of selectValues) {
-        let option: HTMLOptionElement | undefined;
-
-        if (typeof selectValue === 'string') {
-          // Select by value
-          option = options.find(opt => opt.value === selectValue);
-        } else {
-          if (selectValue.value !== undefined) {
-            // Select by value
-            option = options.find(opt => opt.value === selectValue.value);
-          } else if (selectValue.label !== undefined) {
-            // Select by label text
-            option = options.find(opt => opt.textContent?.trim() === selectValue.label);
-          } else if (selectValue.index !== undefined) {
-            // Select by index
-            option = options[selectValue.index];
-          }
-        }
-
-        if (option) {
-          option.selected = true;
-          selectedValues.push(option.value);
-        } else if (!force) {
-          return { error: `Option not found: ${JSON.stringify(selectValue)}` };
-        }
-      }
-
-      // Trigger change and input events
-      element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-
-      return selectedValues;
-    };
+    // Use the extracted select option script
+    const selectOptionScript = createSelectOptionScript();
 
     try {
       const result = await progress.race(
@@ -878,19 +630,14 @@ export class ElementHandle extends JSHandle {
         ),
       );
 
-      if (result === 'error:notconnected') {
+      if (isElementDisconnected(result)) {
         return 'error:notconnected';
       }
 
       // If the page-side script returned a structured error, rethrow here so callers can catch
-      if (
-        result &&
-        typeof result === 'object' &&
-        !Array.isArray(result) &&
-        Object.prototype.hasOwnProperty.call(result as Record<string, unknown>, 'error')
-      ) {
-        const errMsg = (result as { error: string }).error;
-        throw new Error(errMsg);
+      const errorMessage = extractErrorMessage(result);
+      if (errorMessage) {
+        throw new Error(errorMessage);
       }
 
       return result as string[];
@@ -902,12 +649,6 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Selects all text content within the element.
-   *
-   * @param options Action options including timeout and force
-   * @returns Promise that resolves when text selection is complete
-   */
   async selectText(options?: CommonActionOptions): Promise<void> {
     return executeElementOperation(
       async progress => await this._selectText(progress, options),
@@ -929,38 +670,8 @@ export class ElementHandle extends JSHandle {
   ): Promise<'error:notconnected' | 'done'> {
     progress.log('  selectText()');
 
-    const selectTextScript = (handle: string, force: boolean) => {
-      const injected = window.__cordyceps_handledInjectedScript;
-      const element = injected.getElementByHandle(handle);
-      if (!element) {
-        return 'error:notconnected';
-      }
-
-      // Check if element is visible unless force is true
-      if (!force) {
-        const rect = element.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-          throw new Error('Element is not visible');
-        }
-      }
-
-      // Select text based on element type
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-        // For input and textarea elements, select all text
-        element.select();
-      } else {
-        // For other elements, create a text range selection
-        const range = document.createRange();
-        range.selectNodeContents(element);
-        const selection = window.getSelection();
-        if (selection) {
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-      }
-
-      return 'done';
-    };
+    // Use the extracted select text script
+    const selectTextScript = createSelectTextScript();
 
     try {
       const result = await progress.race(
@@ -972,7 +683,7 @@ export class ElementHandle extends JSHandle {
         ),
       );
 
-      if (result === 'error:notconnected') {
+      if (isElementDisconnected(result)) {
         return 'error:notconnected';
       }
 
@@ -985,38 +696,18 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Get attribute value - simple and clean
-   * Replaces: await handle.evaluate(el => el.getAttribute('name'))
-   * With: await handle.getAttribute('name')
-   */
   async getAttribute(name: string): Promise<string | null> {
     return this._executeElementOp<string | null>({ op: 'attr', name });
   }
 
-  /**
-   * Set attribute value - simple and clean
-   * Replaces: await handle.evaluate((el, name, value) => { el.setAttribute(name, value); }, 'id', '123')
-   * With: await handle.setAttribute('id', '123')
-   */
   async setAttribute(name: string, value: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'attr', name, value });
   }
 
-  /**
-   * Remove attribute - simple and clean
-   * Replaces: await handle.evaluate((el, name) => { el.removeAttribute(name); }, 'disabled')
-   * With: await handle.removeAttribute('disabled')
-   */
   async removeAttribute(name: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'attr', name, value: null });
   }
 
-  /**
-   * Check if element has attribute - simple and clean
-   * Replaces: await handle.evaluate(el => el.hasAttribute('disabled'))
-   * With: await handle.hasAttribute('disabled')
-   */
   async hasAttribute(name: string): Promise<boolean> {
     return await executeWithProgress(
       async () => {
@@ -1027,64 +718,30 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Check if element has CSS class - simple and clean
-   * Replaces: await handle.evaluate(el => el.classList.contains('active'))
-   * With: await handle.hasClass('active')
-   */
   async hasClass(className: string): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'class', name: className, action: 'has' });
   }
 
-  /**
-   * Add CSS class - simple and clean
-   * Replaces: await handle.evaluate((el, cls) => { el.classList.add(cls); }, 'active')
-   * With: await handle.addClass('active')
-   */
   async addClass(className: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'class', name: className, action: 'add' });
   }
 
-  /**
-   * Remove CSS class - simple and clean
-   * Replaces: await handle.evaluate((el, cls) => { el.classList.remove(cls); }, 'active')
-   * With: await handle.removeClass('active')
-   */
   async removeClass(className: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'class', name: className, action: 'remove' });
   }
 
-  /**
-   * Toggle CSS class - simple and clean
-   * Replaces: await handle.evaluate((el, cls) => { el.classList.toggle(cls); }, 'active')
-   * With: await handle.toggleClass('active')
-   */
   async toggleClass(className: string): Promise<void> {
     await this._executeElementOp<void>({ op: 'class', name: className, action: 'toggle' });
   }
 
-  /**
-   * Get bounding rectangle - simple and clean
-   * Replaces: await handle.evaluate(el => el.getBoundingClientRect())
-   * With: await handle.getBoundingRect()
-   */
   async getBoundingRect(): Promise<DOMRect> {
     return this._executeElementOp<DOMRect>({ op: 'rect' });
   }
 
-  /**
-   * Check if element is visible - simple and clean
-   * Replaces: await handle.evaluate(el => { const rect = el.getBoundingClientRect(); return rect.width > 0 && rect.height > 0; })
-   * With: await handle.isVisible()
-   */
   async isVisible(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isVisible' });
   }
 
-  /**
-   * Mark this element as a target element for debugging/tracing purposes.
-   * This method follows Playwright patterns for marking elements during operations.
-   */
   private async _markAsTargetElement(progress: Progress): Promise<void> {
     // Only mark if we have a valid progress metadata id
     // Note: Progress interface may not expose metadata directly, so we check if it exists
@@ -1105,106 +762,52 @@ export class ElementHandle extends JSHandle {
     }
   }
 
-  /**
-   * Check if element is enabled - simple and clean
-   * Replaces: await handle.evaluate(el => !el.disabled)
-   * With: await handle.isEnabled()
-   */
   async isEnabled(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isEnabled' });
   }
 
-  /**
-   * Check if element is focused - simple and clean
-   * Replaces: await handle.evaluate(el => document.activeElement === el)
-   * With: await handle.isFocused()
-   */
   async isFocused(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isFocused' });
   }
 
-  /**
-   * Focus element - simple and clean
-   * Replaces: await handle.evaluate(el => el.focus())
-   * With: await handle.focus()
-   */
   async focus(): Promise<void> {
     await this._executeElementOp<void>({ op: 'action', name: 'focus' });
   }
 
-  /**
-   * Blur element - simple and clean
-   * Replaces: await handle.evaluate(el => el.blur())
-   * With: await handle.blur()
-   */
   async blur(): Promise<void> {
     await this._executeElementOp<void>({ op: 'action', name: 'blur' });
   }
 
-  /**
-   * Click element (DOM click) - simple and clean
-   * Replaces: await handle.evaluate(el => el.click())
-   * With: await handle.clickElement()
-   */
   async clickElement(): Promise<void> {
     await this._executeElementOp<void>({ op: 'action', name: 'click' });
   }
 
-  /**
-   * Hover element - dispatches mouseover/mouseenter/mousemove
-   * Mirrors Playwright's hover semantics at a basic level.
-   */
   async hover(): Promise<void> {
     await this._executeElementOp<void>({ op: 'action', name: 'hover' });
   }
 
-  /**
-   * Press a key on the focused element. Focuses first if needed.
-   * Basic implementation: dispatches keydown / keypress (printable) / keyup and updates value for simple characters.
-   */
   async press(key: string, options: { delay?: number } = {}): Promise<void> {
     await executeWithProgress(
       async progress => {
         // Ensure focus
         await this.focus();
-        const isPrintable = key.length === 1;
+        const isPrintableChar = isPrintableKey(key);
+        const keyboardEventScript = createKeyboardEventScript();
+
         const dispatch = async (type: string) => {
           const result = await this._context.executeScript(
-            (handle: string, eventType: string, keyValue: string, printable: boolean): void => {
-              const injected = (
-                window as unknown as {
-                  __cordyceps_handledInjectedScript?: {
-                    getElementByHandle: (h: string) => Element | null;
-                  };
-                }
-              ).__cordyceps_handledInjectedScript;
-              if (!injected) throw new Error('Injected script not found');
-              const el = injected.getElementByHandle(handle) as HTMLElement | null;
-              if (!el) throw new Error('Element not found');
-              const eventInit: KeyboardEventInit = {
-                key: keyValue,
-                bubbles: true,
-                cancelable: true,
-              };
-              const ev = new KeyboardEvent(eventType, eventInit);
-              el.dispatchEvent(ev);
-              if (printable && eventType === 'keypress') {
-                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-                  el.value += keyValue;
-                  el.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-              }
-            },
+            keyboardEventScript,
             'ISOLATED',
             this.remoteObject,
             type,
             key,
-            isPrintable,
+            isPrintableChar,
           );
           return result;
         };
+
         await dispatch('keydown');
-        if (isPrintable) await dispatch('keypress');
+        if (isPrintableChar) await dispatch('keypress');
         if (options.delay) await progress.race(new Promise(r => setTimeout(r, options.delay)));
         await dispatch('keyup');
       },
@@ -1212,10 +815,6 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Type text into the focused element. Focuses first if needed.
-   * Types each character with optional delay between characters.
-   */
   async type(text: string, options: { delay?: number } = {}): Promise<void> {
     await executeWithProgress(
       async progress => {
@@ -1254,152 +853,27 @@ export class ElementHandle extends JSHandle {
     const result = await this.getTextContent();
     return result;
   }
-  /** Convenience alias for getValue */
   async inputValue(): Promise<string> {
     return this.getValue();
   }
-  /** Convenience alias for getAttribute */
   async attribute(name: string): Promise<string | null> {
     return this.getAttribute(name);
   }
 
-  /** Whether element has disabled attribute or property true */
   async isDisabled(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'disabled' });
   }
 
-  /** Whether element is hidden (inverse of isVisible) */
   async isHidden(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isHidden' });
   }
 
-  /** Whether element is editable (contentEditable or enabled writable form control) */
   async isEditable(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isEditable' });
   }
 
   // #endregion Simple Element Operations
 
-  /**
-   * @deprecated Use type-safe methods instead of evaluate()
-   * This method is kept for backward compatibility but should be replaced with
-   * specific type-safe methods like getProperty(), setProperty(), getAttribute(), etc.
-   */
-  async evaluate<R, Arg>(
-    pageFunction: (element: Element, arg: Arg) => R,
-    arg?: Arg,
-    options?: { timeout?: number },
-  ): Promise<R> {
-    console.warn(
-      'ElementHandle.evaluate() is deprecated. Use type-safe methods like getProperty(), setProperty(), getAttribute(), etc. instead.',
-    );
-
-    return await executeWithProgress(
-      async () => {
-        // For Chrome extensions, we need to handle common evaluation patterns
-        // Since we can't use eval() or new Function(), we need predefined functions
-
-        // Create a wrapper that gets the element and applies a predefined operation
-        const evaluateElement = (handle: string, operation: string, ...args: unknown[]) => {
-          const injected = window.__cordyceps_handledInjectedScript;
-          const element = injected.getElementByHandle(handle);
-          if (!element) {
-            throw new Error('Element not found for handle');
-          }
-
-          // Handle common evaluation patterns
-          switch (operation) {
-            case 'tagName':
-              return element.tagName;
-            case 'textContent':
-              return element.textContent;
-            case 'innerHTML':
-              return element.innerHTML;
-            case 'outerHTML':
-              return element.outerHTML;
-            case 'className':
-              return element.className;
-            case 'id':
-              return element.id;
-            case 'value':
-              return (element as HTMLInputElement).value;
-            case 'checked':
-              return (element as HTMLInputElement).checked;
-            case 'disabled':
-              return (element as HTMLInputElement).disabled;
-            case 'href':
-              return (element as HTMLAnchorElement).href;
-            case 'src':
-              return (element as HTMLImageElement).src;
-            case 'innerText':
-              return (element as HTMLElement).innerText;
-            default: {
-              // For unknown operations, try to apply the function directly
-              // This is a fallback for when pattern detection fails
-              try {
-                // If we have an argument, call the function with element and arg
-                if (args.length > 0) {
-                  return (pageFunction as (element: Element, arg: unknown) => R)(element, args[0]);
-                } else {
-                  // Call the function with just the element
-                  return (pageFunction as (element: Element) => R)(element);
-                }
-              } catch (error) {
-                // If direct function call fails, return safe default
-                return element.textContent as R;
-              }
-            }
-          }
-        };
-
-        // Try to detect the operation from the function
-        const funcStr = pageFunction.toString();
-        let operation = 'unknown';
-
-        // More flexible pattern matching that handles different parameter names
-        if (funcStr.includes('.tagName')) {
-          operation = 'tagName';
-        } else if (funcStr.includes('.textContent')) {
-          operation = 'textContent';
-        } else if (funcStr.includes('.innerHTML')) {
-          operation = 'innerHTML';
-        } else if (funcStr.includes('.outerHTML')) {
-          operation = 'outerHTML';
-        } else if (funcStr.includes('.className')) {
-          operation = 'className';
-        } else if (funcStr.includes('.id')) {
-          operation = 'id';
-        } else if (funcStr.includes('.value')) {
-          operation = 'value';
-        } else if (funcStr.includes('.checked')) {
-          operation = 'checked';
-        } else if (funcStr.includes('.disabled')) {
-          operation = 'disabled';
-        } else if (funcStr.includes('.href')) {
-          operation = 'href';
-        } else if (funcStr.includes('.src')) {
-          operation = 'src';
-        } else if (funcStr.includes('.innerText')) {
-          operation = 'innerText';
-        }
-
-        const result = await this._context.executeScript(
-          evaluateElement,
-          'ISOLATED',
-          this.remoteObject,
-          operation,
-          arg,
-        );
-        return result as R;
-      },
-      { timeout: options?.timeout || STANDARD_TIMEOUT },
-    );
-  }
-
-  /**
-   * Scroll the element into view if needed.
-   * This method scrolls the page to ensure the element is visible in the viewport.
-   */
   async scrollIntoViewIfNeeded(options: TimeoutOptions = {}): Promise<void> {
     return executeElementOperation(
       async progress => await this._scrollIntoViewIfNeeded(progress),
@@ -1408,41 +882,11 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  /**
-   * Internal implementation of scrollIntoViewIfNeeded
-   */
   private async _scrollIntoViewIfNeeded(progress: Progress): Promise<OperationResult> {
     try {
+      const scrollIntoViewScript = createScrollIntoViewScript();
       const result = await progress.race(
-        this._context.executeScript(
-          (handle: string) => {
-            const injectedScript = window.__cordyceps_handledInjectedScript;
-            const element = injectedScript.getElementByHandle(handle);
-            if (!element) {
-              return { success: false, error: 'Element not found' };
-            }
-
-            // Check if element is already in view
-            const rect = element.getBoundingClientRect();
-            const isInView =
-              rect.top >= 0 &&
-              rect.left >= 0 &&
-              rect.bottom <= window.innerHeight &&
-              rect.right <= window.innerWidth;
-
-            if (!isInView) {
-              element.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'center',
-              });
-            }
-
-            return { success: true };
-          },
-          'ISOLATED',
-          this.remoteObject,
-        ),
+        this._context.executeScript(scrollIntoViewScript, 'ISOLATED', this.remoteObject),
       );
 
       if (!result) {

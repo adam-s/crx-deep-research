@@ -29,135 +29,12 @@ import {
 import { LocatorOptions, Locator } from './locator';
 import { isString } from '@injected/isomorphic/stringUtils';
 import { ElementHandle } from './elementHandle';
+import {
+  calculateCenterPosition,
+  testIdAttributeName,
+  createDragAndDropScript,
+} from './frameUtils';
 // #region Helper Functions
-
-export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion'; // extensionTypes.DocumentLifecycle
-
-export type FrameType = 'outermost_frame' | 'sub_frame' | 'fenced_frame'; // extensionTypes.FrameType
-
-export type TabStatus = 'unloaded' | 'loading' | 'complete'; // tabs.TabStatus
-
-export interface FrameConfiguration {
-  // Frame properties (from webNavigation.getFrame / getAllFrames)
-  documentId: string;
-  documentLifecycle: DocumentLifecycle;
-  errorOccurred: boolean;
-  frameType: FrameType;
-  parentFrameId: number;
-  parentDocumentId?: string;
-  url: string;
-
-  // Sender / runtime.MessageSender bits
-  frameId: number;
-  extensionId: string; // sender.id
-  origin: string; // sender.origin
-
-  // Tab properties (flattened from sender.tab)
-  tabId: number;
-  tabActive: boolean;
-  tabAudible?: boolean;
-  tabAutoDiscardable: boolean;
-  tabDiscarded: boolean;
-  tabFavIconUrl?: string;
-  tabFrozen: boolean;
-  tabGroupId: number;
-  tabHeight?: number;
-  tabHighlighted: boolean;
-  tabIncognito: boolean;
-  tabIndex: number;
-  tabLastAccessed: number;
-  tabMuted: boolean;
-  tabPinned: boolean;
-  /** Deprecated upstream — keep only if you still read it from sender.tab */
-  tabSelected: boolean;
-  tabStatus: TabStatus;
-  tabTitle?: string;
-  tabUrl?: string;
-  tabWidth?: number;
-  tabWindowId: number;
-}
-
-/**
- * Merges frame details and sender information into a typed FrameConfiguration object
- * @param frameDetails Frame details from webNavigation.getFrame or getAllFrames
- * @param sender MessageSender from runtime.onMessage or similar
- * @returns Flattened FrameConfiguration object
- */
-export function createFrameConfiguration(
-  frameDetails: {
-    documentId: string;
-    documentLifecycle: DocumentLifecycle;
-    errorOccurred: boolean;
-    frameType: FrameType;
-    parentFrameId: number;
-    parentDocumentId?: string;
-    url: string;
-  },
-  sender: chrome.runtime.MessageSender,
-): FrameConfiguration {
-  const tab = sender.tab;
-
-  if (!tab) {
-    throw new Error('MessageSender must include tab information');
-  }
-
-  return {
-    // Frame properties
-    documentId: frameDetails.documentId,
-    documentLifecycle: frameDetails.documentLifecycle,
-    errorOccurred: frameDetails.errorOccurred,
-    frameType: frameDetails.frameType,
-    parentFrameId: frameDetails.parentFrameId,
-    parentDocumentId: frameDetails.parentDocumentId,
-    url: frameDetails.url,
-
-    // Sender properties
-    frameId: sender.frameId ?? 0,
-    extensionId: sender.id ?? '',
-    origin: sender.origin ?? '',
-
-    // Tab properties (flattened)
-    tabId: tab.id ?? -1,
-    tabActive: tab.active ?? false,
-    tabAudible: tab.audible,
-    tabAutoDiscardable: tab.autoDiscardable ?? true,
-    tabDiscarded: tab.discarded ?? false,
-    tabFavIconUrl: tab.favIconUrl,
-    tabFrozen: false, // Not available on chrome.tabs.Tab, always false
-    tabGroupId: tab.groupId ?? -1,
-    tabHeight: tab.height,
-    tabHighlighted: tab.highlighted ?? false,
-    tabIncognito: tab.incognito ?? false,
-    tabIndex: tab.index ?? -1,
-    tabLastAccessed: tab.lastAccessed ?? 0,
-    tabMuted: tab.mutedInfo?.muted ?? false,
-    tabPinned: tab.pinned ?? false,
-    tabSelected: tab.selected ?? false,
-    tabStatus: (tab.status as TabStatus) ?? 'unloaded',
-    tabTitle: tab.title,
-    tabUrl: tab.url,
-    tabWidth: tab.width,
-    tabWindowId: tab.windowId ?? -1,
-  };
-}
-
-/**
- * Gets frame details from Chrome's webNavigation API
- * @param tabId The tab ID
- * @param frameId The frame ID
- * @returns Frame details or null if frame not found
- */
-export function getFrame(
-  tabId: number,
-  frameId: number,
-): Promise<chrome.webNavigation.GetFrameResultDetails | null> {
-  return new Promise((resolve, reject) => {
-    chrome.webNavigation.getFrame({ tabId, frameId }, frame => {
-      const err = chrome.runtime.lastError;
-      err ? reject(err) : resolve(frame);
-    });
-  });
-}
 
 /**
  * Frame class with enhanced navigation event handling to solve race conditions.
@@ -754,108 +631,13 @@ export class Frame extends Disposable {
             throw new Error(`Target element "${target}" has no bounding box`);
           }
 
-          const sourcePosition = options.sourcePosition || {
-            x: sourceBox.x + sourceBox.width / 2,
-            y: sourceBox.y + sourceBox.height / 2,
-          };
-
-          const targetPosition = options.targetPosition || {
-            x: targetBox.x + targetBox.width / 2,
-            y: targetBox.y + targetBox.height / 2,
-          };
+          const sourcePosition = options.sourcePosition || calculateCenterPosition(sourceBox);
+          const targetPosition = options.targetPosition || calculateCenterPosition(targetBox);
 
           // Use the improved drag and drop simulation with DataTransfer
 
           await this.context.executeScript(
-            (
-              sourceSelector: string,
-              targetSelector: string,
-              srcPos: { x: number; y: number },
-              tgtPos: { x: number; y: number },
-            ) => {
-              // Find elements in the content script context
-              const sourceElem = document.querySelector(sourceSelector);
-              const targetElem = document.querySelector(targetSelector);
-
-              if (!sourceElem) {
-                throw new Error(`Source element not found: ${sourceSelector}`);
-              }
-              if (!targetElem) {
-                throw new Error(`Target element not found: ${targetSelector}`);
-              }
-
-              // Create a DataTransfer object (carries the payload)
-              const dataTransfer = new DataTransfer();
-
-              // Set some default data for the drag operation
-              dataTransfer.setData('text/plain', sourceElem.textContent || '');
-              dataTransfer.setData('text/html', sourceElem.outerHTML);
-
-              // 1. Focus and hover source element
-              if (sourceElem instanceof HTMLElement) {
-                sourceElem.focus();
-              }
-              sourceElem.dispatchEvent(
-                new MouseEvent('mouseenter', {
-                  bubbles: true,
-                  cancelable: true,
-                  clientX: srcPos.x,
-                  clientY: srcPos.y,
-                }),
-              );
-
-              // 2. Dispatch dragstart on the source
-              const dragStartEvent = new DragEvent('dragstart', {
-                bubbles: true,
-                cancelable: true,
-                clientX: srcPos.x,
-                clientY: srcPos.y,
-                dataTransfer,
-              });
-              sourceElem.dispatchEvent(dragStartEvent);
-
-              // 3. Dispatch dragenter on the target
-              const dragEnterEvent = new DragEvent('dragenter', {
-                bubbles: true,
-                cancelable: true,
-                clientX: tgtPos.x,
-                clientY: tgtPos.y,
-                dataTransfer,
-              });
-              targetElem.dispatchEvent(dragEnterEvent);
-
-              // 4. Dispatch dragover on the target
-              const dragOverEvent = new DragEvent('dragover', {
-                bubbles: true,
-                cancelable: true,
-                clientX: tgtPos.x,
-                clientY: tgtPos.y,
-                dataTransfer,
-              });
-              targetElem.dispatchEvent(dragOverEvent);
-
-              // 5. Dispatch drop on the target
-              const dropEvent = new DragEvent('drop', {
-                bubbles: true,
-                cancelable: true,
-                clientX: tgtPos.x,
-                clientY: tgtPos.y,
-                dataTransfer,
-              });
-              targetElem.dispatchEvent(dropEvent);
-
-              // 6. Dispatch dragend on the source (cleanup)
-              const dragEndEvent = new DragEvent('dragend', {
-                bubbles: true,
-                cancelable: true,
-                clientX: srcPos.x,
-                clientY: srcPos.y,
-                dataTransfer,
-              });
-              sourceElem.dispatchEvent(dragEndEvent);
-
-              return 'success';
-            },
+            createDragAndDropScript(),
             'ISOLATED',
             source,
             target,
@@ -1070,9 +852,6 @@ export class Frame extends Disposable {
     return await this.selectors.queryAll(selector, scope);
   }
 
-  /**
-   * Get an attribute of the first matching element
-   */
   async getAttribute(
     selector: string,
     name: string,
@@ -1083,36 +862,24 @@ export class Frame extends Disposable {
     );
   }
 
-  /**
-   * Hover over the first matching element
-   */
   async hover(selector: string, options?: { timeout?: number }): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.hover(),
     );
   }
 
-  /**
-   * Get the innerHTML of the first matching element
-   */
   async innerHTML(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.innerHTML(),
     );
   }
 
-  /**
-   * Get the innerText of the first matching element
-   */
   async innerText(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.innerText(),
     );
   }
 
-  /**
-   * Get the textContent of the first matching element
-   */
   async textContent(selector: string, options?: { timeout?: number }): Promise<string> {
     const result = await this._executeWithElementHandle(
       selector,
@@ -1122,54 +889,36 @@ export class Frame extends Disposable {
     return result;
   }
 
-  /**
-   * Get the input value of the first matching element
-   */
   async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.inputValue(),
     );
   }
 
-  /**
-   * Check if the first matching element is checked
-   */
   async isChecked(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.isChecked(),
     );
   }
 
-  /**
-   * Check if the first matching element is disabled
-   */
   async isDisabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.isDisabled(),
     );
   }
 
-  /**
-   * Check if the first matching element is editable
-   */
   async isEditable(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.isEditable(),
     );
   }
 
-  /**
-   * Check if the first matching element is enabled
-   */
   async isEnabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.isEnabled(),
     );
   }
 
-  /**
-   * Check if the first matching element is hidden
-   */
   async isHidden(selector: string, options?: { timeout?: number }): Promise<boolean> {
     // For isHidden, we need to find the element whether it's visible or hidden
     // So we use state: 'attached' instead of the default 'visible'
@@ -1194,18 +943,12 @@ export class Frame extends Disposable {
     );
   }
 
-  /**
-   * Check if the first matching element is visible
-   */
   async isVisible(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
       handle.isVisible(),
     );
   }
 
-  /**
-   * Press a key on the first matching element
-   */
   async press(
     selector: string,
     key: string,
@@ -1216,9 +959,6 @@ export class Frame extends Disposable {
     );
   }
 
-  /**
-   * Type text into the first matching element
-   */
   async type(
     selector: string,
     text: string,
@@ -1359,14 +1099,4 @@ export class FrameLocator {
   nth(index: number): FrameLocator {
     return new FrameLocator(this._frame, this._frameSelector + ` >> nth=${index}`);
   }
-}
-
-let _testIdAttributeName: string = 'data-testid';
-
-export function testIdAttributeName(): string {
-  return _testIdAttributeName;
-}
-
-export function setTestIdAttribute(attributeName: string) {
-  _testIdAttributeName = attributeName;
 }

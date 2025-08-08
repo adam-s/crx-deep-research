@@ -7,7 +7,6 @@ export const CordycepsTestRunner: React.FC = () => {
   const {
     runAllTests,
     runNavigationTest,
-    runFrameExecutionTest,
     runDOMInteractionTest,
     runPerformanceTest,
     runLocatorTest,
@@ -71,10 +70,6 @@ export const CordycepsTestRunner: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <Button appearance="secondary" disabled={isRunning} onClick={runNavigationTest}>
             Navigation Test
-          </Button>
-
-          <Button appearance="secondary" disabled={isRunning} onClick={runFrameExecutionTest}>
-            Frame Execution Test
           </Button>
 
           <Button appearance="secondary" disabled={isRunning} onClick={runDOMInteractionTest}>

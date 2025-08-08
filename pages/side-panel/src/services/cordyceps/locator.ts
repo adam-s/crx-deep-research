@@ -1,4 +1,4 @@
-import { escapeForTextSelector, isString } from '@injected/isomorphic/stringUtils';
+import { isString } from '@injected/isomorphic/stringUtils';
 import {
   getByTestIdSelector,
   getByAltTextSelector,
@@ -10,7 +10,8 @@ import {
   getByRoleSelector,
 } from '@injected/isomorphic/locatorUtils';
 import { asLocator } from '@injected/isomorphic/locatorGenerators';
-import { Frame, FrameLocator, testIdAttributeName } from './frame';
+import { Frame, FrameLocator } from './frame';
+import { testIdAttributeName } from './frameUtils';
 import {
   Rect,
   TimeoutOptions,
@@ -22,43 +23,21 @@ import {
   FrameDragAndDropOptions,
 } from './types';
 import { ElementHandle } from './elementHandle';
-import { executeWithProgress, Progress } from './progress';
-import { OperationResult, STANDARD_TIMEOUT } from './utils';
-
-// #region Helper Functions
-
-/**
- * Execute progress-based operation with element handle
- */
-async function executeProgressElementOperation(
-  selector: string,
-  frame: Frame,
-  operation: (handle: ElementHandle, progress: Progress) => Promise<OperationResult>,
-  operationName: string,
-  timeout?: number,
-): Promise<void> {
-  return executeWithProgress(
-    async progress => {
-      const handle = await frame.waitForSelector(progress, selector, false, {
-        strict: true,
-      });
-
-      if (!handle) {
-        throw new Error(`Element not found for selector: ${selector}`);
-      }
-
-      try {
-        const result = await operation(handle, progress);
-        if (result !== 'done') {
-          throw new Error(`${operationName} failed: ${result}`);
-        }
-      } finally {
-        handle.dispose();
-      }
-    },
-    { timeout: timeout || STANDARD_TIMEOUT },
-  );
-}
+import { executeWithProgress } from './progress';
+import {
+  executeProgressElementOperation,
+  buildSelectorWithOptions,
+  createAndSelector,
+  createOrSelector,
+  validateSameFrame,
+  createFirstSelector,
+  createLastSelector,
+  createNthSelector,
+  createDragAndDropFrameError,
+  createChainedSelector,
+  createInternalChainSelector,
+  createFrameLocatorSelector,
+} from './locatorUtils';
 
 export type LocatorOptions = {
   hasText?: string | RegExp;
@@ -75,30 +54,7 @@ export class Locator {
 
   constructor(frame: Frame, selector: string, options?: LocatorOptions) {
     this._frame = frame;
-    this._selector = selector;
-
-    if (options?.hasText)
-      this._selector += ` >> internal:has-text=${escapeForTextSelector(options.hasText, false)}`;
-
-    if (options?.hasNotText)
-      this._selector += ` >> internal:has-not-text=${escapeForTextSelector(options.hasNotText, false)}`;
-
-    if (options?.has) {
-      const locator = options.has;
-      if (locator._frame !== frame)
-        throw new Error(`Inner "has" locator must belong to the same frame.`);
-      this._selector += ` >> internal:has=` + JSON.stringify(locator._selector);
-    }
-
-    if (options?.hasNot) {
-      const locator = options.hasNot;
-      if (locator._frame !== frame)
-        throw new Error(`Inner "hasNot" locator must belong to the same frame.`);
-      this._selector += ` >> internal:has-not=` + JSON.stringify(locator._selector);
-    }
-
-    if (options?.visible !== undefined)
-      this._selector += ` >> visible=${options.visible ? 'true' : 'false'}`;
+    this._selector = options ? buildSelectorWithOptions(selector, options, frame) : selector;
   }
 
   _equals(locator: Locator) {
@@ -319,8 +275,7 @@ export class Locator {
   ): Promise<void> {
     // Check if both locators are on the same frame
     if (this._frame !== target._frame) {
-      const error = 'Drag and drop between different frames is not supported';
-      throw new Error(error);
+      throw createDragAndDropFrameError();
     }
 
     return await this._frame.dragAndDrop(this._selector, target._selector, {
@@ -355,12 +310,17 @@ export class Locator {
 
   locator(selectorOrLocator: string | Locator, options?: Omit<LocatorOptions, 'visible'>): Locator {
     if (isString(selectorOrLocator))
-      return new Locator(this._frame, this._selector + ' >> ' + selectorOrLocator, options);
-    if (selectorOrLocator._frame !== this._frame)
-      throw new Error(`Locators must belong to the same frame.`);
+      return new Locator(
+        this._frame,
+        createChainedSelector(this._selector, selectorOrLocator),
+        options,
+      );
+
+    validateSameFrame(this._frame, selectorOrLocator._frame, 'locator');
+
     return new Locator(
       this._frame,
-      this._selector + ' >> internal:chain=' + JSON.stringify(selectorOrLocator._selector),
+      createInternalChainSelector(this._selector, selectorOrLocator._selector),
       options,
     );
   }
@@ -394,7 +354,7 @@ export class Locator {
   }
 
   frameLocator(selector: string): FrameLocator {
-    return new FrameLocator(this._frame, this._selector + ' >> ' + selector);
+    return new FrameLocator(this._frame, createFrameLocatorSelector(this._selector, selector));
   }
 
   filter(options?: LocatorOptions): Locator {
@@ -496,15 +456,15 @@ export class Locator {
   }
 
   first(): Locator {
-    return new Locator(this._frame, this._selector + ' >> nth=0');
+    return new Locator(this._frame, createFirstSelector(this._selector));
   }
 
   last(): Locator {
-    return new Locator(this._frame, this._selector + ` >> nth=-1`);
+    return new Locator(this._frame, createLastSelector(this._selector));
   }
 
   nth(index: number): Locator {
-    return new Locator(this._frame, this._selector + ` >> nth=${index}`);
+    return new Locator(this._frame, createNthSelector(this._selector, index));
   }
 
   get description(): string | undefined {
@@ -512,19 +472,15 @@ export class Locator {
   }
 
   and(locator: Locator): Locator {
-    if (locator._frame !== this._frame) throw new Error(`Locators must belong to the same frame.`);
-    return new Locator(
-      this._frame,
-      this._selector + ` >> internal:and=` + JSON.stringify(locator._selector),
-    );
+    validateSameFrame(this._frame, locator._frame, 'and');
+    const newSelector = createAndSelector(this._selector, locator._selector);
+    return new Locator(this._frame, newSelector);
   }
 
   or(locator: Locator): Locator {
-    if (locator._frame !== this._frame) throw new Error(`Locators must belong to the same frame.`);
-    return new Locator(
-      this._frame,
-      this._selector + ` >> internal:or=` + JSON.stringify(locator._selector),
-    );
+    validateSameFrame(this._frame, locator._frame, 'or');
+    const newSelector = createOrSelector(this._selector, locator._selector);
+    return new Locator(this._frame, newSelector);
   }
 
   // #region Simple Element Operations for Locator

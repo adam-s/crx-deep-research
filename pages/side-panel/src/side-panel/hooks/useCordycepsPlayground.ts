@@ -9,8 +9,6 @@ export interface UseCordycepsPlaygroundReturn {
   runAllTests: () => Promise<void>;
   /** Run basic navigation test */
   runNavigationTest: () => Promise<void>;
-  /** Run frame execution context test */
-  runFrameExecutionTest: () => Promise<void>;
   /** Run DOM interaction test */
   runDOMInteractionTest: () => Promise<void>;
   /** Run performance test */
@@ -111,23 +109,6 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     }
   }, [cordycepsPlaygroundService]);
 
-  const runFrameExecutionTest = useCallback(async (): Promise<void> => {
-    if (!cordycepsPlaygroundService) {
-      setError('Cordyceps playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await cordycepsPlaygroundService.runFrameExecutionTest();
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to run frame execution test';
-      setError(errorMessage);
-      console.error('useCordycepsPlayground: Failed to run frame execution test:', err);
-    }
-  }, [cordycepsPlaygroundService]);
-
   const runDOMInteractionTest = useCallback(async (): Promise<void> => {
     if (!cordycepsPlaygroundService) {
       setError('Cordyceps playground service not available');
@@ -197,7 +178,6 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
   return {
     runAllTests,
     runNavigationTest,
-    runFrameExecutionTest,
     runDOMInteractionTest,
     runLocatorTest,
     runPerformanceTest,
