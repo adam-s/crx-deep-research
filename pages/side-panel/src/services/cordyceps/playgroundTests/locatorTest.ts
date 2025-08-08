@@ -4,6 +4,7 @@ import { Page } from '../page';
 import { Severity } from '../../../utils/types';
 import {
   testApiConsistencyAcrossLayers,
+  testAriaSnapshotFunctionality,
   testCheckFunctionality,
   testClearFunctionality,
   testClickFunctionality,
@@ -123,6 +124,12 @@ export class LocatorTest extends PlaygroundTest {
       // Test API consistency across all layers
       progress.log('Testing API consistency across ElementHandle, Locator, Frame, and Page layers');
       await testApiConsistencyAcrossLayers(page, progress, this.context);
+
+      // Test ariaSnapshot functionality across all layers
+      progress.log(
+        'Testing ariaSnapshot functionality across ElementHandle, Locator, and Frame layers',
+      );
+      await testAriaSnapshotFunctionality(page, progress, this.context);
 
       this.context.events.emit({
         timestamp: Date.now(),

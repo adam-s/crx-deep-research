@@ -987,6 +987,59 @@ export class Frame extends Disposable {
       handle.press(key, { delay: options?.delay }),
     );
   }
+
+  /**
+   * Generate an ARIA snapshot for the frame or a specific element within it.
+   *
+   * @param options Configuration options for the ARIA snapshot
+   * @param options.forAI Whether to optimize the snapshot for AI consumption (default: true)
+   * @param options.refPrefix Prefix to use for element references in the snapshot (default: '')
+   * @param options.selector Optional CSS selector to target a specific element (default: entire frame)
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @returns A string representation of the ARIA accessibility tree
+   *
+   * @example
+   * ```typescript
+   * // Get ARIA snapshot of entire frame
+   * const fullSnapshot = await frame.ariaSnapshot({ forAI: true });
+   *
+   * // Get ARIA snapshot of specific element
+   * const formSnapshot = await frame.ariaSnapshot({
+   *   forAI: true,
+   *   selector: '#main-form',
+   *   refPrefix: 'form'
+   * });
+   * ```
+   */
+  async ariaSnapshot(options?: {
+    forAI?: boolean;
+    refPrefix?: string;
+    selector?: string;
+    timeout?: number;
+  }): Promise<string> {
+    if (!this._context) {
+      throw new Error('Frame context not available');
+    }
+
+    const forAI = options?.forAI ?? true;
+    const refPrefix = options?.refPrefix ?? '';
+    const timeout = options?.timeout ?? 30000;
+
+    if (options?.selector) {
+      // Get snapshot for specific element
+      return this._executeWithElementHandle(options.selector, timeout, async handle => {
+        if (!this._context) {
+          throw new Error('Frame context not available');
+        }
+        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED', handle);
+        return typeof result === 'string' ? result : '';
+      });
+    } else {
+      // Get snapshot for entire frame
+      const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED');
+      return typeof result === 'string' ? result : '';
+    }
+  }
 }
 
 // #region FrameLocator

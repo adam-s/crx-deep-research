@@ -1008,4 +1008,41 @@ export class ElementHandle extends JSHandle {
       { timeout: options?.timeout || STANDARD_TIMEOUT },
     );
   }
+
+  /**
+   * Generate an ARIA snapshot for this element.
+   *
+   * @param options Configuration options for the ARIA snapshot
+   * @param options.forAI Whether to optimize the snapshot for AI consumption (default: true)
+   * @param options.refPrefix Prefix to use for element references in the snapshot (default: '')
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @returns A string representation of the ARIA accessibility tree for this element
+   *
+   * @example
+   * ```typescript
+   * const buttonHandle = await page.locator('#submit-button').elementHandle();
+   * const snapshot = await buttonHandle.ariaSnapshot({
+   *   forAI: true,
+   *   refPrefix: 'button'
+   * });
+   * buttonHandle.dispose();
+   * ```
+   */
+  async ariaSnapshot(options?: {
+    forAI?: boolean;
+    refPrefix?: string;
+    timeout?: number;
+  }): Promise<string> {
+    const forAI = options?.forAI ?? true;
+    const refPrefix = options?.refPrefix ?? '';
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async () => {
+        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED', this);
+        return typeof result === 'string' ? result : '';
+      },
+      { timeout },
+    );
+  }
 }

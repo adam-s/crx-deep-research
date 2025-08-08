@@ -597,5 +597,53 @@ export class Locator {
     return this._executeElementMethod<string>('inputValue');
   }
 
+  /**
+   * Generate an ARIA snapshot for the first matching element.
+   *
+   * @param options Configuration options for the ARIA snapshot
+   * @param options.forAI Whether to optimize the snapshot for AI consumption (default: true)
+   * @param options.refPrefix Prefix to use for element references in the snapshot (default: '')
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @returns A string representation of the ARIA accessibility tree for the element
+   *
+   * @example
+   * ```typescript
+   * // Get ARIA snapshot of a form element
+   * const formLocator = page.locator('#registration-form');
+   * const snapshot = await formLocator.ariaSnapshot({
+   *   forAI: true,
+   *   refPrefix: 'form'
+   * });
+   * ```
+   */
+  async ariaSnapshot(options?: {
+    forAI?: boolean;
+    refPrefix?: string;
+    timeout?: number;
+  }): Promise<string> {
+    const forAI = options?.forAI ?? true;
+    const refPrefix = options?.refPrefix ?? '';
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async progress => {
+        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
+          strict: true,
+        });
+
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${this._selector}`);
+        }
+
+        try {
+          return await handle.ariaSnapshot({ forAI, refPrefix, timeout });
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout },
+    );
+  }
+
   // #endregion Simple Element Operations for Locator
 }

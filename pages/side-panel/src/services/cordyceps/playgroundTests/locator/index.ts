@@ -1,4 +1,5 @@
 export { testApiConsistencyAcrossLayers } from './apiConsistencyTests';
+export { testAriaSnapshotFunctionality } from './ariaSnapshotFunctionality';
 export { testCheckFunctionality } from './checkFunctionality';
 export { testClearFunctionality } from './clearFunctionality';
 export { testClickFunctionality } from './clickFunctionality';
