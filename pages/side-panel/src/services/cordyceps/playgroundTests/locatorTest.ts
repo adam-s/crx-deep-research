@@ -10,6 +10,8 @@ import {
   testClickFunctionality,
   testDblclickFunctionality,
   testDispatchEventFunctionality,
+  testDragToFunctionality,
+  testDragToAdvanced,
   testEvaluateFunctionality,
   testFillFunctionality,
   testFrameMissingMethodsFunctionality,
@@ -103,6 +105,14 @@ export class LocatorTest extends PlaygroundTest {
       // Test dispatchEvent() functionality
       progress.log('Testing dispatchEvent() method on various elements');
       await testDispatchEventFunctionality(page, progress, this.context);
+
+      // Test dragTo() functionality
+      progress.log('Testing dragTo() method for drag and drop operations');
+      await testDragToFunctionality(page, progress, this.context);
+
+      // Test advanced dragTo() functionality
+      progress.log('Testing advanced dragTo() scenarios and edge cases');
+      await testDragToAdvanced(page, progress, this.context);
 
       // Test fill() functionality
       progress.log('Testing fill() method on form inputs');

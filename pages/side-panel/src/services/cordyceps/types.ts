@@ -97,3 +97,24 @@ export type CommonActionOptions = {
   timeout?: number;
   force?: boolean;
 };
+
+export type FrameDragAndDropParams = {
+  source: string;
+  target: string;
+  force?: boolean;
+  timeout: number;
+  trial?: boolean;
+  sourcePosition?: Point;
+  targetPosition?: Point;
+  strict?: boolean;
+};
+
+export type FrameDragAndDropOptions = {
+  force?: boolean;
+  trial?: boolean;
+  sourcePosition?: Point;
+  targetPosition?: Point;
+  strict?: boolean;
+};
+
+export type FrameDragAndDropResult = void;

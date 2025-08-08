@@ -11,6 +11,7 @@ import type {
   ClickOptions,
   SelectOption,
   SelectOptionOptions,
+  FrameDragAndDropOptions,
 } from './types';
 import { Event } from 'vs/base/common/event';
 import { FrameSelectors } from './frameSelectors';
@@ -649,11 +650,13 @@ export class Frame extends Disposable {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
 
         if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
+          const error = `Element not found for selector: ${selector}`;
+          throw new Error(error);
         }
 
         try {
-          return await action(handle, progress);
+          const result = await action(handle, progress);
+          return result;
         } finally {
           handle.dispose();
         }
@@ -691,6 +694,183 @@ export class Frame extends Disposable {
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
       handle.dispatchEventWithProgress(progress, type, eventInit),
+    );
+  }
+
+  /**
+   * Perform a drag and drop operation from source selector to target selector.
+   *
+   * @param source The CSS selector of the source element to drag from
+   * @param target The CSS selector of the target element to drop to
+   * @param options Optional drag and drop configuration
+   * @returns Promise that resolves when drag and drop is complete
+   *
+   * @example
+   * ```typescript
+   * // Basic drag and drop
+   * await frame.dragAndDrop('#source-element', '#target-element');
+   *
+   * // With custom positions
+   * await frame.dragAndDrop('#source', '#target', {
+   *   sourcePosition: { x: 10, y: 10 },
+   *   targetPosition: { x: 50, y: 50 }
+   * });
+   * ```
+   */
+  async dragAndDrop(
+    source: string,
+    target: string,
+    options: FrameDragAndDropOptions & { timeout?: number } = {},
+  ): Promise<void> {
+    const timeout = options.timeout || 30000;
+
+    return await executeWithProgress(
+      async progress => {
+        progress.log(`Starting drag and drop from "${source}" to "${target}"`);
+
+        // Get both source and target elements first to ensure they exist
+        const sourceHandle = await this.waitForSelector(progress, source, false, { strict: true });
+        if (!sourceHandle) {
+          const error = `Source element not found for selector: ${source}`;
+          throw new Error(error);
+        }
+
+        const targetHandle = await this.waitForSelector(progress, target, false, { strict: true });
+        if (!targetHandle) {
+          const error = `Target element not found for selector: ${target}`;
+          sourceHandle.dispose();
+          throw new Error(error);
+        }
+
+        try {
+          // Get bounding boxes for position calculations
+          const sourceBox = await sourceHandle.boundingBox();
+          const targetBox = await targetHandle.boundingBox();
+
+          if (!sourceBox) {
+            throw new Error(`Source element "${source}" has no bounding box`);
+          }
+          if (!targetBox) {
+            throw new Error(`Target element "${target}" has no bounding box`);
+          }
+
+          const sourcePosition = options.sourcePosition || {
+            x: sourceBox.x + sourceBox.width / 2,
+            y: sourceBox.y + sourceBox.height / 2,
+          };
+
+          const targetPosition = options.targetPosition || {
+            x: targetBox.x + targetBox.width / 2,
+            y: targetBox.y + targetBox.height / 2,
+          };
+
+          // Use the improved drag and drop simulation with DataTransfer
+
+          await this.context.executeScript(
+            (
+              sourceSelector: string,
+              targetSelector: string,
+              srcPos: { x: number; y: number },
+              tgtPos: { x: number; y: number },
+            ) => {
+              // Find elements in the content script context
+              const sourceElem = document.querySelector(sourceSelector);
+              const targetElem = document.querySelector(targetSelector);
+
+              if (!sourceElem) {
+                throw new Error(`Source element not found: ${sourceSelector}`);
+              }
+              if (!targetElem) {
+                throw new Error(`Target element not found: ${targetSelector}`);
+              }
+
+              // Create a DataTransfer object (carries the payload)
+              const dataTransfer = new DataTransfer();
+
+              // Set some default data for the drag operation
+              dataTransfer.setData('text/plain', sourceElem.textContent || '');
+              dataTransfer.setData('text/html', sourceElem.outerHTML);
+
+              // 1. Focus and hover source element
+              if (sourceElem instanceof HTMLElement) {
+                sourceElem.focus();
+              }
+              sourceElem.dispatchEvent(
+                new MouseEvent('mouseenter', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: srcPos.x,
+                  clientY: srcPos.y,
+                }),
+              );
+
+              // 2. Dispatch dragstart on the source
+              const dragStartEvent = new DragEvent('dragstart', {
+                bubbles: true,
+                cancelable: true,
+                clientX: srcPos.x,
+                clientY: srcPos.y,
+                dataTransfer,
+              });
+              sourceElem.dispatchEvent(dragStartEvent);
+
+              // 3. Dispatch dragenter on the target
+              const dragEnterEvent = new DragEvent('dragenter', {
+                bubbles: true,
+                cancelable: true,
+                clientX: tgtPos.x,
+                clientY: tgtPos.y,
+                dataTransfer,
+              });
+              targetElem.dispatchEvent(dragEnterEvent);
+
+              // 4. Dispatch dragover on the target
+              const dragOverEvent = new DragEvent('dragover', {
+                bubbles: true,
+                cancelable: true,
+                clientX: tgtPos.x,
+                clientY: tgtPos.y,
+                dataTransfer,
+              });
+              targetElem.dispatchEvent(dragOverEvent);
+
+              // 5. Dispatch drop on the target
+              const dropEvent = new DragEvent('drop', {
+                bubbles: true,
+                cancelable: true,
+                clientX: tgtPos.x,
+                clientY: tgtPos.y,
+                dataTransfer,
+              });
+              targetElem.dispatchEvent(dropEvent);
+
+              // 6. Dispatch dragend on the source (cleanup)
+              const dragEndEvent = new DragEvent('dragend', {
+                bubbles: true,
+                cancelable: true,
+                clientX: srcPos.x,
+                clientY: srcPos.y,
+                dataTransfer,
+              });
+              sourceElem.dispatchEvent(dragEndEvent);
+
+              return 'success';
+            },
+            'ISOLATED',
+            source,
+            target,
+            sourcePosition,
+            targetPosition,
+          );
+
+          progress.log(`Drag and drop from "${source}" to "${target}" completed successfully`);
+        } finally {
+          // Always dispose of handles
+          sourceHandle.dispose();
+          targetHandle.dispose();
+        }
+      },
+      { timeout },
     );
   }
 

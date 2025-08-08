@@ -7,6 +7,7 @@ export { testDblclickFunctionality } from './dblclickFunctionality';
 export { demoSelectTextFunctionality } from './demoSelectText';
 export { demoSetCheckedFunctionality } from './demoSetChecked';
 export { testDispatchEventFunctionality } from './dispatchEventFunctionality';
+export { testDragToFunctionality, testDragToAdvanced } from './dragToFunctionality';
 export { testEvaluateFunctionality } from './evaluateFunctionality';
 export { testFillFunctionality } from './fillFunctionality';
 export { testFrameMissingMethodsFunctionality } from './frameMissingMethodsFunctionality';

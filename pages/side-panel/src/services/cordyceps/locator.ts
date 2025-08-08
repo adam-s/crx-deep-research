@@ -9,6 +9,7 @@ import {
   ByRoleOptions,
   getByRoleSelector,
 } from '@injected/isomorphic/locatorUtils';
+import { asLocator } from '@injected/isomorphic/locatorGenerators';
 import { Frame, FrameLocator, testIdAttributeName } from './frame';
 import {
   Rect,
@@ -18,6 +19,7 @@ import {
   SelectOptionOptions,
   CommonActionOptions,
   WaitForElementOptions,
+  FrameDragAndDropOptions,
 } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress, Progress } from './progress';
@@ -286,6 +288,45 @@ export class Locator {
       'Dispatch Event',
       options?.timeout,
     );
+  }
+
+  /**
+   * Perform a drag and drop operation from this locator to the target locator.
+   *
+   * @param target The target locator to drop the element onto
+   * @param options Optional drag and drop configuration
+   * @returns Promise that resolves when drag and drop is complete
+   *
+   * @example
+   * ```typescript
+   * const source = page.locator('#draggable-item');
+   * const target = page.locator('#drop-zone');
+   *
+   * // Basic drag and drop
+   * await source.dragTo(target);
+   *
+   * // With custom positions and options
+   * await source.dragTo(target, {
+   *   sourcePosition: { x: 10, y: 10 },
+   *   targetPosition: { x: 50, y: 50 },
+   *   timeout: 10000
+   * });
+   * ```
+   */
+  async dragTo(
+    target: Locator,
+    options: FrameDragAndDropOptions & { timeout?: number } = {},
+  ): Promise<void> {
+    // Check if both locators are on the same frame
+    if (this._frame !== target._frame) {
+      const error = 'Drag and drop between different frames is not supported';
+      throw new Error(error);
+    }
+
+    return await this._frame.dragAndDrop(this._selector, target._selector, {
+      strict: true,
+      ...options,
+    });
   }
 
   async evaluateAll<R, Arg>(
@@ -842,6 +883,30 @@ export class Locator {
       },
       { timeout },
     );
+  }
+
+  /**
+   * Private inspection method for debugging and development tools.
+   * Returns the string representation of this locator.
+   */
+  private _inspect(): string {
+    return this.toString();
+  }
+
+  /**
+   * Returns a string representation of the locator in JavaScript format.
+   * This can be useful for debugging, logging, or generating test code.
+   *
+   * @returns A string representation of the locator
+   *
+   * @example
+   * ```typescript
+   * const locator = page.locator('#submit-button');
+   * console.log(locator.toString()); // "page.locator('#submit-button')"
+   * ```
+   */
+  toString(): string {
+    return asLocator('javascript', this._selector);
   }
 
   // #endregion Simple Element Operations for Locator
