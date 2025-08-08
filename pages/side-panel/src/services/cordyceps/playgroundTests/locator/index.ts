@@ -1,3 +1,4 @@
+export { testApiConsistencyAcrossLayers } from './apiConsistencyTests';
 export { testCheckFunctionality } from './checkFunctionality';
 export { testClearFunctionality } from './clearFunctionality';
 export { testClickFunctionality } from './clickFunctionality';
@@ -5,5 +6,9 @@ export { testDblclickFunctionality } from './dblclickFunctionality';
 export { testDispatchEventFunctionality } from './dispatchEventFunctionality';
 export { testEvaluateFunctionality } from './evaluateFunctionality';
 export { testFillFunctionality } from './fillFunctionality';
+export { testFrameMissingMethodsFunctionality } from './frameMissingMethodsFunctionality';
 export { testHighlightFunctionality } from './highlightFunctionality';
 export { testLocatorFunctionality } from './locatorFunctionality';
+export { testMissingMethodsFunctionality } from './missingMethodsFunctionality';
+export { testPageMissingMethodsFunctionality } from './pageMissingMethodsFunctionality';
+export * from './testUtils';

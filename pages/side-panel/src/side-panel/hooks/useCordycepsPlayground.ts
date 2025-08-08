@@ -27,6 +27,8 @@ export interface UseCordycepsPlaygroundReturn {
   error: string | null;
   /** Clear all events and reset state */
   clearEvents: () => void;
+  /** Clear any error */
+  clearError: () => void;
   /** Filter events by severity */
   getEventsBySeverity: (severity: Severity) => EventMessage[];
 }
@@ -181,6 +183,10 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     setError(null);
   }, []);
 
+  const clearError = useCallback((): void => {
+    setError(null);
+  }, []);
+
   const getEventsBySeverity = useCallback(
     (severity: Severity): EventMessage[] => {
       return events.filter(event => event.severity === severity);
@@ -200,6 +206,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     isRunning,
     error,
     clearEvents,
+    clearError,
     getEventsBySeverity,
   };
 };

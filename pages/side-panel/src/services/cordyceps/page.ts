@@ -266,6 +266,98 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().dispatchEvent(selector, type, eventInit, options);
   }
 
+  /**
+   * Get an attribute of the first matching element
+   */
+  async getAttribute(
+    selector: string,
+    name: string,
+    options?: { timeout?: number },
+  ): Promise<string | null> {
+    return await this.mainFrame().getAttribute(selector, name, options);
+  }
+
+  /**
+   * Hover over the first matching element
+   */
+  async hover(selector: string, options?: { timeout?: number }): Promise<void> {
+    return await this.mainFrame().hover(selector, options);
+  }
+
+  /**
+   * Get the innerHTML of the first matching element
+   */
+  async innerHTML(selector: string, options?: { timeout?: number }): Promise<string> {
+    return await this.mainFrame().innerHTML(selector, options);
+  }
+
+  /**
+   * Get the innerText of the first matching element
+   */
+  async innerText(selector: string, options?: { timeout?: number }): Promise<string> {
+    return await this.mainFrame().innerText(selector, options);
+  }
+
+  /**
+   * Get the input value of the first matching element
+   */
+  async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {
+    return await this.mainFrame().inputValue(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is checked
+   */
+  async isChecked(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isChecked(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is disabled
+   */
+  async isDisabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isDisabled(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is editable
+   */
+  async isEditable(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isEditable(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is enabled
+   */
+  async isEnabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isEnabled(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is hidden
+   */
+  async isHidden(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isHidden(selector, options);
+  }
+
+  /**
+   * Check if the first matching element is visible
+   */
+  async isVisible(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return await this.mainFrame().isVisible(selector, options);
+  }
+
+  /**
+   * Press a key on the first matching element
+   */
+  async press(
+    selector: string,
+    key: string,
+    options?: { delay?: number; timeout?: number },
+  ): Promise<void> {
+    return await this.mainFrame().press(selector, key, options);
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,

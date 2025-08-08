@@ -17,7 +17,9 @@ export type ElementOp =
   | 'id'
   | 'isVisible'
   | 'isEnabled'
+  | 'isEditable'
   | 'isFocused'
+  | 'isHidden'
   | 'focus'
   | 'blur'
   | 'click';
@@ -32,7 +34,7 @@ export type ElementAction =
   | { op: 'attr'; name: string; value?: string | null } // get/set/remove attr (null = remove)
   | { op: 'class'; name: string; action: 'add' | 'remove' | 'toggle' | 'has' }
   | { op: 'rect' }
-  | { op: 'action'; name: 'focus' | 'blur' | 'click' };
+  | { op: 'action'; name: 'focus' | 'blur' | 'click' | 'hover' };
 
 /**
  * Execute element operation - clean, simple function
@@ -77,8 +79,26 @@ export function executeElementOp(
         return isVisible(element);
       case 'isEnabled':
         return !('disabled' in element) || !(element as HTMLInputElement).disabled;
+      case 'isEditable': {
+        if (element instanceof HTMLElement) {
+          if ((element as HTMLElement).isContentEditable) return true;
+          if (
+            element instanceof HTMLInputElement ||
+            element instanceof HTMLTextAreaElement ||
+            element instanceof HTMLSelectElement
+          ) {
+            return !element.disabled && !(element as HTMLInputElement).readOnly;
+          }
+        }
+        return false;
+      }
       case 'isFocused':
         return document.activeElement === element;
+      case 'isHidden': {
+        const visibilityResult = isVisible(element);
+        const hiddenResult = !visibilityResult;
+        return hiddenResult;
+      }
       default:
         return null;
     }
@@ -105,15 +125,39 @@ export function executeElementOp(
   }
 
   function isVisible(element: Element): boolean {
-    const rect = element.getBoundingClientRect();
+    // Use injectedScript.elementState for Playwright compatibility
+    const injectedScript = (
+      window as {
+        __cordyceps_injectedScript?: {
+          elementState: (element: Element, state: 'visible') => { matches: boolean };
+        };
+      }
+    ).__cordyceps_injectedScript;
+
+    if (injectedScript?.elementState) {
+      try {
+        const stateResult = injectedScript.elementState(element, 'visible');
+        return stateResult.matches;
+      } catch (error) {
+        // Fall through to heuristic
+      }
+    }
+
+    // Fallback visibility check
     const style = window.getComputedStyle(element);
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.visibility !== 'hidden' &&
-      style.display !== 'none' &&
-      parseFloat(style.opacity) > 0
-    );
+
+    if (
+      style.visibility === 'hidden' ||
+      style.display === 'none' ||
+      parseFloat(style.opacity) === 0
+    ) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const visible = rect.width > 0 && rect.height > 0;
+
+    return visible;
   }
 
   // Main execution logic
@@ -149,6 +193,7 @@ export function executeElementOp(
 
     case 'class':
       switch (action.action) {
+        case 'has':
         case 'contains':
           return element.classList.contains(action.name as string);
         case 'add':
@@ -178,6 +223,13 @@ export function executeElementOp(
         case 'click':
           (element as HTMLElement).click();
           return;
+        case 'hover': {
+          const evtInit: MouseEventInit = { bubbles: true, cancelable: true };
+          (element as HTMLElement).dispatchEvent(new MouseEvent('mouseover', evtInit));
+          (element as HTMLElement).dispatchEvent(new MouseEvent('mouseenter', evtInit));
+          (element as HTMLElement).dispatchEvent(new MouseEvent('mousemove', evtInit));
+          return;
+        }
         default:
           throw new Error(`Unknown action: ${action.name}`);
       }

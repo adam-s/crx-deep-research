@@ -105,8 +105,10 @@ export class Locator {
   ): Promise<R> {
     return executeWithProgress(
       async progress => {
+        // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
         const handle = await this._frame.waitForSelector(progress, this._selector, false, {
           strict: true,
+          state: 'attached',
         });
 
         if (!handle) {
@@ -132,8 +134,10 @@ export class Locator {
   ): Promise<T> {
     return executeWithProgress(
       async progress => {
+        // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
         const handle = await this._frame.waitForSelector(progress, this._selector, false, {
           strict: true,
+          state: 'attached',
         });
 
         if (!handle) {
@@ -524,6 +528,13 @@ export class Locator {
   }
 
   /**
+   * Check if the first matching element is hidden
+   */
+  async isHidden(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isHidden');
+  }
+
+  /**
    * Check if the first matching element is enabled
    */
   async isEnabled(): Promise<boolean> {
@@ -531,10 +542,59 @@ export class Locator {
   }
 
   /**
+   * Check if the first matching element is disabled
+   */
+  async isDisabled(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isDisabled');
+  }
+
+  /**
+   * Check if the first matching element is editable
+   */
+  async isEditable(): Promise<boolean> {
+    return this._executeElementMethod<boolean>('isEditable');
+  }
+
+  /**
    * Focus the first matching element
    */
   async focus(): Promise<void> {
     return this._executeElementMethod<void>('focus');
+  }
+
+  /**
+   * Hover over the first matching element
+   */
+  async hover(): Promise<void> {
+    return this._executeElementMethod<void>('hover');
+  }
+
+  /**
+   * Press a key on the first matching element
+   */
+  async press(key: string, options: { delay?: number; timeout?: number } = {}): Promise<void> {
+    return this._executeElementMethod<void>('press', key, options);
+  }
+
+  /**
+   * Get the innerHTML of the first matching element
+   */
+  async innerHTML(): Promise<string> {
+    return this._executeElementMethod<string>('innerHTML');
+  }
+
+  /**
+   * Get the innerText of the first matching element
+   */
+  async innerText(): Promise<string> {
+    return this._executeElementMethod<string>('innerText');
+  }
+
+  /**
+   * Get the input value of the first matching element
+   */
+  async inputValue(): Promise<string> {
+    return this._executeElementMethod<string>('inputValue');
   }
 
   // #endregion Simple Element Operations for Locator

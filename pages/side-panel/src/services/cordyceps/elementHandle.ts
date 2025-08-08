@@ -797,6 +797,100 @@ export class ElementHandle extends JSHandle {
     await this._executeElementOp<void>({ op: 'action', name: 'click' });
   }
 
+  /**
+   * Hover element - dispatches mouseover/mouseenter/mousemove
+   * Mirrors Playwright's hover semantics at a basic level.
+   */
+  async hover(): Promise<void> {
+    await this._executeElementOp<void>({ op: 'action', name: 'hover' });
+  }
+
+  /**
+   * Press a key on the focused element. Focuses first if needed.
+   * Basic implementation: dispatches keydown / keypress (printable) / keyup and updates value for simple characters.
+   */
+  async press(key: string, options: { delay?: number } = {}): Promise<void> {
+    await executeWithProgress(
+      async progress => {
+        // Ensure focus
+        await this.focus();
+        const isPrintable = key.length === 1;
+        const dispatch = async (type: string) => {
+          const result = await this._context.executeScript(
+            (handle: string, eventType: string, keyValue: string, printable: boolean): void => {
+              const injected = (
+                window as unknown as {
+                  __cordyceps_handledInjectedScript?: {
+                    getElementByHandle: (h: string) => Element | null;
+                  };
+                }
+              ).__cordyceps_handledInjectedScript;
+              if (!injected) throw new Error('Injected script not found');
+              const el = injected.getElementByHandle(handle) as HTMLElement | null;
+              if (!el) throw new Error('Element not found');
+              const eventInit: KeyboardEventInit = {
+                key: keyValue,
+                bubbles: true,
+                cancelable: true,
+              };
+              const ev = new KeyboardEvent(eventType, eventInit);
+              el.dispatchEvent(ev);
+              if (printable && eventType === 'keypress') {
+                if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                  el.value += keyValue;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }
+            },
+            'ISOLATED',
+            this.remoteObject,
+            type,
+            key,
+            isPrintable,
+          );
+          return result;
+        };
+        await dispatch('keydown');
+        if (isPrintable) await dispatch('keypress');
+        if (options.delay) await progress.race(new Promise(r => setTimeout(r, options.delay)));
+        await dispatch('keyup');
+      },
+      { timeout: STANDARD_TIMEOUT },
+    );
+  }
+
+  /** Convenience alias for getInnerHTML */
+  async innerHTML(): Promise<string> {
+    return this.getInnerHTML();
+  }
+  /** Convenience alias for getInnerText */
+  async innerText(): Promise<string> {
+    return this.getInnerText();
+  }
+  /** Convenience alias for getValue */
+  async inputValue(): Promise<string> {
+    return this.getValue();
+  }
+  /** Convenience alias for getAttribute */
+  async attribute(name: string): Promise<string | null> {
+    return this.getAttribute(name);
+  }
+
+  /** Whether element has disabled attribute or property true */
+  async isDisabled(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'disabled' });
+  }
+
+  /** Whether element is hidden (inverse of isVisible) */
+  async isHidden(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isHidden' });
+  }
+
+  /** Whether element is editable (contentEditable or enabled writable form control) */
+  async isEditable(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isEditable' });
+  }
+
   // #endregion Simple Element Operations
 
   /**

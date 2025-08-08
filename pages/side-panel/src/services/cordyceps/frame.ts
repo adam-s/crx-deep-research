@@ -535,33 +535,38 @@ export class Frame extends Disposable {
     options: WaitForElementOptions,
     scope?: ElementHandle,
   ): Promise<ElementHandle | null> {
+    // Validate options
     const { state = 'visible' } = options;
-    if (!['attached', 'detached', 'visible', 'hidden'].includes(state))
+    if (!['attached', 'detached', 'visible', 'hidden'].includes(state)) {
       throw new Error(`state: expected one of (attached|detached|visible|hidden)`);
+    }
 
+    // Log once if requested
     if (performActionPreChecksAndLog) {
       progress.log(
         `waiting for selector "${selector}"${state === 'attached' ? '' : ' to be ' + state}`,
       );
     }
 
+    // Main retry loop
     return this._retryWithProgressAndTimeouts(
       progress,
-      [0, 20, 50, 100, 100, 500],
+      Frame.kDefaultTimeouts,
       async continuePolling => {
+        // Step 1: Resolve selector metadata
         const resolved = await progress.race(
           this.selectors.resolveInjectedForSelector(selector, options, scope),
         );
+
         if (!resolved) {
+          // For hidden/detached states, null means success
           if (state === 'hidden' || state === 'detached') return null;
           return continuePolling;
         }
 
-        // Use the frame's context directly since it's a FrameExecutionContext
-        const frameContext = resolved.frame.context;
-        // Execute the selector evaluation logic using the content script method
+        // Step 2: Execute selector evaluation via content script
         const result = await progress.race(
-          frameContext.waitForSelectorEvaluation(
+          resolved.frame.context.waitForSelectorEvaluation(
             resolved.info.parsed,
             resolved.info.strict,
             resolved.frame === this && scope ? scope.remoteObject : null,
@@ -571,47 +576,48 @@ export class Frame extends Disposable {
         );
 
         if (!result) {
+          // For hidden/detached states, null means success
           if (state === 'hidden' || state === 'detached') return null;
           return continuePolling;
         }
 
-        const resultData = result as {
-          log: string;
-          elementHandle: string | null;
-          visible: boolean;
-          attached: boolean;
-          error?: string;
-        };
-        const { log, elementHandle, visible, attached, error } = resultData;
+        // Step 3: Process result
+        const { log, elementHandle, visible, attached, error } = result;
 
-        // Check for errors first
+        // Handle errors from content script
         if (error) {
           throw new Error(`Selector evaluation failed: ${error}`);
         }
 
+        // Log any messages from content script
         if (log) {
           progress.log(log);
         }
 
-        // Check if the current state matches what we're waiting for
-        const success = { attached, detached: !attached, visible, hidden: !visible }[state];
-        if (!success) {
-          return continuePolling;
+        // Step 4: Check if current state matches desired state
+        const stateMatches = {
+          attached,
+          detached: !attached,
+          visible,
+          hidden: !visible,
+        }[state];
+
+        if (!stateMatches) {
+          return continuePolling; // Keep retrying
         }
 
-        // If we don't need to return the element, return null
+        // Step 5: Handle return value based on options and state
         if (options.omitReturnValue) {
-          return null;
+          return null; // User doesn't need the element
         }
 
-        // For detached/hidden states, return null since element shouldn't be used
         if (state === 'detached' || state === 'hidden') {
-          return null;
+          return null; // Element shouldn't be used in these states
         }
 
-        // Return ElementHandle for attached/visible states
+        // Step 6: Return ElementHandle for attached/visible states
         if (elementHandle) {
-          return new ElementHandle(frameContext, elementHandle);
+          return new ElementHandle(resolved.frame.context, elementHandle);
         }
 
         return null;
@@ -639,9 +645,11 @@ export class Frame extends Disposable {
     return await executeWithProgress(
       async progress => {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
+
         if (!handle) {
           throw new Error(`Element not found for selector: ${selector}`);
         }
+
         try {
           return await action(handle, progress);
         } finally {
@@ -844,6 +852,140 @@ export class Frame extends Disposable {
 
   async queryAll(selector: string, scope?: ElementHandle): Promise<ElementHandle[]> {
     return await this.selectors.queryAll(selector, scope);
+  }
+
+  /**
+   * Get an attribute of the first matching element
+   */
+  async getAttribute(
+    selector: string,
+    name: string,
+    options?: { timeout?: number },
+  ): Promise<string | null> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.getAttribute(name),
+    );
+  }
+
+  /**
+   * Hover over the first matching element
+   */
+  async hover(selector: string, options?: { timeout?: number }): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.hover(),
+    );
+  }
+
+  /**
+   * Get the innerHTML of the first matching element
+   */
+  async innerHTML(selector: string, options?: { timeout?: number }): Promise<string> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.innerHTML(),
+    );
+  }
+
+  /**
+   * Get the innerText of the first matching element
+   */
+  async innerText(selector: string, options?: { timeout?: number }): Promise<string> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.innerText(),
+    );
+  }
+
+  /**
+   * Get the input value of the first matching element
+   */
+  async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.inputValue(),
+    );
+  }
+
+  /**
+   * Check if the first matching element is checked
+   */
+  async isChecked(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.isChecked(),
+    );
+  }
+
+  /**
+   * Check if the first matching element is disabled
+   */
+  async isDisabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.isDisabled(),
+    );
+  }
+
+  /**
+   * Check if the first matching element is editable
+   */
+  async isEditable(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.isEditable(),
+    );
+  }
+
+  /**
+   * Check if the first matching element is enabled
+   */
+  async isEnabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.isEnabled(),
+    );
+  }
+
+  /**
+   * Check if the first matching element is hidden
+   */
+  async isHidden(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    // For isHidden, we need to find the element whether it's visible or hidden
+    // So we use state: 'attached' instead of the default 'visible'
+    return await executeWithProgress(
+      async progress => {
+        const handle = await this.waitForSelector(progress, selector, false, {
+          strict: true,
+          state: 'attached',
+        });
+
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${selector}`);
+        }
+
+        try {
+          return await handle.isHidden();
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout: options?.timeout || 30000 },
+    );
+  }
+
+  /**
+   * Check if the first matching element is visible
+   */
+  async isVisible(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.isVisible(),
+    );
+  }
+
+  /**
+   * Press a key on the first matching element
+   */
+  async press(
+    selector: string,
+    key: string,
+    options?: { delay?: number; timeout?: number },
+  ): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
+      handle.press(key, { delay: options?.delay }),
+    );
   }
 }
 

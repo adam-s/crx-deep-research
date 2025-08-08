@@ -3,6 +3,7 @@ import { PlaygroundTest } from './api';
 import { Page } from '../page';
 import { Severity } from '../../../utils/types';
 import {
+  testApiConsistencyAcrossLayers,
   testCheckFunctionality,
   testClearFunctionality,
   testClickFunctionality,
@@ -10,8 +11,11 @@ import {
   testDispatchEventFunctionality,
   testEvaluateFunctionality,
   testFillFunctionality,
+  testFrameMissingMethodsFunctionality,
   testHighlightFunctionality,
   testLocatorFunctionality,
+  testMissingMethodsFunctionality,
+  testPageMissingMethodsFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -104,6 +108,22 @@ export class LocatorTest extends PlaygroundTest {
       progress.log('Testing type-safe element operations methods');
       await testEvaluateFunctionality(page, progress, this.context);
 
+      // Test missing methods functionality
+      progress.log('Testing newly implemented missing methods');
+      await testMissingMethodsFunctionality(page, progress, this.context);
+
+      // Test Frame missing methods functionality
+      progress.log('Testing Frame layer missing methods');
+      await testFrameMissingMethodsFunctionality(page, progress, this.context);
+
+      // Test Page missing methods functionality
+      progress.log('Testing Page layer missing methods');
+      await testPageMissingMethodsFunctionality(page, progress, this.context);
+
+      // Test API consistency across all layers
+      progress.log('Testing API consistency across ElementHandle, Locator, Frame, and Page layers');
+      await testApiConsistencyAcrossLayers(page, progress, this.context);
+
       this.context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Info,
@@ -121,9 +141,24 @@ export class LocatorTest extends PlaygroundTest {
         },
       });
     } catch (error) {
-      throw new Error(
-        `Locator test failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : 'No stack trace available';
+
+      progress.log(`Locator test failed: ${errorMessage}`);
+      progress.log(`Error stack trace: ${errorStack}`);
+
+      this.context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Locator test failed with detailed error information',
+        details: {
+          error: errorMessage,
+          stack: errorStack,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      });
+
+      throw new Error(`Locator test failed: ${errorMessage}\nStack trace: ${errorStack}`);
     }
   }
 }

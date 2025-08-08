@@ -205,35 +205,6 @@ export class HandledInjectedScript {
    * @returns UUID handle of the found element, or null if not found
    */
   querySelector(parsedSelector: unknown, root: Node, strict: boolean): string | null {
-    // Check for multiple elements first to debug the issue
-    const allElements = this._injectedScript.querySelectorAll(
-      parsedSelector as ParsedSelector,
-      root,
-    );
-
-    if (allElements.length > 1) {
-      console.log('🔍 Multiple elements found for selector:', parsedSelector);
-      console.log('📊 Found', allElements.length, 'elements:');
-      allElements.forEach((el, index) => {
-        console.log(
-          `  ${index + 1}.`,
-          el.tagName.toLowerCase(),
-          el.className || '[no class]',
-          el.id || '[no id]',
-        );
-      });
-
-      if (strict) {
-        console.log('⚠️ Strict mode enabled - this should throw an error');
-      } else {
-        console.log('✅ Non-strict mode - will return first element');
-      }
-
-      // Debugger to inspect the multiple elements scenario
-      // eslint-disable-next-line no-debugger
-      debugger;
-    }
-
     const element = this._injectedScript.querySelector(
       parsedSelector as ParsedSelector,
       root,
@@ -254,7 +225,10 @@ export class HandledInjectedScript {
    */
   querySelectorAll(parsedSelector: unknown, root: Node): string[] {
     const elements = this._injectedScript.querySelectorAll(parsedSelector as ParsedSelector, root);
-    return elements.map(element => this._handleManager.getHandleForElement(element));
+
+    const handles = elements.map(element => this._handleManager.getHandleForElement(element));
+
+    return handles;
   }
 
   /**
@@ -321,6 +295,7 @@ export class HandledInjectedScript {
     try {
       // Get root element
       const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document || document;
+
       if (!root) {
         return {
           log: '',
@@ -344,6 +319,7 @@ export class HandledInjectedScript {
 
       // Get all matching elements
       const elementHandles = this.querySelectorAll(parsedSelector, root);
+
       const elements = elementHandles
         .map(handle => this.getElementByHandle(handle))
         .filter(Boolean);
@@ -353,14 +329,6 @@ export class HandledInjectedScript {
 
       let log = '';
       if (elements.length > 1) {
-        console.log('🎯 waitForSelectorEvaluation: Multiple elements found!');
-        console.log('📋 Selector:', selectorString);
-        console.log('📊 Found', elements.length, 'elements');
-        console.log('🔧 Strict mode:', strict);
-
-        // eslint-disable-next-line no-debugger
-        debugger;
-
         if (strict) {
           return {
             log: '',
@@ -378,12 +346,14 @@ export class HandledInjectedScript {
         log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${this._injectedScript.previewNode(element)}`;
       }
 
-      return {
+      const result = {
         log,
         elementHandle: elementHandles[0] || null,
         visible,
         attached: !!element,
       };
+
+      return result;
     } catch (error) {
       // Catch any unexpected errors and return them as error results
       return {
@@ -624,7 +594,6 @@ export class HandledInjectedScript {
       clickCount?: number;
     } = {},
   ): { success: boolean; error?: string; needsForce?: boolean } {
-    console.log('clickElementWithOptions called with button:', options.button);
     const element = this.getElementByHandle(handle);
     if (!element) {
       return {
@@ -714,7 +683,6 @@ export class HandledInjectedScript {
 
         // Dispatch contextmenu event for right-clicks
         if (options.button === 'right') {
-          console.log('Dispatching contextmenu event for right-click');
           const contextMenuEvent = new MouseEvent('contextmenu', {
             bubbles: true,
             cancelable: true,
@@ -723,7 +691,6 @@ export class HandledInjectedScript {
             button: 2,
           });
           htmlElement.dispatchEvent(contextMenuEvent);
-          console.log('Contextmenu event dispatched');
         }
 
         // Handle multiple clicks

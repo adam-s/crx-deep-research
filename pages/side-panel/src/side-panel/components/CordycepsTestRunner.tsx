@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@fluentui/react-components';
 import { useCordycepsPlayground } from '../hooks/useCordycepsPlayground';
+import { DarkScrollContainer } from './common/DarkScrollContainer';
 
 export const CordycepsTestRunner: React.FC = () => {
   const {
@@ -13,6 +14,7 @@ export const CordycepsTestRunner: React.FC = () => {
     isRunning,
     error,
     clearEvents,
+    clearError,
   } = useCordycepsPlayground();
 
   return (
@@ -22,13 +24,42 @@ export const CordycepsTestRunner: React.FC = () => {
       {error && (
         <div
           style={{
-            padding: '12px',
+            position: 'relative',
             background: '#fee',
             border: '1px solid #fcc',
             borderRadius: '4px',
             color: '#d00',
+            maxHeight: '150px',
           }}>
-          <strong>Error:</strong> {error}
+          <Button
+            appearance="subtle"
+            size="small"
+            onClick={clearError}
+            style={{
+              position: 'absolute',
+              top: '4px',
+              right: '4px',
+              zIndex: 1,
+              minWidth: '24px',
+              height: '24px',
+              padding: 0,
+              fontSize: '12px',
+              color: '#d00',
+              background: 'transparent',
+              border: 'none',
+            }}>
+            ✕
+          </Button>
+          <DarkScrollContainer
+            style={{
+              padding: '12px',
+              paddingRight: '36px', // Make room for close button
+              maxHeight: '150px',
+              overflow: 'auto',
+              background: 'transparent',
+            }}>
+            <strong>Error:</strong> {error}
+          </DarkScrollContainer>
         </div>
       )}
 
