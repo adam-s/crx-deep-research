@@ -9,6 +9,8 @@ import type {
   NavigateOptionsWithProgress,
   WaitForElementOptions,
   ClickOptions,
+  SelectOption,
+  SelectOptionOptions,
 } from './types';
 import { Event } from 'vs/base/common/event';
 import { FrameSelectors } from './frameSelectors';
@@ -777,6 +779,16 @@ export class Frame extends Disposable {
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
       handle.fillWithProgress(progress, value, options),
+    );
+  }
+
+  async selectOption(
+    selector: string,
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[]> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.selectOptionWithProgress(progress, values, options),
     );
   }
 

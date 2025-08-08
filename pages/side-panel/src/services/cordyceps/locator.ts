@@ -10,7 +10,7 @@ import {
   getByRoleSelector,
 } from '@injected/isomorphic/locatorUtils';
 import { Frame, FrameLocator, testIdAttributeName } from './frame';
-import { Rect, TimeoutOptions, ClickOptions } from './types';
+import { Rect, TimeoutOptions, ClickOptions, SelectOption, SelectOptionOptions } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress, Progress } from './progress';
 import { OperationResult, STANDARD_TIMEOUT } from './utils';
@@ -476,6 +476,27 @@ export class Locator {
    */
   async setValue(value: string): Promise<void> {
     return this._executeElementMethod<void>('setValue', value);
+  }
+
+  /**
+   * Select option(s) in the first matching select element
+   *
+   * @example
+   * // Select by value
+   * await locator.selectOption('option-value');
+   * await locator.selectOption(['value1', 'value2']); // Multiple selection
+   *
+   * // Select by label text
+   * await locator.selectOption({ label: 'Option Label' });
+   *
+   * // Select by index
+   * await locator.selectOption({ index: 0 });
+   */
+  async selectOption(
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[]> {
+    return this._executeElementMethod<string[]>('selectOption', values, options);
   }
 
   /**

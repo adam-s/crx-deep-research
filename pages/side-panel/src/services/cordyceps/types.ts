@@ -85,3 +85,10 @@ export type ClickOptions = {
   button?: 'left' | 'right' | 'middle';
   clickCount?: number;
 };
+
+export type SelectOption = string | { value?: string; label?: string; index?: number };
+
+export type SelectOptionOptions = {
+  timeout?: number;
+  force?: boolean;
+};

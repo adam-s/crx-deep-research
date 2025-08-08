@@ -13,4 +13,5 @@ export { testLocatorFunctionality } from './locatorFunctionality';
 export { testMissingMethodsFunctionality } from './missingMethodsFunctionality';
 export { testPageMissingMethodsFunctionality } from './pageMissingMethodsFunctionality';
 export { testScrollIntoViewIfNeededFunctionality } from './scrollIntoViewIfNeededFunctionality';
+export { testSelectOptionFunctionality } from './selectOptionFunctionality';
 export * from './testUtils';

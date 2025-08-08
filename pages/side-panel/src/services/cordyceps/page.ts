@@ -4,7 +4,13 @@ import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './frameExecutionContext';
-import type { NavigateOptionsWithProgress, Rect, ClickOptions } from './types';
+import type {
+  NavigateOptionsWithProgress,
+  Rect,
+  ClickOptions,
+  SelectOption,
+  SelectOptionOptions,
+} from './types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
@@ -249,6 +255,14 @@ export class Page extends Disposable {
     options?: { timeout?: number; force?: boolean },
   ): Promise<void> {
     await this.frameManager.mainFrame().fill(selector, value, options);
+  }
+
+  async selectOption(
+    selector: string,
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[]> {
+    return this.frameManager.mainFrame().selectOption(selector, values, options);
   }
 
   // Put locator methods here

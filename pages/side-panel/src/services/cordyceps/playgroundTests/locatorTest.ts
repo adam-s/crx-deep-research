@@ -18,6 +18,7 @@ import {
   testMissingMethodsFunctionality,
   testPageMissingMethodsFunctionality,
   testScrollIntoViewIfNeededFunctionality,
+  testSelectOptionFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -135,6 +136,12 @@ export class LocatorTest extends PlaygroundTest {
       // Test scrollIntoViewIfNeeded functionality across ElementHandle and Locator
       progress.log('Testing scrollIntoViewIfNeeded functionality across ElementHandle and Locator');
       await testScrollIntoViewIfNeededFunctionality(page, progress, this.context);
+
+      // Test selectOption functionality across all layers
+      progress.log(
+        'Testing selectOption functionality across ElementHandle, Locator, Frame, and Page',
+      );
+      await testSelectOptionFunctionality(page, progress, this.context);
 
       this.context.events.emit({
         timestamp: Date.now(),

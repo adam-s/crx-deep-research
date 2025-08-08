@@ -1,6 +1,13 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { FrameExecutionContext } from './frameExecutionContext';
-import { Rect, WaitForElementOptions, ClickOptions, TimeoutOptions } from './types';
+import {
+  Rect,
+  WaitForElementOptions,
+  ClickOptions,
+  TimeoutOptions,
+  SelectOption,
+  SelectOptionOptions,
+} from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
 import {
@@ -654,6 +661,161 @@ export class ElementHandle extends JSHandle {
    */
   async setChecked(checked: boolean): Promise<void> {
     await this._executeElementOp<void>({ op: 'set', prop: 'checked', value: checked });
+  }
+
+  /**
+   * Select option(s) in a select element
+   * Supports selection by value, label text, or index
+   *
+   * @example
+   * // Select by value
+   * await handle.selectOption('option-value');
+   * await handle.selectOption(['value1', 'value2']); // Multiple selection
+   *
+   * // Select by label text
+   * await handle.selectOption({ label: 'Option Label' });
+   *
+   * // Select by index
+   * await handle.selectOption({ index: 0 });
+   *
+   * // Mixed selection (multiple)
+   * await handle.selectOption([
+   *   'value1',
+   *   { label: 'Second Option' },
+   *   { index: 2 }
+   * ]);
+   */
+  async selectOption(
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[]> {
+    return executeWithProgress(
+      async progress => {
+        const result = await this._selectOption(progress, values, options);
+        return throwRetargetableDOMError(result);
+      },
+      { timeout: options?.timeout || STANDARD_TIMEOUT },
+    );
+  }
+
+  async selectOptionWithProgress(
+    progress: Progress,
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[]> {
+    const result = await this._selectOption(progress, values, options);
+    return throwRetargetableDOMError(result);
+  }
+
+  async _selectOption(
+    progress: Progress,
+    values: SelectOption | SelectOption[],
+    options?: SelectOptionOptions,
+  ): Promise<string[] | 'error:notconnected'> {
+    const valuesArray = Array.isArray(values) ? values : [values];
+    progress.log(`  selectOption(${JSON.stringify(valuesArray)})`);
+
+    const selectOptionScript = (handle: string, selectValues: SelectOption[], force: boolean) => {
+      const injected = window.__cordyceps_handledInjectedScript;
+      const element = injected.getElementByHandle(handle) as HTMLSelectElement;
+      if (!element) {
+        return 'error:notconnected';
+      }
+
+      if (element.tagName.toLowerCase() !== 'select') {
+        return { error: 'Element is not a select element' };
+      }
+
+      // Check visibility and enabled state unless force is true
+      if (!force) {
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden' || element.disabled) {
+          return { error: 'Element is not visible or enabled' };
+        }
+      }
+
+      const selectedValues: string[] = [];
+      const options = Array.from(element.options);
+
+      // Clear all selections first for single select, or only clear if not multiple
+      if (!element.multiple) {
+        options.forEach(option => {
+          option.selected = false;
+        });
+      } else {
+        // For multiple select, only clear if we're not adding to selection
+        options.forEach(option => {
+          option.selected = false;
+        });
+      }
+
+      for (const selectValue of selectValues) {
+        let option: HTMLOptionElement | undefined;
+
+        if (typeof selectValue === 'string') {
+          // Select by value
+          option = options.find(opt => opt.value === selectValue);
+        } else {
+          if (selectValue.value !== undefined) {
+            // Select by value
+            option = options.find(opt => opt.value === selectValue.value);
+          } else if (selectValue.label !== undefined) {
+            // Select by label text
+            option = options.find(opt => opt.textContent?.trim() === selectValue.label);
+          } else if (selectValue.index !== undefined) {
+            // Select by index
+            option = options[selectValue.index];
+          }
+        }
+
+        if (option) {
+          option.selected = true;
+          selectedValues.push(option.value);
+        } else if (!force) {
+          return { error: `Option not found: ${JSON.stringify(selectValue)}` };
+        }
+      }
+
+      // Trigger change and input events
+      element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+
+      return selectedValues;
+    };
+
+    try {
+      const result = await progress.race(
+        this._context.evaluate(
+          selectOptionScript,
+          'ISOLATED',
+          this.remoteObject,
+          valuesArray,
+          options?.force || false,
+        ),
+      );
+
+      if (result === 'error:notconnected') {
+        return 'error:notconnected';
+      }
+
+      // If the page-side script returned a structured error, rethrow here so callers can catch
+      if (
+        result &&
+        typeof result === 'object' &&
+        !Array.isArray(result) &&
+        Object.prototype.hasOwnProperty.call(result as Record<string, unknown>, 'error')
+      ) {
+        const errMsg = (result as { error: string }).error;
+        throw new Error(errMsg);
+      }
+
+      return result as string[];
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Element not found')) {
+        return 'error:notconnected';
+      }
+      throw error;
+    }
   }
 
   /**
