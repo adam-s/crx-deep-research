@@ -677,6 +677,12 @@ export class Frame extends Disposable {
     );
   }
 
+  async tap(selector: string, options?: ClickOptions): Promise<void> {
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.tapWithProgress(progress, options),
+    );
+  }
+
   async dispatchEvent(
     selector: string,
     type: string,

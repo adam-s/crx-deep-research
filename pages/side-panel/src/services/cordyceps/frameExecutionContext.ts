@@ -60,6 +60,14 @@ interface CordycepsInjectedScript {
       clickCount?: number;
     },
   ): { success: boolean; error?: string; needsForce?: boolean };
+  tapElement(handle: string): { success: boolean; error?: string };
+  tapElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+    },
+  ): { success: boolean; error?: string; needsForce?: boolean };
   dispatchEvent(
     handle: string,
     type: string,
@@ -67,6 +75,7 @@ interface CordycepsInjectedScript {
   ): { success: boolean; error?: string };
   highlight(parsedSelector: unknown): void;
   hideHighlight(): void;
+  markTargetElements(markedElements: Set<Element>, callId: string): void;
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -489,6 +498,47 @@ export class FrameExecutionContext extends Disposable {
   }
 
   /**
+   * Perform a tap on an element by its handle.
+   * This method handles the core tap logic.
+   */
+  public async tapElement(
+    handle: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ success: boolean; error?: string } | undefined> {
+    return this.executeScript(
+      (h: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.tapElement(h);
+      },
+      world,
+      handle,
+    );
+  }
+
+  /**
+   * Enhanced tap with position and options support.
+   * This method handles advanced tapping with validation.
+   */
+  public async tapElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+    } = {},
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<{ success: boolean; error?: string; needsForce?: boolean } | undefined> {
+    return this.executeScript(
+      (h: string, opts: { position?: { x: number; y: number }; force?: boolean }) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        return injected.tapElementWithOptions(h, opts);
+      },
+      world,
+      handle,
+      options,
+    );
+  }
+
+  /**
    * Dispatch a custom event on an element using the content script method.
    * This method handles event creation and dispatching with proper browser compatibility.
    */
@@ -536,6 +586,37 @@ export class FrameExecutionContext extends Disposable {
       const injected = window.__cordyceps_handledInjectedScript;
       return injected.hideHighlight();
     }, world);
+  }
+
+  /**
+   * Mark target elements for debugging/tracing purposes.
+   * This method provides access to the underlying InjectedScript's markTargetElements functionality.
+   */
+  public async markTargetElements(
+    elementHandles: string[],
+    callId: string,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+  ): Promise<void> {
+    return this.executeScript(
+      (handles: string[], callId: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        const elements = new Set<Element>();
+
+        for (const handle of handles) {
+          const element = injected.getElementByHandle(handle);
+          if (element) {
+            elements.add(element);
+          }
+        }
+
+        if (elements.size > 0) {
+          injected.markTargetElements(elements, callId);
+        }
+      },
+      world,
+      elementHandles,
+      callId,
+    );
   }
 
   public toString(): string {

@@ -241,6 +241,10 @@ export class Page extends Disposable {
     await this.frameManager.mainFrame().dblclick(selector, options);
   }
 
+  async tap(selector: string, options?: ClickOptions): Promise<void> {
+    await this.frameManager.mainFrame().tap(selector, options);
+  }
+
   async check(
     selector: string,
     options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },

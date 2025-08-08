@@ -196,6 +196,211 @@ export class HandledInjectedScript {
   }
 
   /**
+   * Mark target elements for debugging/tracing purposes.
+   * This method provides access to the underlying InjectedScript's markTargetElements functionality.
+   */
+  markTargetElements(markedElements: Set<Element>, callId: string): void {
+    return this._injectedScript.markTargetElements(markedElements, callId);
+  }
+
+  /**
+   * Perform a tap on an element by its handle.
+   * This method handles the core tap logic using touch events.
+   */
+  tapElement(handle: string): { success: boolean; error?: string } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+      };
+    }
+
+    try {
+      const htmlElement = element as HTMLElement;
+
+      // Get element center point for touch
+      const rect = htmlElement.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
+
+      // Create and dispatch touch events
+      const touchStartEvent = new TouchEvent('touchstart', {
+        bubbles: true,
+        cancelable: true,
+        touches: [
+          new Touch({
+            identifier: 0,
+            target: htmlElement,
+            clientX,
+            clientY,
+            pageX: clientX + window.pageXOffset,
+            pageY: clientY + window.pageYOffset,
+          }),
+        ],
+      });
+
+      const touchEndEvent = new TouchEvent('touchend', {
+        bubbles: true,
+        cancelable: true,
+        changedTouches: [
+          new Touch({
+            identifier: 0,
+            target: htmlElement,
+            clientX,
+            clientY,
+            pageX: clientX + window.pageXOffset,
+            pageY: clientY + window.pageYOffset,
+          }),
+        ],
+      });
+
+      htmlElement.dispatchEvent(touchStartEvent);
+      htmlElement.dispatchEvent(touchEndEvent);
+
+      // Also dispatch a click event for compatibility
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+      });
+      htmlElement.dispatchEvent(clickEvent);
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to tap element',
+      };
+    }
+  }
+
+  /**
+   * Enhanced tap with position and options support.
+   * This method handles advanced tapping with validation.
+   */
+  tapElementWithOptions(
+    handle: string,
+    options: {
+      position?: { x: number; y: number };
+      force?: boolean;
+    } = {},
+  ): { success: boolean; error?: string; needsForce?: boolean } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return {
+        success: false,
+        error: 'Element not found',
+      };
+    }
+
+    // Check if element is connected to the DOM
+    if (!(element as Element).isConnected) {
+      return {
+        success: false,
+        error: 'Element is not attached to the DOM',
+      };
+    }
+
+    const htmlElement = element as HTMLElement;
+
+    // Check if element is visible (unless forced)
+    if (!options.force && !this._injectedScript.utils.isElementVisible(element)) {
+      return {
+        success: false,
+        error: 'Element is not visible',
+        needsForce: true,
+      };
+    }
+
+    // Check if element is enabled (for form controls)
+    if (!options.force && htmlElement.tagName) {
+      const tagName = htmlElement.tagName.toLowerCase();
+      if (['button', 'input', 'select', 'textarea'].includes(tagName)) {
+        const formElement = htmlElement as
+          | HTMLInputElement
+          | HTMLButtonElement
+          | HTMLSelectElement
+          | HTMLTextAreaElement;
+        if (formElement.disabled) {
+          return {
+            success: false,
+            error: 'Element is disabled',
+          };
+        }
+      }
+    }
+
+    try {
+      const rect = htmlElement.getBoundingClientRect();
+      // Use specified position or center of element
+      const clientX = options.position
+        ? rect.left + options.position.x
+        : rect.left + rect.width / 2;
+      const clientY = options.position ? rect.top + options.position.y : rect.top + rect.height / 2;
+
+      // Create and dispatch touch events
+      const touchStartEvent = new TouchEvent('touchstart', {
+        bubbles: true,
+        cancelable: true,
+        touches: [
+          new Touch({
+            identifier: 0,
+            target: htmlElement,
+            clientX,
+            clientY,
+            pageX: clientX + window.pageXOffset,
+            pageY: clientY + window.pageYOffset,
+          }),
+        ],
+      });
+
+      const touchEndEvent = new TouchEvent('touchend', {
+        bubbles: true,
+        cancelable: true,
+        changedTouches: [
+          new Touch({
+            identifier: 0,
+            target: htmlElement,
+            clientX,
+            clientY,
+            pageX: clientX + window.pageXOffset,
+            pageY: clientY + window.pageYOffset,
+          }),
+        ],
+      });
+
+      htmlElement.dispatchEvent(touchStartEvent);
+      htmlElement.dispatchEvent(touchEndEvent);
+
+      // Also dispatch a click event for compatibility
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+      });
+      htmlElement.dispatchEvent(clickEvent);
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to tap element',
+      };
+    }
+  }
+
+  /**
    * Modified querySelector that returns a UUID handle instead of an Element.
    * This method matches the interface expected by FrameExecutionContext.
    *

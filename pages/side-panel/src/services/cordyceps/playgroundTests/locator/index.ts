@@ -19,4 +19,5 @@ export { testSelectOptionFunctionality } from './selectOptionFunctionality';
 export { testSelectTextFunctionality } from './selectTextFunctionality';
 export { testSelectTextWithExistingElements } from './selectTextWithExistingElements';
 export { testSetCheckedFunctionality } from './setCheckedFunctionality';
+export { testTapFunctionality } from './tapFunctionality';
 export * from './testUtils';

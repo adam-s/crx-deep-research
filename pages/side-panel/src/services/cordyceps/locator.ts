@@ -237,6 +237,16 @@ export class Locator {
     );
   }
 
+  async tap(options?: ClickOptions): Promise<void> {
+    return executeProgressElementOperation(
+      this._selector,
+      this._frame,
+      async (h, progress) => h._tap(progress, options),
+      'Tap',
+      options?.timeout,
+    );
+  }
+
   async dispatchEvent(
     type: string,
     eventInit: Record<string, unknown> = {},

@@ -20,6 +20,7 @@ import {
   testScrollIntoViewIfNeededFunctionality,
   testSelectOptionFunctionality,
   testSetCheckedFunctionality,
+  testTapFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -91,6 +92,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test dblclick() functionality
       progress.log('Testing dblclick() method on various elements');
       await testDblclickFunctionality(page, progress, this.context);
+
+      // Test tap() functionality
+      progress.log('Testing tap() method on various elements');
+      await testTapFunctionality(page, progress, this.context);
 
       // Test dispatchEvent() functionality
       progress.log('Testing dispatchEvent() method on various elements');

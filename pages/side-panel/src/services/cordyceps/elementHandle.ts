@@ -229,6 +229,73 @@ export class ElementHandle extends JSHandle {
     return await this._click(progress, dblclickOptions);
   }
 
+  async tap(options?: ClickOptions): Promise<void> {
+    return executeElementOperation(
+      async progress => await this._tap(progress, options),
+      'Tap',
+      options?.timeout,
+    );
+  }
+
+  /**
+   * Tap an element following Playwright patterns.
+   * This method implements touch-based interaction with proper error handling.
+   */
+  async tapWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
+    await this._markAsTargetElement(progress);
+    const result = await this._tap(progress, options);
+    if (result !== 'done') {
+      throw new Error(`Tap failed: ${result}`);
+    }
+  }
+
+  /**
+   * Internal method to perform tap following Playwright patterns.
+   * Tap is essentially a touch-based click operation.
+   */
+  async _tap(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
+    progress.log('  tap()');
+
+    // Use enhanced tap if options are provided
+    if (options && (options.position || options.force || options.button || options.clickCount)) {
+      const tapResult = await progress.race(
+        this._context.tapElementWithOptions(this.remoteObject, {
+          position: options.position,
+          force: options.force,
+          // Note: button and clickCount may not apply to touch interactions
+          // but we keep them for consistency with click options
+        }),
+      );
+
+      if (!tapResult) {
+        return 'error:notconnected';
+      }
+
+      if (!tapResult.success) {
+        throw new Error(tapResult.error || 'Failed to tap element');
+      }
+
+      // Handle delay if specified
+      if (options.delay) {
+        await progress.race(new Promise(resolve => setTimeout(resolve, options.delay)));
+      }
+
+      return 'done';
+    }
+
+    // Use simple tap for basic cases
+    const tapResult = await progress.race(this._context.tapElement(this.remoteObject));
+    if (!tapResult) {
+      return 'error:notconnected';
+    }
+
+    if (!tapResult.success) {
+      throw new Error(tapResult.error || 'Failed to tap element');
+    }
+
+    return 'done';
+  }
+
   /**
    * Check a checkbox or radio button following Playwright patterns.
    * This method implements the _setChecked logic similar to Playwright's ElementHandle.
@@ -1011,6 +1078,30 @@ export class ElementHandle extends JSHandle {
    */
   async isVisible(): Promise<boolean> {
     return this._executeElementOp<boolean>({ op: 'get', prop: 'isVisible' });
+  }
+
+  /**
+   * Mark this element as a target element for debugging/tracing purposes.
+   * This method follows Playwright patterns for marking elements during operations.
+   */
+  private async _markAsTargetElement(progress: Progress): Promise<void> {
+    // Only mark if we have a valid progress metadata id
+    // Note: Progress interface may not expose metadata directly, so we check if it exists
+    const progressWithMetadata = progress as Progress & { metadata?: { id?: string } };
+    if (!progressWithMetadata.metadata?.id) {
+      return;
+    }
+
+    try {
+      await progress.race(
+        this._context.markTargetElements([this.remoteObject], progressWithMetadata.metadata.id),
+      );
+    } catch (error) {
+      // Silently ignore marking errors to not interfere with the main operation
+      progress.log(
+        `Warning: Failed to mark target element: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
