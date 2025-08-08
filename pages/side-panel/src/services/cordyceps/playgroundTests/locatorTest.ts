@@ -17,6 +17,7 @@ import {
   testLocatorFunctionality,
   testMissingMethodsFunctionality,
   testPageMissingMethodsFunctionality,
+  testScrollIntoViewIfNeededFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -130,6 +131,10 @@ export class LocatorTest extends PlaygroundTest {
         'Testing ariaSnapshot functionality across ElementHandle, Locator, and Frame layers',
       );
       await testAriaSnapshotFunctionality(page, progress, this.context);
+
+      // Test scrollIntoViewIfNeeded functionality across ElementHandle and Locator
+      progress.log('Testing scrollIntoViewIfNeeded functionality across ElementHandle and Locator');
+      await testScrollIntoViewIfNeededFunctionality(page, progress, this.context);
 
       this.context.events.emit({
         timestamp: Date.now(),

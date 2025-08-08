@@ -1,6 +1,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { FrameExecutionContext } from './frameExecutionContext';
-import { Rect, WaitForElementOptions, ClickOptions } from './types';
+import { Rect, WaitForElementOptions, ClickOptions, TimeoutOptions } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
 import {
@@ -1007,6 +1007,72 @@ export class ElementHandle extends JSHandle {
       },
       { timeout: options?.timeout || STANDARD_TIMEOUT },
     );
+  }
+
+  /**
+   * Scroll the element into view if needed.
+   * This method scrolls the page to ensure the element is visible in the viewport.
+   */
+  async scrollIntoViewIfNeeded(options: TimeoutOptions = {}): Promise<void> {
+    return executeElementOperation(
+      async progress => await this._scrollIntoViewIfNeeded(progress),
+      'ScrollIntoViewIfNeeded',
+      options?.timeout,
+    );
+  }
+
+  /**
+   * Internal implementation of scrollIntoViewIfNeeded
+   */
+  private async _scrollIntoViewIfNeeded(progress: Progress): Promise<OperationResult> {
+    try {
+      const result = await progress.race(
+        this._context.executeScript(
+          (handle: string) => {
+            const injectedScript = window.__cordyceps_handledInjectedScript;
+            const element = injectedScript.getElementByHandle(handle);
+            if (!element) {
+              return { success: false, error: 'Element not found' };
+            }
+
+            // Check if element is already in view
+            const rect = element.getBoundingClientRect();
+            const isInView =
+              rect.top >= 0 &&
+              rect.left >= 0 &&
+              rect.bottom <= window.innerHeight &&
+              rect.right <= window.innerWidth;
+
+            if (!isInView) {
+              element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'center',
+              });
+            }
+
+            return { success: true };
+          },
+          'ISOLATED',
+          this.remoteObject,
+        ),
+      );
+
+      if (!result) {
+        return 'error:notconnected';
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to scroll element into view');
+      }
+
+      return 'done';
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not attached')) {
+        return 'error:notconnected';
+      }
+      throw error;
+    }
   }
 
   /**

@@ -645,5 +645,41 @@ export class Locator {
     );
   }
 
+  /**
+   * Scroll the first matching element into view if needed.
+   * This method scrolls the page to ensure the element is visible in the viewport.
+   *
+   * @param options Configuration options for the scroll operation
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   *
+   * @example
+   * ```typescript
+   * const element = page.locator('#submit-button');
+   * await element.scrollIntoViewIfNeeded();
+   * ```
+   */
+  async scrollIntoViewIfNeeded(options: TimeoutOptions = {}): Promise<void> {
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async progress => {
+        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
+          strict: true,
+        });
+
+        if (!handle) {
+          throw new Error(`Element not found for selector: ${this._selector}`);
+        }
+
+        try {
+          await handle.scrollIntoViewIfNeeded({ timeout });
+        } finally {
+          handle.dispose();
+        }
+      },
+      { timeout },
+    );
+  }
+
   // #endregion Simple Element Operations for Locator
 }
