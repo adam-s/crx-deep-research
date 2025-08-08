@@ -23,6 +23,7 @@ import {
   testTapFunctionality,
   testTextContentFunctionality,
   testTypeFunctionality,
+  testWaitForFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -118,6 +119,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test type() functionality
       progress.log('Testing type() method across all layers');
       await testTypeFunctionality(page, progress, this.context);
+
+      // Test waitFor() functionality
+      progress.log('Testing waitFor() method for element state waiting');
+      await testWaitForFunctionality(page, progress, this.context);
 
       // Test highlight() functionality
       progress.log('Testing highlight() and hideHighlight() methods');

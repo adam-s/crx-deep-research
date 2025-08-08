@@ -17,6 +17,7 @@ import {
   SelectOption,
   SelectOptionOptions,
   CommonActionOptions,
+  WaitForElementOptions,
 } from './types';
 import { ElementHandle } from './elementHandle';
 import { executeWithProgress, Progress } from './progress';
@@ -792,6 +793,52 @@ export class Locator {
         } finally {
           handle.dispose();
         }
+      },
+      { timeout },
+    );
+  }
+
+  /**
+   * Wait for the locator to match an element in the given state.
+   * This method waits for the element to be attached, visible, hidden, or detached based on the state option.
+   *
+   * @param options Configuration options for the wait operation
+   * @param options.state The state to wait for: 'attached', 'detached', 'visible', or 'hidden' (default: 'visible')
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   *
+   * @example
+   * ```typescript
+   * const element = page.locator('#submit-button');
+   *
+   * // Wait for element to be visible (default)
+   * await element.waitFor();
+   *
+   * // Wait for element to be attached but possibly hidden
+   * await element.waitFor({ state: 'attached' });
+   *
+   * // Wait for element to be hidden
+   * await element.waitFor({ state: 'hidden' });
+   *
+   * // Wait for element to be detached (removed from DOM)
+   * await element.waitFor({ state: 'detached' });
+   * ```
+   */
+  waitFor(
+    options: WaitForElementOptions & TimeoutOptions & { state: 'attached' | 'visible' },
+  ): Promise<void>;
+  waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void>;
+  async waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void> {
+    const state = options?.state ?? 'visible';
+    const timeout = options?.timeout ?? 30000;
+
+    return executeWithProgress(
+      async progress => {
+        await this._frame.waitForSelector(progress, this._selector, true, {
+          strict: true,
+          omitReturnValue: true,
+          state,
+          ...options,
+        });
       },
       { timeout },
     );

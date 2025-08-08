@@ -22,4 +22,5 @@ export { testSetCheckedFunctionality } from './setCheckedFunctionality';
 export { testTapFunctionality } from './tapFunctionality';
 export { testTextContentFunctionality } from './textContentFunctionality';
 export { testTypeFunctionality } from './typeFunctionality';
+export { testWaitForFunctionality } from './waitForFunctionality';
 export * from './testUtils';
