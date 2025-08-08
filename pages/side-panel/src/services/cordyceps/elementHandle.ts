@@ -639,7 +639,8 @@ export class ElementHandle extends JSHandle {
    * With: await handle.getTextContent()
    */
   async getTextContent(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
+    const result = await this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
+    return result;
   }
 
   /**
@@ -1218,6 +1219,14 @@ export class ElementHandle extends JSHandle {
   /** Convenience alias for getInnerText */
   async innerText(): Promise<string> {
     return this.getInnerText();
+  }
+  /** Convenience alias for getTextContent */
+  async textContent(): Promise<string> {
+    console.log(
+      `[ElementHandle.textContent] Convenience alias called, delegating to getTextContent()`,
+    );
+    const result = await this.getTextContent();
+    return result;
   }
   /** Convenience alias for getValue */
   async inputValue(): Promise<string> {

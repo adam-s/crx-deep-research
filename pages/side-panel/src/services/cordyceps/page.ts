@@ -331,6 +331,14 @@ export class Page extends Disposable {
   }
 
   /**
+   * Get the textContent of the first matching element
+   */
+  async textContent(selector: string, options?: { timeout?: number }): Promise<string> {
+    const result = await this.mainFrame().textContent(selector, options);
+    return result;
+  }
+
+  /**
    * Get the input value of the first matching element
    */
   async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {

@@ -931,6 +931,18 @@ export class Frame extends Disposable {
   }
 
   /**
+   * Get the textContent of the first matching element
+   */
+  async textContent(selector: string, options?: { timeout?: number }): Promise<string> {
+    const result = await this._executeWithElementHandle(
+      selector,
+      options?.timeout || 30000,
+      handle => handle.textContent(),
+    );
+    return result;
+  }
+
+  /**
    * Get the input value of the first matching element
    */
   async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {

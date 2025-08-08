@@ -139,22 +139,48 @@ export class Locator {
     methodName: keyof ElementHandle,
     ...args: unknown[]
   ): Promise<T> {
+    console.log(
+      `[Locator._executeElementMethod] Starting method: ${String(methodName)}, selector: ${this._selector}, args:`,
+      args,
+    );
     return executeWithProgress(
       async progress => {
+        console.log(
+          `[Locator._executeElementMethod] Inside executeWithProgress for method: ${String(methodName)}`,
+        );
         // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
         const handle = await this._frame.waitForSelector(progress, this._selector, false, {
           strict: true,
           state: 'attached',
         });
 
+        console.log(
+          `[Locator._executeElementMethod] waitForSelector result for ${String(methodName)}:`,
+          handle ? 'handle found' : 'handle is null',
+        );
+
         if (!handle) {
+          console.error(
+            `[Locator._executeElementMethod] Element not found for selector: ${this._selector}, method: ${String(methodName)}`,
+          );
           throw new Error(`Element not found for selector: ${this._selector}`);
         }
 
         try {
+          console.log(
+            `[Locator._executeElementMethod] About to call method ${String(methodName)} on handle`,
+          );
           const method = handle[methodName] as (...args: unknown[]) => Promise<T>;
-          return await method.apply(handle, args);
+          const result = await method.apply(handle, args);
+          console.log(
+            `[Locator._executeElementMethod] Method ${String(methodName)} completed successfully, result:`,
+            result,
+          );
+          return result;
         } finally {
+          console.log(
+            `[Locator._executeElementMethod] Disposing handle for method: ${String(methodName)}`,
+          );
           handle.dispose();
         }
       },
@@ -465,7 +491,8 @@ export class Locator {
    * Get text content of the first matching element
    */
   async getTextContent(): Promise<string> {
-    return this._executeElementMethod<string>('getTextContent');
+    const result = await this._executeElementMethod<string>('getTextContent');
+    return result;
   }
 
   /**
@@ -662,6 +689,14 @@ export class Locator {
    */
   async innerText(): Promise<string> {
     return this._executeElementMethod<string>('innerText');
+  }
+
+  /**
+   * Get the textContent of the first matching element
+   */
+  async textContent(): Promise<string> {
+    const result = await this._executeElementMethod<string>('textContent');
+    return result;
   }
 
   /**

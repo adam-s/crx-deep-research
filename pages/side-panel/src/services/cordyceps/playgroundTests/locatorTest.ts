@@ -21,6 +21,7 @@ import {
   testSelectOptionFunctionality,
   testSetCheckedFunctionality,
   testTapFunctionality,
+  testTextContentFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -108,6 +109,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test clear() functionality
       progress.log('Testing clear() method on form inputs');
       await testClearFunctionality(page, progress, this.context);
+
+      // Test textContent() functionality
+      progress.log('Testing textContent() method across all layers');
+      await testTextContentFunctionality(page, progress, this.context);
 
       // Test highlight() functionality
       progress.log('Testing highlight() and hideHighlight() methods');

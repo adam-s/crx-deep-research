@@ -55,8 +55,10 @@ export function executeElementOp(
   // Helper functions must be inside the main function due to executeScript serialization
   function getProperty(element: Element, prop: string): unknown {
     switch (prop) {
-      case 'textContent':
-        return element.textContent || '';
+      case 'textContent': {
+        const textContentResult = element.textContent || '';
+        return textContentResult;
+      }
       case 'innerText':
         return (element as HTMLElement).innerText || '';
       case 'innerHTML':
@@ -173,8 +175,10 @@ export function executeElementOp(
   if (!element) throw new Error('Element not found');
 
   switch (action.op) {
-    case 'get':
-      return getProperty(element, action.prop as string);
+    case 'get': {
+      const result = getProperty(element, action.prop as string);
+      return result;
+    }
 
     case 'set':
       setProperty(element, action.prop as string, action.value);
