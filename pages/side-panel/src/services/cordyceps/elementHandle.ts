@@ -1038,7 +1038,15 @@ export class ElementHandle extends JSHandle {
     // Delegate to the page-level screenshotter for element screenshots
     const page = this.frame.frameManager.page;
     const bufferLike = await page.screenshotter.screenshotElement(progress, this, options);
-    // Our screenshotter returns a browser-safe Buffer polyfill; cast to Buffer for the public API
+    // Convert BrowserBuffer to Node.js Buffer for compatibility
+    if (
+      bufferLike &&
+      typeof bufferLike.length === 'number' &&
+      typeof bufferLike.toString === 'function'
+    ) {
+      const base64 = bufferLike.toString('base64');
+      return Buffer.from(base64, 'base64');
+    }
     return bufferLike as unknown as Buffer;
   }
 }

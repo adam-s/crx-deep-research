@@ -398,6 +398,15 @@ export class Page extends Disposable {
 
   async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {
     const bufferLike = await this.screenshotter.screenshotPage(progress, options);
+    // Convert BrowserBuffer to Node.js Buffer for compatibility
+    if (
+      bufferLike &&
+      typeof bufferLike.length === 'number' &&
+      typeof bufferLike.toString === 'function'
+    ) {
+      const base64 = bufferLike.toString('base64');
+      return Buffer.from(base64, 'base64');
+    }
     return bufferLike as unknown as Buffer;
   }
 
@@ -473,16 +482,41 @@ export class Page extends Disposable {
     // Create screenshot function based on whether we have a locator or not
     const rafrafScreenshot = locator
       ? async (timeout: number) => {
-          return await locator.frame.rafrafTimeoutScreenshotElementWithProgress(
+          const bufferLike = await locator.frame.rafrafTimeoutScreenshotElementWithProgress(
             progress,
             locator.selector,
             timeout,
             options || {},
           );
+          // Convert BrowserBuffer to Node.js Buffer for compatibility if needed
+          if (
+            bufferLike &&
+            typeof bufferLike.length === 'number' &&
+            typeof bufferLike.toString === 'function'
+          ) {
+            const base64 = bufferLike.toString('base64');
+            return Buffer.from(base64, 'base64');
+          }
+          return bufferLike as unknown as Buffer;
         }
       : async (timeout: number) => {
-          await this.mainFrame().rafrafTimeout(progress, timeout);
+          await executeWithProgress(
+            async p => {
+              await this.mainFrame().rafrafTimeout(p, timeout);
+            },
+            { timeout: 30000 },
+          );
           const bufferLike = await this.screenshotter.screenshotPage(progress, options || {});
+          // Convert BrowserBuffer to Node.js Buffer for compatibility
+          if (
+            bufferLike &&
+            typeof bufferLike.length === 'number' &&
+            typeof bufferLike.toString === 'function'
+          ) {
+            const base64 = bufferLike.toString('base64');
+            const nodeBuffer = Buffer.from(base64, 'base64');
+            return nodeBuffer;
+          }
           return bufferLike as unknown as Buffer;
         };
 
@@ -499,9 +533,7 @@ export class Page extends Disposable {
     // Simple comparison for now - just take one screenshot
     // This is a simplified version without the full Playwright comparison logic
     try {
-      progress.log('taking screenshot for comparison');
       const actual = await rafrafScreenshot(100); // Small delay before screenshot
-
       if (!options.expected) {
         return { actual };
       }

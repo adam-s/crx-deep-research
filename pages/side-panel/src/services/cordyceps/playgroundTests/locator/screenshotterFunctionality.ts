@@ -1,4 +1,4 @@
-import { Progress } from '../../progress';
+import { Progress, executeWithProgress } from '../../progress';
 import { Page } from '../../page';
 import { Severity } from '../../../../utils/types';
 import { TestContext } from '../api';
@@ -416,7 +416,12 @@ export async function testScreenshotterFunctionality(
     try {
       const frame = page.mainFrame();
       const startTime = Date.now();
-      await frame.rafrafTimeout(progress, 100);
+      await executeWithProgress(
+        async p => {
+          await frame.rafrafTimeout(p, 100);
+        },
+        { timeout: 30000 },
+      );
       const duration = Date.now() - startTime;
 
       // Should take at least the timeout duration

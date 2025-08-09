@@ -680,22 +680,31 @@ export class Frame extends Disposable {
    * Waits for double requestAnimationFrame and timeout using content script execution.
    */
   async rafrafTimeout(progress: Progress, timeout: number): Promise<void> {
-    if (timeout === 0) return;
-
-    await Promise.all([
-      // Wait for double RAF using content script
-      progress.race(
-        this.context.executeScript(() => {
-          return new Promise<void>(resolve => {
+    if (timeout === 0) {
+      return;
+    }
+    // Execute double RAF directly without progress.race wrapper
+    const rafPromise = this.context
+      .executeScript(() => {
+        return new Promise<void>(resolve => {
+          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              requestAnimationFrame(() => resolve());
+              resolve();
             });
           });
-        }, 'ISOLATED'),
-      ),
-      // Wait for timeout
-      progress.race(new Promise<void>(resolve => setTimeout(resolve, timeout))),
-    ]);
+        });
+      }, 'ISOLATED')
+      .then(() => {})
+      .catch(error => {
+        throw error;
+      });
+
+    // Create timeout promise with progress.wait
+    const timeoutPromise = progress.wait(timeout).catch(error => {
+      throw error;
+    });
+    // Wait for both to complete
+    await Promise.all([rafPromise, timeoutPromise]);
   }
 
   /**
@@ -715,6 +724,17 @@ export class Frame extends Disposable {
         handle,
         options,
       );
+
+      // Convert BrowserBuffer to Node.js Buffer for compatibility
+      if (
+        bufferLike &&
+        typeof bufferLike.length === 'number' &&
+        typeof bufferLike.toString === 'function'
+      ) {
+        const base64 = bufferLike.toString('base64');
+        const result = Buffer.from(base64, 'base64');
+        return result;
+      }
       return bufferLike as unknown as Buffer;
     });
   }

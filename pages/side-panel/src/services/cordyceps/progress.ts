@@ -52,6 +52,8 @@ export interface Progress {
    * and schedule a cleanup for the result if still running.
    */
   raceWithCleanup<T>(promise: Promise<T>, cleanup: (result: T) => void): Promise<T>;
+  /** Wait for a specified timeout period, abortable by the progress signal. */
+  wait(timeoutMs: number): Promise<void>;
 }
 
 /**
@@ -113,6 +115,10 @@ export class ProgressController implements Progress {
         return result;
       }),
     );
+  }
+
+  public wait(timeoutMs: number): Promise<void> {
+    return this.race(new Promise<void>(resolve => setTimeout(resolve, timeoutMs)));
   }
 
   /**
