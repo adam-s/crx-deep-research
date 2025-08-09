@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import { Frame } from './frame';
 import { type Progress } from './progress';
 
 export type Rect = {
@@ -118,3 +119,35 @@ export type FrameDragAndDropOptions = {
 };
 
 export type FrameDragAndDropResult = void;
+
+export type ScreenshotOptions = {
+  type?: 'png' | 'jpeg';
+  quality?: number;
+  omitBackground?: boolean;
+  animations?: 'disabled' | 'allow';
+  mask?: { frame: Frame; selector: string }[];
+  maskColor?: string;
+  fullPage?: boolean;
+  clip?: Rect;
+  scale?: 'css' | 'device';
+  caret?: 'hide' | 'initial';
+  style?: string;
+};
+
+export type ImageComparatorOptions = {
+  threshold?: number;
+  maxDiffPixels?: number;
+  maxDiffPixelRatio?: number;
+  comparator?: string;
+};
+
+export type ExpectScreenshotOptions = ImageComparatorOptions &
+  ScreenshotOptions & {
+    timeout: number;
+    expected?: Buffer;
+    isNot?: boolean;
+    locator?: {
+      frame: Frame;
+      selector: string;
+    };
+  };

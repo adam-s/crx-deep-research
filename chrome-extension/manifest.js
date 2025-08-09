@@ -22,6 +22,7 @@ const permissions = [
   'alarms',
   'clipboardWrite',
   'activeTab',
+  'tabCapture',
 ];
 
 /**

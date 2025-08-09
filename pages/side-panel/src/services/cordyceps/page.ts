@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FrameManager } from './frameManager';
 import { Frame, FrameLocator } from './frame';
@@ -10,12 +11,15 @@ import type {
   ClickOptions,
   SelectOption,
   SelectOptionOptions,
+  ExpectScreenshotOptions,
+  ScreenshotOptions,
 } from './types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
 import { getContentFrameId, createPageSnapshotForAI } from './pageUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
+import { Screenshotter, validateScreenshotOptions } from './screenshotter';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
@@ -23,12 +27,14 @@ export class Page extends Disposable {
   readonly tabId: number;
   readonly session: Session;
   lastSnapshotFrameIds: number[] = [];
+  readonly screenshotter: Screenshotter;
 
   constructor(tabId: number, session: Session) {
     super();
     this.tabId = tabId;
     this.session = session;
     this.frameManager = this._register(new FrameManager(this));
+    this.screenshotter = new Screenshotter(this);
 
     this._setupContentScriptListener();
     console.log(`✅ Page created for tab ${tabId}`);
@@ -388,5 +394,126 @@ export class Page extends Disposable {
     options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
   ): Promise<void> {
     return await this.mainFrame().setInputFiles(selector, files, options);
+  }
+
+  async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {
+    const bufferLike = await this.screenshotter.screenshotPage(progress, options);
+    return bufferLike as unknown as Buffer;
+  }
+
+  /**
+   * Safely evaluate a function in all frames without throwing on JavaScript errors.
+   * This is the Chrome extension equivalent of Playwright's safeNonStallingEvaluateInAllFrames.
+   *
+   * @param func Function to execute in each frame
+   * @param world Execution world to run the function in
+   * @param options Configuration options
+   * @returns Promise that resolves when all frame evaluations complete
+   */
+  async safeNonStallingEvaluateInAllFrames<Args extends unknown[]>(
+    func: (...args: Args) => unknown,
+    world: chrome.scripting.ExecutionWorld,
+    options: { throwOnJSErrors?: boolean } = {},
+    ...args: Args
+  ): Promise<void> {
+    const frames = this.frameManager.frames();
+
+    await Promise.all(
+      frames.map(async frame => {
+        try {
+          // Use frame's execution context to safely evaluate the function
+          await frame.context.executeScript(func, world, ...args);
+        } catch (e) {
+          // Only throw if it's a JavaScript error and throwOnJSErrors is true
+          if (options.throwOnJSErrors && this._isJavaScriptErrorInEvaluate(e)) {
+            throw e;
+          }
+          // Silently ignore other errors (connection issues, frame detached, etc.)
+          console.debug(`Frame evaluation failed silently:`, e);
+        }
+      }),
+    );
+  }
+
+  /**
+   * Check if an error is a JavaScript error during evaluation.
+   * This mimics Playwright's js.isJavaScriptErrorInEvaluate function.
+   */
+  private _isJavaScriptErrorInEvaluate(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+
+    // Check for common JavaScript evaluation errors
+    const jsErrorPatterns = [
+      'ReferenceError',
+      'TypeError',
+      'SyntaxError',
+      'RangeError',
+      'EvalError',
+      'URIError',
+    ];
+
+    return jsErrorPatterns.some(
+      pattern => error.name.includes(pattern) || error.message.includes(pattern),
+    );
+  }
+
+  async expectScreenshot(
+    progress: Progress,
+    options: ExpectScreenshotOptions,
+  ): Promise<{
+    actual?: Buffer;
+    previous?: Buffer;
+    diff?: Buffer;
+    errorMessage?: string;
+    log?: string[];
+    timedOut?: boolean;
+  }> {
+    const locator = options.locator;
+
+    // Create screenshot function based on whether we have a locator or not
+    const rafrafScreenshot = locator
+      ? async (timeout: number) => {
+          return await locator.frame.rafrafTimeoutScreenshotElementWithProgress(
+            progress,
+            locator.selector,
+            timeout,
+            options || {},
+          );
+        }
+      : async (timeout: number) => {
+          await this.mainFrame().rafrafTimeout(progress, timeout);
+          const bufferLike = await this.screenshotter.screenshotPage(progress, options || {});
+          return bufferLike as unknown as Buffer;
+        };
+
+    // Validate screenshot options
+    try {
+      const format = validateScreenshotOptions(options || {});
+      if (format !== 'png') {
+        throw new Error('Only PNG screenshots are supported');
+      }
+    } catch (error) {
+      return { errorMessage: (error as Error).message };
+    }
+
+    // Simple comparison for now - just take one screenshot
+    // This is a simplified version without the full Playwright comparison logic
+    try {
+      progress.log('taking screenshot for comparison');
+      const actual = await rafrafScreenshot(100); // Small delay before screenshot
+
+      if (!options.expected) {
+        return { actual };
+      }
+
+      // For now, return the actual screenshot
+      // TODO: Implement proper image comparison using compare utilities
+      return { actual };
+    } catch (error) {
+      return {
+        errorMessage: (error as Error).message,
+        timedOut: false,
+      };
+    }
   }
 }

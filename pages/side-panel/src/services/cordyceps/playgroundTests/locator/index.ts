@@ -15,6 +15,7 @@ export { testHighlightFunctionality } from './highlightFunctionality';
 export { testLocatorFunctionality } from './locatorFunctionality';
 export { testMissingMethodsFunctionality } from './missingMethodsFunctionality';
 export { testPageMissingMethodsFunctionality } from './pageMissingMethodsFunctionality';
+export { testScreenshotterFunctionality } from './screenshotterFunctionality';
 export { testScrollIntoViewIfNeededFunctionality } from './scrollIntoViewIfNeededFunctionality';
 export { testSelectOptionFunctionality } from './selectOptionFunctionality';
 export { testSetInputFilesFunctionality } from './setInputFilesFunctionality';

@@ -12,6 +12,7 @@ import type {
   SelectOption,
   SelectOptionOptions,
   FrameDragAndDropOptions,
+  ScreenshotOptions,
 } from './types';
 import { Event } from 'vs/base/common/event';
 import { FrameSelectors } from './frameSelectors';
@@ -35,6 +36,7 @@ import {
   createDragAndDropScript,
 } from './frameUtils';
 import { FileTransferPortController } from './fileTransferPortController';
+import { ParsedSelector } from '@injected/isomorphic/selectorParser';
 // #region Helper Functions
 
 /**
@@ -673,6 +675,50 @@ export class Frame extends Disposable {
     await this._context.clickSelector(selector, undefined, world);
   }
 
+  /**
+   * Chrome extension version of Playwright's rafrafTimeout.
+   * Waits for double requestAnimationFrame and timeout using content script execution.
+   */
+  async rafrafTimeout(progress: Progress, timeout: number): Promise<void> {
+    if (timeout === 0) return;
+
+    await Promise.all([
+      // Wait for double RAF using content script
+      progress.race(
+        this.context.executeScript(() => {
+          return new Promise<void>(resolve => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => resolve());
+            });
+          });
+        }, 'ISOLATED'),
+      ),
+      // Wait for timeout
+      progress.race(new Promise<void>(resolve => setTimeout(resolve, timeout))),
+    ]);
+  }
+
+  /**
+   * Chrome extension version of Playwright's rafrafTimeoutScreenshotElementWithProgress.
+   * Takes a screenshot of an element after waiting for animations to settle.
+   */
+  async rafrafTimeoutScreenshotElementWithProgress(
+    progress: Progress,
+    selector: string,
+    timeout: number,
+    options: ScreenshotOptions,
+  ): Promise<Buffer> {
+    return await this._executeWithElementHandle(selector, 30000, async (handle, p) => {
+      await this.rafrafTimeout(p, timeout);
+      const bufferLike = await this.frameManager.page.screenshotter.screenshotElement(
+        p,
+        handle,
+        options,
+      );
+      return bufferLike as unknown as Buffer;
+    });
+  }
+
   locator(selector: string, options?: LocatorOptions): Locator {
     return new Locator(this, selector, options);
   }
@@ -1114,6 +1160,24 @@ export class Frame extends Disposable {
         return portId;
       },
       { timeout },
+    );
+  }
+
+  async maskSelectors(selectors: ParsedSelector[], color: string): Promise<void> {
+    if (!this._context) {
+      throw new Error('Frame context not available');
+    }
+
+    await this._context.executeScript(
+      (parsedSelectors: unknown[], maskColor: string) => {
+        const injected = window.__cordyceps_handledInjectedScript;
+        if (injected && injected.maskSelectors) {
+          injected.maskSelectors(parsedSelectors, maskColor);
+        }
+      },
+      'ISOLATED',
+      selectors as unknown[],
+      color,
     );
   }
 }

@@ -8,6 +8,7 @@ import {
   SelectOption,
   SelectOptionOptions,
   CommonActionOptions,
+  ScreenshotOptions,
 } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
@@ -1031,5 +1032,13 @@ export class ElementHandle extends JSHandle {
     }
 
     return payloads;
+  }
+
+  async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {
+    // Delegate to the page-level screenshotter for element screenshots
+    const page = this.frame.frameManager.page;
+    const bufferLike = await page.screenshotter.screenshotElement(progress, this, options);
+    // Our screenshotter returns a browser-safe Buffer polyfill; cast to Buffer for the public API
+    return bufferLike as unknown as Buffer;
   }
 }

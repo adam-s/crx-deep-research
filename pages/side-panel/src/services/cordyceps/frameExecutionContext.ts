@@ -75,6 +75,7 @@ interface CordycepsInjectedScript {
   ): { success: boolean; error?: string };
   highlight(parsedSelector: unknown): void;
   hideHighlight(): void;
+  maskSelectors(parsedSelectors: unknown[], color: string): void;
   markTargetElements(markedElements: Set<Element>, callId: string): void;
   createFileTransferPort(): string;
   fileTransferPortManager: {
