@@ -3,6 +3,39 @@ import { Page } from '../../page';
 import { Severity } from '../../../../utils/types';
 import { TestContext } from '../api';
 import { ScreenshotOptions } from '../../types';
+import { ScreenshotCanvas } from '../../screenshotter';
+
+// Thumbnail configuration for side panel display
+const THUMBNAIL_CONFIG = {
+  maxWidth: 300,
+  maxHeight: 200,
+  format: 'jpeg' as const,
+  quality: 100,
+};
+
+/**
+ * Generate a thumbnail data URL from a screenshot buffer for display in the console
+ */
+async function createThumbnail(buffer: Buffer, sourceFormat: 'png' | 'jpeg'): Promise<string> {
+  try {
+    const thumbnailBuffer = await ScreenshotCanvas.resizeImageBuffer(
+      buffer as unknown as Parameters<typeof ScreenshotCanvas.resizeImageBuffer>[0],
+      THUMBNAIL_CONFIG.maxWidth,
+      THUMBNAIL_CONFIG.maxHeight,
+      {
+        sourceFormat,
+        outputFormat: THUMBNAIL_CONFIG.format,
+        quality: THUMBNAIL_CONFIG.quality,
+      },
+    );
+
+    const base64 = thumbnailBuffer.toString('base64');
+    return `data:image/${THUMBNAIL_CONFIG.format};base64,${base64}`;
+  } catch (error) {
+    console.warn('Failed to create thumbnail:', error);
+    return '';
+  }
+}
 
 export async function testScreenshotterFunctionality(
   page: Page,
@@ -35,10 +68,14 @@ export async function testScreenshotterFunctionality(
 
       progress.log(`✅ Test 1 passed: Basic PNG screenshot captured (${screenshot.length} bytes)`);
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(screenshot, 'png');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 1 passed: Basic PNG screenshot functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: screenshot.length,
           format: 'png',
@@ -346,10 +383,14 @@ export async function testScreenshotterFunctionality(
 
       progress.log(`✅ Test 7 passed: Element screenshot captured (${screenshot.length} bytes)`);
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(screenshot, 'png');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 7 passed: Element screenshot functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: screenshot.length,
           selector,
@@ -435,10 +476,14 @@ export async function testScreenshotterFunctionality(
         `✅ Test 9 passed: rafrafTimeoutScreenshotElementWithProgress captured (${screenshot.length} bytes)`,
       );
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(screenshot, 'png');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 9 passed: rafrafTimeoutScreenshotElementWithProgress functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: screenshot.length,
           selector,
@@ -481,10 +526,14 @@ export async function testScreenshotterFunctionality(
         `✅ Test 10 passed: expectScreenshot returned actual screenshot (${result.actual.length} bytes)`,
       );
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(result.actual, 'png');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 10 passed: expectScreenshot functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: result.actual.length,
           hasError: !!result.errorMessage,
@@ -527,10 +576,14 @@ export async function testScreenshotterFunctionality(
         `✅ Test 11 passed: Element JPEG screenshot captured (${screenshot.length} bytes)`,
       );
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(screenshot, 'jpeg');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 11 passed: Element JPEG screenshot functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: screenshot.length,
           selector,
@@ -617,10 +670,14 @@ export async function testScreenshotterFunctionality(
         `✅ Test 13 passed: expectScreenshot with locator returned actual screenshot (${result.actual.length} bytes)`,
       );
 
+      // Generate thumbnail for console display
+      const thumbnailDataUrl = await createThumbnail(result.actual, 'png');
+
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 13 passed: expectScreenshot with locator functionality works',
+        thumbnail: thumbnailDataUrl,
         details: {
           screenshotSize: result.actual.length,
           hasError: !!result.errorMessage,

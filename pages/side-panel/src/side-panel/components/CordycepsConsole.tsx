@@ -140,6 +140,35 @@ export const CordycepsConsole: React.FC = () => {
                 )}
               </div>
               <div style={{ marginLeft: '20px' }}>{event.message}</div>
+              {event.thumbnail && (
+                <div style={{ marginLeft: '20px', marginTop: '8px' }}>
+                  <img
+                    src={event.thumbnail}
+                    alt="Screenshot thumbnail"
+                    onError={e => {
+                      // Hide broken images
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                    style={{
+                      maxWidth: '300px',
+                      maxHeight: '200px',
+                      border: '1px solid #444',
+                      borderRadius: '4px',
+                      display: 'block',
+                      background: '#2a2a2a',
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      color: '#888',
+                      marginTop: '2px',
+                      fontStyle: 'italic',
+                    }}>
+                    📷 Screenshot thumbnail
+                  </div>
+                </div>
+              )}
               {event.details && Object.keys(event.details).length > 0 && (
                 <div
                   style={{

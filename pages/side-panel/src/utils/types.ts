@@ -20,4 +20,5 @@ export interface EventMessage {
   readonly details?: Record<string, unknown>;
   readonly error?: Error;
   readonly stackTrace?: string;
+  readonly thumbnail?: string; // base64 data URL for small preview images
 }
