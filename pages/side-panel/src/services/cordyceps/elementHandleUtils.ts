@@ -2,6 +2,147 @@ import { Progress } from './progress';
 import { OperationResult, handleOperationResult, STANDARD_TIMEOUT } from './utils';
 import { SelectOption } from './types';
 
+// #region Pure Utility Functions
+
+/**
+ * Create standardized operation error messages
+ * Pure function for consistent error message formatting
+ *
+ * @param operation The operation that failed
+ * @param details Optional additional error details
+ * @returns Formatted error message
+ */
+export function createOperationFailedError(operation: string, details?: string): string {
+  return `${operation} failed${details ? `: ${details}` : ''}`;
+}
+
+/**
+ * Create standardized click/tap/interaction error messages
+ * Pure function for consistent interaction error formatting
+ *
+ * @param action The action that failed (click, tap, etc.)
+ * @param details Optional additional error details
+ * @returns Formatted error message
+ */
+export function createInteractionError(action: string, details?: string): string {
+  return details || `Failed to ${action.toLowerCase()} element`;
+}
+
+/**
+ * Check if a result indicates a successful operation
+ * Pure function for result validation
+ *
+ * @param result The result to check
+ * @returns True if the result indicates success
+ */
+export function isOperationSuccessful(result: { success?: boolean } | null | undefined): boolean {
+  return result !== null && result !== undefined && result.success === true;
+}
+
+/**
+ * Check if a result indicates element disconnection
+ * Pure function for connection status checking
+ *
+ * @param result The result to check
+ * @returns True if the result indicates disconnection
+ */
+export function isResultDisconnected(result: unknown): boolean {
+  return result === null;
+}
+
+/**
+ * Create a delay promise
+ * Pure function for creating timed delays
+ *
+ * @param milliseconds The delay in milliseconds
+ * @returns Promise that resolves after the delay
+ */
+export function createDelayPromise(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+/**
+ * Validate and normalize click options for different interaction types
+ * Pure function for option validation and normalization
+ *
+ * @param options The options to normalize
+ * @param defaultClickCount The default click count for the operation
+ * @returns Normalized options
+ */
+export function normalizeClickOptions(
+  options?: {
+    position?: { x: number; y: number };
+    force?: boolean;
+    button?: string;
+    clickCount?: number;
+    delay?: number;
+  },
+  defaultClickCount: number = 1,
+): {
+  position?: { x: number; y: number };
+  force?: boolean;
+  button?: string;
+  clickCount: number;
+  delay?: number;
+} {
+  return {
+    position: options?.position,
+    force: options?.force,
+    button: options?.button,
+    clickCount: options?.clickCount ?? defaultClickCount,
+    delay: options?.delay,
+  };
+}
+
+/**
+ * Check if click options require enhanced interaction handling
+ * Pure function to determine if we need enhanced vs simple interaction
+ *
+ * @param options The options to check
+ * @returns True if enhanced handling is needed
+ */
+export function requiresEnhancedInteraction(options?: {
+  position?: { x: number; y: number };
+  force?: boolean;
+  button?: string;
+  clickCount?: number;
+}): boolean {
+  return !!(options && (options.position || options.force || options.button || options.clickCount));
+}
+
+/**
+ * Convert buffer-like objects to Node.js Buffer (from pageUtils pattern)
+ * Pure function for buffer conversion
+ *
+ * @param bufferLike The buffer-like object to convert
+ * @returns Node.js Buffer
+ */
+export function convertToNodeBuffer(bufferLike: unknown): Buffer {
+  if (
+    bufferLike &&
+    typeof (bufferLike as { length?: unknown }).length === 'number' &&
+    typeof (bufferLike as { toString?: unknown }).toString === 'function'
+  ) {
+    const base64 = (bufferLike as { toString: (encoding: string) => string }).toString('base64');
+    return Buffer.from(base64, 'base64');
+  }
+  return bufferLike as unknown as Buffer;
+}
+
+/**
+ * Create error message for checkbox state validation failure
+ * Pure function for checkbox-specific error handling
+ *
+ * @returns Formatted error message for checkbox state issues
+ */
+export function createCheckboxStateError(): string {
+  return 'Clicking the checkbox did not change its state';
+}
+
+// #endregion
+
+// #region Existing Functions
+
 export function validateElementOperationResult(result: OperationResult, operation: string): void {
   handleOperationResult(result, operation);
 }

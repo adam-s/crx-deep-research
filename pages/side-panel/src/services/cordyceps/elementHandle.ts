@@ -30,6 +30,14 @@ import {
   isElementDisconnected,
   extractErrorMessage,
   createScrollIntoViewScript,
+  createOperationFailedError,
+  createInteractionError,
+  isOperationSuccessful,
+  isResultDisconnected,
+  createDelayPromise,
+  requiresEnhancedInteraction,
+  convertToNodeBuffer,
+  createCheckboxStateError,
 } from './elementHandleUtils';
 
 // This needs to know it's world, tab id, frame id, and element id that
@@ -110,7 +118,7 @@ export class ElementHandle extends JSHandle {
   async clickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
     const result = await this._click(progress, options);
     if (result !== 'done') {
-      throw new Error(`Click failed: ${result}`);
+      throw new Error(createOperationFailedError('Click', result));
     }
   }
 
@@ -119,7 +127,7 @@ export class ElementHandle extends JSHandle {
       async progress => {
         const result = await this._click(progress);
         if (result !== 'done') {
-          throw new Error(`Click failed: ${result}`);
+          throw new Error(createOperationFailedError('Click', result));
         }
       },
       { timeout: 30000 },
@@ -128,27 +136,27 @@ export class ElementHandle extends JSHandle {
 
   async _click(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
     // Use enhanced click if options are provided
-    if (options && (options.position || options.force || options.button || options.clickCount)) {
+    if (requiresEnhancedInteraction(options)) {
       const clickResult = await progress.race(
         this._context.clickElementWithOptions(this.remoteObject, {
-          position: options.position,
-          force: options.force,
-          button: options.button,
-          clickCount: options.clickCount,
+          position: options?.position,
+          force: options?.force,
+          button: options?.button,
+          clickCount: options?.clickCount,
         }),
       );
 
-      if (!clickResult) {
+      if (isResultDisconnected(clickResult)) {
         return 'error:notconnected';
       }
 
-      if (!clickResult.success) {
-        throw new Error(clickResult.error || 'Failed to click element');
+      if (!isOperationSuccessful(clickResult)) {
+        throw new Error(createInteractionError('click', clickResult?.error));
       }
 
       // Handle delay if specified
-      if (options.delay) {
-        await progress.race(new Promise(resolve => setTimeout(resolve, options.delay)));
+      if (options?.delay) {
+        await progress.race(createDelayPromise(options.delay));
       }
 
       return 'done';
@@ -156,12 +164,12 @@ export class ElementHandle extends JSHandle {
 
     // Use simple click for basic cases
     const clickResult = await progress.race(this._context.clickElement(this.remoteObject));
-    if (!clickResult) {
+    if (isResultDisconnected(clickResult)) {
       return 'error:notconnected';
     }
 
-    if (!clickResult.success) {
-      throw new Error(clickResult.error || 'Failed to click element');
+    if (!isOperationSuccessful(clickResult)) {
+      throw new Error(createInteractionError('click', clickResult?.error));
     }
 
     return 'done';
@@ -178,7 +186,7 @@ export class ElementHandle extends JSHandle {
   async dblclickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
     const result = await this._dblclick(progress, options);
     if (result !== 'done') {
-      throw new Error(`Double click failed: ${result}`);
+      throw new Error(createOperationFailedError('Double click', result));
     }
   }
 
@@ -208,7 +216,7 @@ export class ElementHandle extends JSHandle {
     await this._markAsTargetElement(progress);
     const result = await this._tap(progress, options);
     if (result !== 'done') {
-      throw new Error(`Tap failed: ${result}`);
+      throw new Error(createOperationFailedError('Tap', result));
     }
   }
 
@@ -216,27 +224,27 @@ export class ElementHandle extends JSHandle {
     progress.log('  tap()');
 
     // Use enhanced tap if options are provided
-    if (options && (options.position || options.force || options.button || options.clickCount)) {
+    if (requiresEnhancedInteraction(options)) {
       const tapResult = await progress.race(
         this._context.tapElementWithOptions(this.remoteObject, {
-          position: options.position,
-          force: options.force,
+          position: options?.position,
+          force: options?.force,
           // Note: button and clickCount may not apply to touch interactions
           // but we keep them for consistency with click options
         }),
       );
 
-      if (!tapResult) {
+      if (isResultDisconnected(tapResult)) {
         return 'error:notconnected';
       }
 
-      if (!tapResult.success) {
-        throw new Error(tapResult.error || 'Failed to tap element');
+      if (!isOperationSuccessful(tapResult)) {
+        throw new Error(createInteractionError('tap', tapResult?.error));
       }
 
       // Handle delay if specified
-      if (options.delay) {
-        await progress.race(new Promise(resolve => setTimeout(resolve, options.delay)));
+      if (options?.delay) {
+        await progress.race(createDelayPromise(options.delay));
       }
 
       return 'done';
@@ -244,12 +252,12 @@ export class ElementHandle extends JSHandle {
 
     // Use simple tap for basic cases
     const tapResult = await progress.race(this._context.tapElement(this.remoteObject));
-    if (!tapResult) {
+    if (isResultDisconnected(tapResult)) {
       return 'error:notconnected';
     }
 
-    if (!tapResult.success) {
-      throw new Error(tapResult.error || 'Failed to tap element');
+    if (!isOperationSuccessful(tapResult)) {
+      throw new Error(createInteractionError('tap', tapResult?.error));
     }
 
     return 'done';
@@ -258,14 +266,14 @@ export class ElementHandle extends JSHandle {
   async checkWithProgress(progress: Progress): Promise<void> {
     const result = await this._setChecked(progress, true);
     if (result !== 'done') {
-      throw new Error(`Check failed: ${result}`);
+      throw new Error(createOperationFailedError('Check', result));
     }
   }
 
   async uncheckWithProgress(progress: Progress): Promise<void> {
     const result = await this._setChecked(progress, false);
     if (result !== 'done') {
-      throw new Error(`Uncheck failed: ${result}`);
+      throw new Error(createOperationFailedError('Uncheck', result));
     }
   }
 
@@ -291,8 +299,8 @@ export class ElementHandle extends JSHandle {
       return 'error:notconnected';
     }
 
-    if (!setResult.success) {
-      throw new Error(setResult.error || 'Failed to set checked state');
+    if (!isOperationSuccessful(setResult)) {
+      throw new Error(createInteractionError('set checked state', setResult?.error));
     }
 
     // If a click is needed to change the state, perform the click
@@ -302,14 +310,14 @@ export class ElementHandle extends JSHandle {
         return 'error:notconnected';
       }
 
-      if (!clickResult.success) {
-        throw new Error(clickResult.error || 'Failed to click element');
+      if (!isOperationSuccessful(clickResult)) {
+        throw new Error(createInteractionError('click element', clickResult?.error));
       }
 
       // Verify the state changed after clicking
       const newState = await isChecked();
       if (newState !== state) {
-        throw new Error('Clicking the checkbox did not change its state');
+        throw new Error(createCheckboxStateError());
       }
     }
 
@@ -354,8 +362,8 @@ export class ElementHandle extends JSHandle {
       return 'error:notconnected';
     }
 
-    if (!result.success) {
-      throw new Error(`Failed to dispatch event: ${result.error || 'Unknown error'}`);
+    if (!isOperationSuccessful(result)) {
+      throw new Error(createInteractionError('dispatch event', result?.error));
     }
 
     return 'done';
@@ -375,7 +383,7 @@ export class ElementHandle extends JSHandle {
   ): Promise<void> {
     const result = await this._dispatchEvent(progress, type, eventInit);
     if (result !== 'done') {
-      throw new Error(`Dispatch event failed: ${result}`);
+      throw new Error(createOperationFailedError('Dispatch event', result));
     }
   }
 
@@ -400,7 +408,7 @@ export class ElementHandle extends JSHandle {
   ): Promise<void> {
     const result = await this._fill(progress, value, options);
     if (result !== 'done') {
-      throw new Error(`Fill failed: ${result}`);
+      throw new Error(createOperationFailedError('Fill', result));
     }
   }
 
@@ -527,56 +535,6 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  async getTextContent(): Promise<string> {
-    const result = await this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
-    return result;
-  }
-
-  async getInnerText(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'innerText' });
-  }
-
-  async getValue(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'value' });
-  }
-
-  async isChecked(): Promise<boolean> {
-    return this._executeElementOp<boolean>({ op: 'get', prop: 'checked' });
-  }
-
-  async getTagName(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'tagName' });
-  }
-
-  async getInnerHTML(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'innerHTML' });
-  }
-
-  async getOuterHTML(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'outerHTML' });
-  }
-
-  async getClassName(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'className' });
-  }
-
-  async getId(): Promise<string> {
-    return this._executeElementOp<string>({ op: 'get', prop: 'id' });
-  }
-
-  async setValue(value: string): Promise<void> {
-    await this._executeElementOp<void>({ op: 'set', prop: 'value', value });
-  }
-
-  /**
-   * Set text content - simple and clean
-   * Replaces: await handle.evaluate((el, text) => { el.textContent = text; }, newText)
-   * With: await handle.setTextContent(newText)
-   */
-  async setTextContent(text: string): Promise<void> {
-    await this._executeElementOp<void>({ op: 'set', prop: 'textContent', value: text });
-  }
-
   async setChecked(
     checked: boolean,
     options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
@@ -661,7 +619,7 @@ export class ElementHandle extends JSHandle {
   async selectTextWithProgress(progress: Progress, options?: CommonActionOptions): Promise<void> {
     const result = await this._selectText(progress, options);
     if (result !== 'done') {
-      throw new Error(`SelectText failed: ${result}`);
+      throw new Error(createOperationFailedError('SelectText', result));
     }
   }
 
@@ -695,6 +653,55 @@ export class ElementHandle extends JSHandle {
       }
       throw error;
     }
+  }
+  async getTextContent(): Promise<string> {
+    const result = await this._executeElementOp<string>({ op: 'get', prop: 'textContent' });
+    return result;
+  }
+
+  async getInnerText(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'innerText' });
+  }
+
+  async getValue(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'value' });
+  }
+
+  async isChecked(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'checked' });
+  }
+
+  async getTagName(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'tagName' });
+  }
+
+  async getInnerHTML(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'innerHTML' });
+  }
+
+  async getOuterHTML(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'outerHTML' });
+  }
+
+  async getClassName(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'className' });
+  }
+
+  async getId(): Promise<string> {
+    return this._executeElementOp<string>({ op: 'get', prop: 'id' });
+  }
+
+  async setValue(value: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'set', prop: 'value', value });
+  }
+
+  /**
+   * Set text content - simple and clean
+   * Replaces: await handle.evaluate((el, text) => { el.textContent = text; }, newText)
+   * With: await handle.setTextContent(newText)
+   */
+  async setTextContent(text: string): Promise<void> {
+    await this._executeElementOp<void>({ op: 'set', prop: 'textContent', value: text });
   }
 
   async getAttribute(name: string): Promise<string | null> {
@@ -787,6 +794,25 @@ export class ElementHandle extends JSHandle {
     await this._executeElementOp<void>({ op: 'action', name: 'hover' });
   }
 
+  async inputValue(): Promise<string> {
+    return this.getValue();
+  }
+  async attribute(name: string): Promise<string | null> {
+    return this.getAttribute(name);
+  }
+
+  async isDisabled(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'disabled' });
+  }
+
+  async isHidden(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isHidden' });
+  }
+
+  async isEditable(): Promise<boolean> {
+    return this._executeElementOp<boolean>({ op: 'get', prop: 'isEditable' });
+  }
+
   async press(key: string, options: { delay?: number } = {}): Promise<void> {
     await executeWithProgress(
       async progress => {
@@ -853,24 +879,6 @@ export class ElementHandle extends JSHandle {
     );
     const result = await this.getTextContent();
     return result;
-  }
-  async inputValue(): Promise<string> {
-    return this.getValue();
-  }
-  async attribute(name: string): Promise<string | null> {
-    return this.getAttribute(name);
-  }
-
-  async isDisabled(): Promise<boolean> {
-    return this._executeElementOp<boolean>({ op: 'get', prop: 'disabled' });
-  }
-
-  async isHidden(): Promise<boolean> {
-    return this._executeElementOp<boolean>({ op: 'get', prop: 'isHidden' });
-  }
-
-  async isEditable(): Promise<boolean> {
-    return this._executeElementOp<boolean>({ op: 'get', prop: 'isEditable' });
   }
 
   // #endregion Simple Element Operations
@@ -1039,14 +1047,6 @@ export class ElementHandle extends JSHandle {
     const page = this.frame.frameManager.page;
     const bufferLike = await page.screenshotter.screenshotElement(progress, this, options);
     // Convert BrowserBuffer to Node.js Buffer for compatibility
-    if (
-      bufferLike &&
-      typeof bufferLike.length === 'number' &&
-      typeof bufferLike.toString === 'function'
-    ) {
-      const base64 = bufferLike.toString('base64');
-      return Buffer.from(base64, 'base64');
-    }
-    return bufferLike as unknown as Buffer;
+    return convertToNodeBuffer(bufferLike);
   }
 }

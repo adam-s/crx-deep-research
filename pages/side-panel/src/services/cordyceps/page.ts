@@ -18,7 +18,13 @@ import type {
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
-import { getContentFrameId, createPageSnapshotForAI } from './pageUtils';
+import {
+  getContentFrameId,
+  createPageSnapshotForAI,
+  isJavaScriptErrorInEvaluate,
+  convertBrowserBufferToNodeBuffer,
+  validateScreenshotFormat,
+} from './pageUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './screenshotter';
 import { getNavigationTracker } from './navigationTracker';
@@ -499,15 +505,7 @@ export class Page extends Disposable {
   async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {
     const bufferLike = await this.screenshotter.screenshotPage(progress, options);
     // Convert BrowserBuffer to Node.js Buffer for compatibility
-    if (
-      bufferLike &&
-      typeof bufferLike.length === 'number' &&
-      typeof bufferLike.toString === 'function'
-    ) {
-      const base64 = bufferLike.toString('base64');
-      return Buffer.from(base64, 'base64');
-    }
-    return bufferLike as unknown as Buffer;
+    return convertBrowserBufferToNodeBuffer(bufferLike);
   }
 
   /**
@@ -534,35 +532,13 @@ export class Page extends Disposable {
           await frame.context.executeScript(func, world, ...args);
         } catch (e) {
           // Only throw if it's a JavaScript error and throwOnJSErrors is true
-          if (options.throwOnJSErrors && this._isJavaScriptErrorInEvaluate(e)) {
+          if (options.throwOnJSErrors && isJavaScriptErrorInEvaluate(e)) {
             throw e;
           }
           // Silently ignore other errors (connection issues, frame detached, etc.)
           console.debug(`Frame evaluation failed silently:`, e);
         }
       }),
-    );
-  }
-
-  /**
-   * Check if an error is a JavaScript error during evaluation.
-   * This mimics Playwright's js.isJavaScriptErrorInEvaluate function.
-   */
-  private _isJavaScriptErrorInEvaluate(error: unknown): boolean {
-    if (!(error instanceof Error)) return false;
-
-    // Check for common JavaScript evaluation errors
-    const jsErrorPatterns = [
-      'ReferenceError',
-      'TypeError',
-      'SyntaxError',
-      'RangeError',
-      'EvalError',
-      'URIError',
-    ];
-
-    return jsErrorPatterns.some(
-      pattern => error.name.includes(pattern) || error.message.includes(pattern),
     );
   }
 
@@ -589,15 +565,7 @@ export class Page extends Disposable {
             options || {},
           );
           // Convert BrowserBuffer to Node.js Buffer for compatibility if needed
-          if (
-            bufferLike &&
-            typeof bufferLike.length === 'number' &&
-            typeof bufferLike.toString === 'function'
-          ) {
-            const base64 = bufferLike.toString('base64');
-            return Buffer.from(base64, 'base64');
-          }
-          return bufferLike as unknown as Buffer;
+          return convertBrowserBufferToNodeBuffer(bufferLike);
         }
       : async (timeout: number) => {
           await executeWithProgress(
@@ -608,24 +576,13 @@ export class Page extends Disposable {
           );
           const bufferLike = await this.screenshotter.screenshotPage(progress, options || {});
           // Convert BrowserBuffer to Node.js Buffer for compatibility
-          if (
-            bufferLike &&
-            typeof bufferLike.length === 'number' &&
-            typeof bufferLike.toString === 'function'
-          ) {
-            const base64 = bufferLike.toString('base64');
-            const nodeBuffer = Buffer.from(base64, 'base64');
-            return nodeBuffer;
-          }
-          return bufferLike as unknown as Buffer;
+          return convertBrowserBufferToNodeBuffer(bufferLike);
         };
 
     // Validate screenshot options
     try {
       const format = validateScreenshotOptions(options || {});
-      if (format !== 'png') {
-        throw new Error('Only PNG screenshots are supported');
-      }
+      validateScreenshotFormat(format);
     } catch (error) {
       return { errorMessage: (error as Error).message };
     }
