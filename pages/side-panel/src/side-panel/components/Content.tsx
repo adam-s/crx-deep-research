@@ -1,6 +1,8 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
 import { Main } from '../pages/Main';
+import { BrowserUse } from '../pages/BrowserUse';
+import { useTabNavigationContext } from '../context/TabNavigationContext';
 
 const useStyles = makeStyles({
   root: {
@@ -17,10 +19,18 @@ const useStyles = makeStyles({
 
 export const Content: React.FC = () => {
   const styles = useStyles();
+  const { currentPage } = useTabNavigationContext();
 
-  return (
-    <div className={styles.root}>
-      <Main />
-    </div>
-  );
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'main':
+        return <Main />;
+      case 'browseruse':
+        return <BrowserUse />;
+      default:
+        return <BrowserUse />; // Default to BrowserUse
+    }
+  };
+
+  return <div className={styles.root}>{renderCurrentPage()}</div>;
 };

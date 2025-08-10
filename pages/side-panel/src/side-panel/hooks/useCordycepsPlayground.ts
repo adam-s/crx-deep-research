@@ -48,7 +48,6 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
       cordycepsPlaygroundService.onEvent((event: EventMessage) => {
         setLatestEvent(event);
         setEvents(prevEvents => [...prevEvents, event]);
-
         // Track running state based on events
         if (
           event.severity === Severity.Info &&

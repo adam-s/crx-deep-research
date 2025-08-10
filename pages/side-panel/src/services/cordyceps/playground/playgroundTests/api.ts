@@ -1,9 +1,9 @@
 import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
 import { EventMessage, Severity } from '@src/utils/types';
 import { ICordycepsService } from '../../cordyceps.service';
-import { BrowserWindow } from '../../core/browserWindow';
 import { Progress, ProgressController } from '../../core/progress';
 import { Page } from '../../page';
+import { BrowserWindow } from '../../browserWindow';
 
 export interface TestContext {
   readonly events: SimpleEventEmitter<EventMessage>;

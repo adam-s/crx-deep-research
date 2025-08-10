@@ -24,6 +24,10 @@ import { parseDocumentId } from '@shared/utils/utils';
 
 import { ICordycepsService, CordycepsService } from '@src/services/cordyceps/cordyceps.service';
 import {
+  IBrowserUseService,
+  BrowserUseService,
+} from '@src/services/browser-use/browserUse.service';
+import {
   CordycepsPlaygroundService,
   ICordycepsPlaygroundService,
 } from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
@@ -115,6 +119,9 @@ export class SidePanelApp extends Disposable {
 
     const cordycepsService = instantiationService.createInstance(CordycepsService);
     serviceCollection.set(ICordycepsService, cordycepsService);
+
+    const browserUseService = instantiationService.createInstance(BrowserUseService);
+    serviceCollection.set(IBrowserUseService, browserUseService);
 
     const cordycepsPlaygroundService = this._register(
       instantiationService.createInstance(CordycepsPlaygroundService),

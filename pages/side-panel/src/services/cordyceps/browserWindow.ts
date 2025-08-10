@@ -1,7 +1,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Progress, ProgressController } from './progress';
-import { Page } from '../page';
-import { Session } from '../session';
+import { Progress, ProgressController } from './core/progress';
+import { Page } from './page';
+import { Session } from './session';
 
 const windowId = () =>
   new Promise<number>(resolve => chrome.windows.getCurrent(window => resolve(window.id!)));

@@ -9,9 +9,9 @@ import { PerformanceTest } from './playgroundTests/performanceTest';
 import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
 import { EventMessage, Severity } from '@src/utils/types';
 import { ICordycepsService } from '../cordyceps.service';
-import { BrowserWindow } from '../core/browserWindow';
 import { Progress } from '../core/progress';
 import { Page } from '../page';
+import { BrowserWindow } from '../browserWindow';
 
 export const ICordycepsPlaygroundService = createDecorator<ICordycepsPlaygroundService>(
   'cordycepsPlaygroundService',
@@ -49,11 +49,6 @@ export class CordycepsPlaygroundService
 
   constructor(@ICordycepsService public readonly cordycepsService: ICordycepsService) {
     super();
-    setTimeout(() => {
-      this.runLocatorTest().catch(error => {
-        console.error('Locator test failed during auto-run:', error);
-      });
-    }, 1000);
   }
 
   public async runAllTests(): Promise<void> {

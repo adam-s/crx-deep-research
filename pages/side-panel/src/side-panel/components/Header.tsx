@@ -101,15 +101,15 @@ export const Header: React.FC = () => {
   const classes = useClasses();
   const { currentPage, navigateTo } = useTabNavigationContext();
 
-  // Set Main as default on mount if no page is set (though TabNavigationProvider sets initialPage)
+  // Set BrowserUse as default on mount if no page is set (though TabNavigationProvider sets initialPage)
   React.useEffect(() => {
     // The TabNavigationProvider already sets an initialPage.
     // This effect might be redundant or could be adjusted if specific default logic is needed
     // beyond the initialPage of the provider.
     // For now, let's assume initialPage from provider is sufficient.
-    // If you still need to default to 'main' under certain conditions:
+    // If you still need to default to 'browseruse' under certain conditions:
     if (!currentPage) {
-      navigateTo('main');
+      navigateTo('browseruse');
     }
   }, [currentPage, navigateTo]);
 
@@ -122,6 +122,7 @@ export const Header: React.FC = () => {
     <div className={classes.root}>
       <div className={classes.headerRightRegion}>
         <TabList selectedValue={currentPage as TabValue} onTabSelect={onTabSelect}>
+          <Tab value="browseruse">Browser Use</Tab>
           <Tab value="main">Main</Tab>
         </TabList>
       </div>
