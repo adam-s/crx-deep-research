@@ -323,6 +323,150 @@ export function describeBoundingBox(boundingBox: BoundingBox): string {
 
 // #endregion
 
+// #region Frame Constants and Pure Functions
+
+/**
+ * Default timeout values for retry operations in milliseconds
+ * Used by Frame._retryWithProgressAndTimeouts method
+ */
+export const DEFAULT_RETRY_TIMEOUTS = [0, 20, 50, 100, 100, 500];
+
+/**
+ * Validates if a wait state is supported
+ * @param state The state to validate
+ * @returns True if the state is valid
+ */
+export function isValidWaitState(state: string): boolean {
+  return ['attached', 'detached', 'visible', 'hidden'].includes(state);
+}
+
+/**
+ * Validates wait state and throws error if invalid
+ * @param state The state to validate
+ * @throws Error if state is invalid
+ */
+export function validateWaitState(state: string): void {
+  if (!isValidWaitState(state)) {
+    throw new Error(`state: expected one of (attached|detached|visible|hidden)`);
+  }
+}
+
+/**
+ * Checks if an error is non-retriable (should not be retried)
+ * @param error The error to check
+ * @returns True if the error should not be retried
+ */
+export function isNonRetriableError(error: Error): boolean {
+  // Check for specific error patterns that indicate non-retriable errors
+  return (
+    error.message.includes('not connected') ||
+    error.name === 'AbortError' ||
+    error.message.includes('session closed') ||
+    error.message.includes('Target closed') ||
+    error.message.includes('Protocol error')
+  );
+}
+
+/**
+ * Determines if state matches based on visibility and attachment
+ * @param desiredState The desired state to match
+ * @param visible Whether the element is visible
+ * @param attached Whether the element is attached
+ * @returns True if the current state matches the desired state
+ */
+export function doesStateMatch(
+  desiredState: 'attached' | 'detached' | 'visible' | 'hidden',
+  visible: boolean,
+  attached: boolean,
+): boolean {
+  const stateMatches = {
+    attached,
+    detached: !attached,
+    visible,
+    hidden: !visible,
+  };
+  return stateMatches[desiredState];
+}
+
+/**
+ * Determines if the element handle should be returned based on state and options
+ * @param state The desired state
+ * @param omitReturnValue Whether to omit the return value
+ * @returns True if an element handle should be returned
+ */
+export function shouldReturnElementHandle(
+  state: 'attached' | 'detached' | 'visible' | 'hidden',
+  omitReturnValue?: boolean,
+): boolean {
+  if (omitReturnValue) {
+    return false;
+  }
+  if (state === 'detached' || state === 'hidden') {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Gets the appropriate wait state for file input operations
+ * @param force Whether to force the operation on hidden elements
+ * @returns The appropriate wait state
+ */
+export function getFileInputWaitState(force?: boolean): 'attached' | 'visible' {
+  return force ? 'attached' : 'visible';
+}
+
+/**
+ * Creates a log message for waiting on a selector
+ * @param selector The CSS selector
+ * @param state The wait state
+ * @returns A formatted log message
+ */
+export function createSelectorWaitMessage(selector: string, state: string): string {
+  return `waiting for selector "${selector}"${state === 'attached' ? '' : ' to be ' + state}`;
+}
+
+/**
+ * Formats an error message for element not found
+ * @param selector The CSS selector that wasn't found
+ * @returns A formatted error message
+ */
+export function createElementNotFoundError(selector: string): string {
+  return `Element not found for selector: ${selector}`;
+}
+
+/**
+ * Formats an error message for bounding box issues
+ * @param selector The CSS selector
+ * @param issue The specific issue ('no bounding box', etc.)
+ * @returns A formatted error message
+ */
+export function createBoundingBoxError(selector: string, issue: string): string {
+  return `${issue.charAt(0).toUpperCase() + issue.slice(1)} element "${selector}" has ${issue}`;
+}
+
+/**
+ * Creates a frame selector for entering a frame
+ * @param frameSelector The base frame selector
+ * @param targetSelector The target selector within the frame
+ * @returns A combined frame selector
+ */
+export function createFrameEnterSelector(frameSelector: string, targetSelector: string): string {
+  return frameSelector + ' >> internal:control=enter-frame >> ' + targetSelector;
+}
+
+/**
+ * Creates a nth selector for frame locators
+ * @param frameSelector The base frame selector
+ * @param index The index (can be negative for last)
+ * @returns A nth frame selector
+ */
+export function createFrameNthSelector(frameSelector: string, index: number): string {
+  return frameSelector + ` >> nth=${index}`;
+}
+
+// #endregion
+
 // #region Test ID Management
 
 let _testIdAttributeName: string = 'data-testid';

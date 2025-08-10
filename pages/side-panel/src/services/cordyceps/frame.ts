@@ -1,11 +1,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Progress, executeWithProgress, isAbortError } from './progress';
-import { helper } from './helper';
+import { Progress, executeWithProgress } from './progress';
 import type { FrameManager } from './frameManager';
 import type { FrameExecutionContext } from './frameExecutionContext';
 import type {
-  NavigationEvent,
-  LifecycleEvent,
   NavigateOptionsWithProgress,
   WaitForElementOptions,
   ClickOptions,
@@ -14,9 +11,7 @@ import type {
   FrameDragAndDropOptions,
   ScreenshotOptions,
 } from './types';
-import { Event } from 'vs/base/common/event';
 import { FrameSelectors } from './frameSelectors';
-import { isSessionClosedError } from './protocolError';
 import {
   getByTestIdSelector,
   getByAltTextSelector,
@@ -34,6 +29,17 @@ import {
   calculateCenterPosition,
   testIdAttributeName,
   createDragAndDropScript,
+  DEFAULT_RETRY_TIMEOUTS,
+  validateWaitState,
+  isNonRetriableError,
+  doesStateMatch,
+  shouldReturnElementHandle,
+  getFileInputWaitState,
+  createSelectorWaitMessage,
+  createElementNotFoundError,
+  createBoundingBoxError,
+  createFrameEnterSelector,
+  createFrameNthSelector,
 } from './frameUtils';
 import { FileTransferPortController } from './fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
@@ -42,22 +48,11 @@ import { getNavigationTracker } from './navigationTracker';
 // #region Helper Functions
 
 /**
- * Frame class with enhanced navigation event handling to solve race conditions.
+ * Frame class for managing frame interactions in Chrome extensions.
  *
- * This implementation uses two key strategies from Playwright's approach:
- *
- * 1. **Navigation Event Buffering**:
- *    - Captures navigation events in a buffer from the moment the Frame is created
- *    - When triggering navigation, checks the buffer first before waiting for future events
- *    - Prevents race conditions where events fire between "start listening" and "trigger navigation"
- *
- * 2. **Lifecycle Event Caching**:
- *    - Maintains a Set of already-fired lifecycle events ('load', 'commit', etc.)
- *    - Before waiting for a lifecycle event, checks if it's already been seen
- *    - Prevents hanging when trying to wait for events that already occurred
- *
- * This approach ensures that navigation and lifecycle waiting never misses events,
- * eliminating the common race condition where events fire before listeners are set up.
+ * This implementation provides a high-level API for interacting with frames,
+ * including element selection, form interaction, and content execution.
+ * Navigation is handled through the NavigationTracker for better reliability.
  */
 export class Frame extends Disposable {
   private _parentFrame: Frame | null;
@@ -69,12 +64,6 @@ export class Frame extends Disposable {
   private _context?: FrameExecutionContext;
   readonly selectors: FrameSelectors;
   readonly fileTransferPortController: FileTransferPortController;
-
-  // Buffering for navigation events to solve race conditions
-  private _navigationBuffer: NavigationEvent[] = [];
-
-  // Caching for lifecycle events to avoid waiting for already-fired events
-  private _firedLifecycleEvents = new Set<LifecycleEvent>();
 
   constructor(
     frameId: number,
@@ -90,48 +79,6 @@ export class Frame extends Disposable {
     this._url = url;
     this.selectors = new FrameSelectors(this);
     this.fileTransferPortController = this._register(new FileTransferPortController());
-
-    // Set up navigation event buffering - capture all navigation events for this frame
-    this._register(
-      this.frameManager.page.session.onCompleted(details => {
-        if (details.frameId === this.frameId && details.tabId === this.tabId) {
-          const navEvent: NavigationEvent = {
-            frameId: details.frameId,
-            url: details.url,
-            lifecycleEvents: ['load'], // onCompleted typically means 'load' lifecycle
-          };
-          this._navigationBuffer.push(navEvent);
-          this._firedLifecycleEvents.add('load');
-        }
-      }),
-    );
-
-    this._register(
-      this.frameManager.page.session.onCommitted(details => {
-        if (details.frameId === this.frameId && details.tabId === this.tabId) {
-          const navEvent: NavigationEvent = {
-            frameId: details.frameId,
-            url: details.url,
-            lifecycleEvents: ['commit'],
-          };
-          this._navigationBuffer.push(navEvent);
-          this._firedLifecycleEvents.add('commit');
-        }
-      }),
-    );
-
-    this._register(
-      this.frameManager.page.session.onErrorOccurred(details => {
-        if (details.frameId === this.frameId && details.tabId === this.tabId) {
-          const navEvent: NavigationEvent = {
-            frameId: details.frameId,
-            url: details.url,
-            error: new Error(details.error || 'Navigation error'),
-          };
-          this._navigationBuffer.push(navEvent);
-        }
-      }),
-    );
 
     // Add this frame to parent's children
     if (parentFrame) {
@@ -230,11 +177,9 @@ export class Frame extends Disposable {
     this._url = url;
   }
 
-  private static readonly kDefaultTimeouts = [0, 20, 50, 100, 100, 500];
-
   public async _retryWithProgressAndTimeouts<R>(
     progress: Progress,
-    timeouts: number[] = Frame.kDefaultTimeouts,
+    timeouts: number[] = DEFAULT_RETRY_TIMEOUTS,
     action: (continuePolling: symbol) => Promise<R | symbol>,
   ): Promise<R> {
     const continuePolling = Symbol('continuePolling');
@@ -263,134 +208,6 @@ export class Frame extends Disposable {
         throw e;
       }
     }
-  }
-
-  /**
-   * Navigate with buffering to avoid race conditions.
-   * First checks if navigation event is already in buffer, otherwise waits for it.
-   */
-  private async _navigateWithBuffer(
-    url: string,
-    options: { timeout?: number; progress?: Progress } = {},
-  ): Promise<NavigationEvent> {
-    const { progress } = options;
-
-    return new Promise((resolve, reject) => {
-      // Clear old navigation buffer
-      this._navigationBuffer.length = 0;
-
-      // Set up cleanup for progress
-      const cleanup = () => {
-        // Cleanup is handled by the registered listeners
-      };
-
-      if (progress) {
-        progress.cleanupWhenAborted(cleanup);
-      }
-
-      // Trigger the navigation
-      chrome.tabs.update(this.tabId, { url });
-      progress?.log(`Frame ${this.frameId} navigating to "${url}"`);
-
-      // Check buffer after a short delay to catch immediate events
-      setTimeout(() => {
-        // Check if event is already in buffer (fired synchronously)
-        const match = this._navigationBuffer.find(
-          event => event.frameId === this.frameId && event.url === url,
-        );
-
-        if (match) {
-          progress?.log(`Frame ${this.frameId} navigation found in buffer`);
-          resolve(match);
-          return;
-        }
-
-        // Otherwise wait for the next matching navigation event
-        const { promise, dispose } = helper.waitForEvent(
-          progress!,
-          this.frameManager.page.session.onCompleted,
-          details => details.frameId === this.frameId && details.tabId === this.tabId,
-        );
-
-        promise
-          .then(() => {
-            // Find the matching event in our buffer
-            const bufferMatch = this._navigationBuffer.find(
-              event => event.frameId === this.frameId,
-            );
-            if (bufferMatch) {
-              progress?.log(`Frame ${this.frameId} navigation completed`);
-              resolve(bufferMatch);
-            } else {
-              // Fallback - create event from completed details
-              const fallbackEvent: NavigationEvent = {
-                frameId: this.frameId,
-                url,
-                lifecycleEvents: ['load'],
-              };
-              resolve(fallbackEvent);
-            }
-          })
-          .catch(reject)
-          .finally(() => dispose());
-      }, 10); // Small delay to catch synchronous events
-    });
-  }
-
-  /**
-   * Wait for a lifecycle event, but only if we haven't already seen it.
-   */
-  private async _waitForLifecycle(
-    state: LifecycleEvent,
-    options: { timeout?: number; progress?: Progress } = {},
-  ): Promise<void> {
-    const { progress } = options;
-
-    // If we've already seen this lifecycle event, return immediately
-    if (this._firedLifecycleEvents.has(state)) {
-      progress?.log(`Frame ${this.frameId} already fired lifecycle event: ${state}`);
-      return;
-    }
-
-    // Otherwise wait for it
-    await executeWithProgress<void>(async p => {
-      let event: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails>;
-      let predicate: (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) => boolean;
-
-      switch (state) {
-        case 'load':
-          event = this.frameManager.page.session.onCompleted;
-          predicate = details => details.tabId === this.tabId && details.frameId === this.frameId;
-          break;
-        case 'commit':
-          // Use onCompleted for commit as well, but could use onCommitted if needed
-          event = this.frameManager.page.session.onCompleted;
-          predicate = details => details.tabId === this.tabId && details.frameId === this.frameId;
-          break;
-        case 'domcontentloaded':
-          // For now, treat as load - could be enhanced with DOM content loaded detection
-          event = this.frameManager.page.session.onCompleted;
-          predicate = details => details.tabId === this.tabId && details.frameId === this.frameId;
-          break;
-        case 'networkidle':
-          // For now, treat as load - could be enhanced with network idle detection
-          event = this.frameManager.page.session.onCompleted;
-          predicate = details => details.tabId === this.tabId && details.frameId === this.frameId;
-          break;
-        default:
-          throw new Error(`Unsupported lifecycle event: ${state}`);
-      }
-
-      const { promise, dispose } = helper.waitForEvent(p, event, predicate);
-
-      try {
-        await promise;
-        this._firedLifecycleEvents.add(state);
-        p.log(`Frame ${this.frameId} finished waiting for lifecycle event: ${state}`);
-      } finally {
-        dispose();
-      }
-    }, options);
   }
 
   /**
@@ -445,21 +262,17 @@ export class Frame extends Disposable {
   ): Promise<ElementHandle | null> {
     // Validate options
     const { state = 'visible' } = options;
-    if (!['attached', 'detached', 'visible', 'hidden'].includes(state)) {
-      throw new Error(`state: expected one of (attached|detached|visible|hidden)`);
-    }
+    validateWaitState(state);
 
     // Log once if requested
     if (performActionPreChecksAndLog) {
-      progress.log(
-        `waiting for selector "${selector}"${state === 'attached' ? '' : ' to be ' + state}`,
-      );
+      progress.log(createSelectorWaitMessage(selector, state));
     }
 
     // Main retry loop
     return this._retryWithProgressAndTimeouts(
       progress,
-      Frame.kDefaultTimeouts,
+      DEFAULT_RETRY_TIMEOUTS,
       async continuePolling => {
         // Step 1: Resolve selector metadata
         const resolved = await progress.race(
@@ -503,24 +316,13 @@ export class Frame extends Disposable {
         }
 
         // Step 4: Check if current state matches desired state
-        const stateMatches = {
-          attached,
-          detached: !attached,
-          visible,
-          hidden: !visible,
-        }[state];
-
-        if (!stateMatches) {
+        if (!doesStateMatch(state, visible, attached)) {
           return continuePolling; // Keep retrying
         }
 
         // Step 5: Handle return value based on options and state
-        if (options.omitReturnValue) {
-          return null; // User doesn't need the element
-        }
-
-        if (state === 'detached' || state === 'hidden') {
-          return null; // Element shouldn't be used in these states
+        if (!shouldReturnElementHandle(state, options.omitReturnValue)) {
+          return null; // User doesn't need the element or element shouldn't be used
         }
 
         // Step 6: Return ElementHandle for attached/visible states
@@ -534,9 +336,7 @@ export class Frame extends Disposable {
   }
 
   isNonRetriableError(e: Error) {
-    if (isAbortError(e)) return true;
-    if (isSessionClosedError(e)) return true;
-    return false;
+    return isNonRetriableError(e);
   }
 
   // #region Dom Interaction
@@ -555,8 +355,7 @@ export class Frame extends Disposable {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
 
         if (!handle) {
-          const error = `Element not found for selector: ${selector}`;
-          throw new Error(error);
+          throw new Error(createElementNotFoundError(selector));
         }
 
         try {
@@ -642,15 +441,13 @@ export class Frame extends Disposable {
         // Get both source and target elements first to ensure they exist
         const sourceHandle = await this.waitForSelector(progress, source, false, { strict: true });
         if (!sourceHandle) {
-          const error = `Source element not found for selector: ${source}`;
-          throw new Error(error);
+          throw new Error(createElementNotFoundError(source));
         }
 
         const targetHandle = await this.waitForSelector(progress, target, false, { strict: true });
         if (!targetHandle) {
-          const error = `Target element not found for selector: ${target}`;
           sourceHandle.dispose();
-          throw new Error(error);
+          throw new Error(createElementNotFoundError(target));
         }
 
         try {
@@ -659,10 +456,10 @@ export class Frame extends Disposable {
           const targetBox = await targetHandle.boundingBox();
 
           if (!sourceBox) {
-            throw new Error(`Source element "${source}" has no bounding box`);
+            throw new Error(createBoundingBoxError(source, 'no bounding box'));
           }
           if (!targetBox) {
-            throw new Error(`Target element "${target}" has no bounding box`);
+            throw new Error(createBoundingBoxError(target, 'no bounding box'));
           }
 
           const sourcePosition = options.sourcePosition || calculateCenterPosition(sourceBox);
@@ -688,20 +485,6 @@ export class Frame extends Disposable {
       },
       { timeout },
     );
-  }
-
-  /**
-   * Direct click using chrome.scripting.executeScript - simpler alternative to click()
-   * This bypasses the retry-with-progress pattern for cases where you want direct control
-   */
-  async clickSelector(
-    selector: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
-  ): Promise<void> {
-    if (!this._context) {
-      throw new Error(`Frame ${this.frameId} has no execution context`);
-    }
-    await this._context.clickSelector(selector, undefined, world);
   }
 
   /**
@@ -812,7 +595,7 @@ export class Frame extends Disposable {
       async progress => {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
         if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
+          throw new Error(createElementNotFoundError(selector));
         }
         try {
           return await handle.checkWithProgress(progress);
@@ -832,7 +615,7 @@ export class Frame extends Disposable {
       async progress => {
         const handle = await this.waitForSelector(progress, selector, false, { strict: true });
         if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
+          throw new Error(createElementNotFoundError(selector));
         }
         try {
           return await handle.uncheckWithProgress(progress);
@@ -908,7 +691,7 @@ export class Frame extends Disposable {
     options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
   ): Promise<void> {
     // For hidden elements with force option, wait for attached state instead of visible
-    const waitState = options?.force ? 'attached' : 'visible';
+    const waitState = getFileInputWaitState(options?.force);
 
     return await executeWithProgress(
       async progress => {
@@ -918,8 +701,7 @@ export class Frame extends Disposable {
         });
 
         if (!handle) {
-          const error = `Element not found for selector: ${selector}`;
-          throw new Error(error);
+          throw new Error(createElementNotFoundError(selector));
         }
 
         try {
@@ -1079,7 +861,7 @@ export class Frame extends Disposable {
         });
 
         if (!handle) {
-          throw new Error(`Element not found for selector: ${selector}`);
+          throw new Error(createElementNotFoundError(selector));
         }
 
         try {
@@ -1245,14 +1027,14 @@ export class FrameLocator {
     if (isString(selectorOrLocator))
       return new Locator(
         this._frame,
-        this._frameSelector + ' >> internal:control=enter-frame >> ' + selectorOrLocator,
+        createFrameEnterSelector(this._frameSelector, selectorOrLocator),
         options,
       );
     if (selectorOrLocator._frame !== this._frame)
       throw new Error(`Locators must belong to the same frame.`);
     return new Locator(
       this._frame,
-      this._frameSelector + ' >> internal:control=enter-frame >> ' + selectorOrLocator._selector,
+      createFrameEnterSelector(this._frameSelector, selectorOrLocator._selector),
       options,
     );
   }
@@ -1290,21 +1072,18 @@ export class FrameLocator {
   }
 
   frameLocator(selector: string): FrameLocator {
-    return new FrameLocator(
-      this._frame,
-      this._frameSelector + ' >> internal:control=enter-frame >> ' + selector,
-    );
+    return new FrameLocator(this._frame, createFrameEnterSelector(this._frameSelector, selector));
   }
 
   first(): FrameLocator {
-    return new FrameLocator(this._frame, this._frameSelector + ' >> nth=0');
+    return new FrameLocator(this._frame, createFrameNthSelector(this._frameSelector, 0));
   }
 
   last(): FrameLocator {
-    return new FrameLocator(this._frame, this._frameSelector + ` >> nth=-1`);
+    return new FrameLocator(this._frame, createFrameNthSelector(this._frameSelector, -1));
   }
 
   nth(index: number): FrameLocator {
-    return new FrameLocator(this._frame, this._frameSelector + ` >> nth=${index}`);
+    return new FrameLocator(this._frame, createFrameNthSelector(this._frameSelector, index));
   }
 }
