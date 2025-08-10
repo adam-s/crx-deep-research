@@ -1,9 +1,9 @@
-import { Page } from '../page';
-import { Progress, ProgressController } from '../progress';
-import { SimpleEventEmitter } from '../../../utils/SimpleEventEmitter';
-import { EventMessage, Severity } from '../../../utils/types';
-import { BrowserWindow } from '../browserWindow';
-import { ICordycepsService } from '../cordyceps.service';
+import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
+import { EventMessage, Severity } from '@src/utils/types';
+import { ICordycepsService } from '../../cordyceps.service';
+import { BrowserWindow } from '../../core/browserWindow';
+import { Progress, ProgressController } from '../../core/progress';
+import { Page } from '../../page';
 
 export interface TestContext {
   readonly events: SimpleEventEmitter<EventMessage>;

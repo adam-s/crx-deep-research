@@ -1,4 +1,4 @@
-import { Progress } from '../progress';
+import { Progress } from '../../core/progress';
 import { PlaygroundTest } from './api';
 
 export class NavigationTest extends PlaygroundTest {

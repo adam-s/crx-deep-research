@@ -1,7 +1,7 @@
-import type { Page } from '../../page';
-import type { Progress } from '../../progress';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Page } from '@src/services/cordyceps/page';
+import { Severity } from '@src/utils/types';
 import type { TestContext } from '../api';
-import { Severity } from '../../../../utils/types';
 
 /**
  * Test type-safe element operations functionality across Page, Frame, Locator, and ElementHandle

@@ -1,7 +1,7 @@
-import { Progress } from '../progress';
+import { Severity } from '@src/utils/types';
+import { Progress } from '../../core/progress';
+import { Page } from '../../page';
 import { PlaygroundTest } from './api';
-import { Page } from '../page';
-import { Severity } from '../../../utils/types';
 
 export class PerformanceTest extends PlaygroundTest {
   protected async _run(progress: Progress): Promise<void> {

@@ -4,9 +4,13 @@
  * pushState, replaceState, popstate, and hashchange events.
  */
 
+interface ExtendedWindow extends Window {
+  __extHistoryHooked?: boolean;
+}
+
 // Prevent multiple injection
-if (!(window as any).__extHistoryHooked) {
-  (window as any).__extHistoryHooked = true;
+if (!(window as ExtendedWindow).__extHistoryHooked) {
+  (window as ExtendedWindow).__extHistoryHooked = true;
 
   /**
    * Dispatch a custom navigation event that can be caught by content scripts
@@ -25,8 +29,8 @@ if (!(window as any).__extHistoryHooked) {
 
   // Hook history.pushState
   const originalPushState = history.pushState;
-  history.pushState = function (state: any, title: string, url?: string | URL | null) {
-    const result = originalPushState.apply(this, arguments as any);
+  history.pushState = function (state: unknown, title: string, url?: string | URL | null) {
+    const result = originalPushState.call(this, state, title, url);
     const finalUrl = url ? String(url) : location.href;
     dispatchNavigationEvent('pushState', finalUrl);
     return result;
@@ -34,8 +38,8 @@ if (!(window as any).__extHistoryHooked) {
 
   // Hook history.replaceState
   const originalReplaceState = history.replaceState;
-  history.replaceState = function (state: any, title: string, url?: string | URL | null) {
-    const result = originalReplaceState.apply(this, arguments as any);
+  history.replaceState = function (state: unknown, title: string, url?: string | URL | null) {
+    const result = originalReplaceState.call(this, state, title, url);
     const finalUrl = url ? String(url) : location.href;
     dispatchNavigationEvent('replaceState', finalUrl);
     return result;

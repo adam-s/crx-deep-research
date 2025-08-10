@@ -1,7 +1,7 @@
-import type { Page } from '../../page';
-import type { Progress } from '../../progress';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Page } from '@src/services/cordyceps/page';
+import { Severity } from '@src/utils/types';
 import type { TestContext } from '../api';
-import { Severity } from '../../../../utils/types';
 import { executeTestWithErrorHandling, assertTestCondition } from './testUtils';
 
 export async function testNavigationAutoWait(page: Page, progress: Progress, context: TestContext) {

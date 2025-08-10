@@ -1,9 +1,9 @@
-import { Progress, executeWithProgress } from '../../progress';
-import { Page } from '../../page';
-import { Severity } from '../../../../utils/types';
+import { Progress, executeWithProgress } from '@src/services/cordyceps/core/progress';
+import { ScreenshotCanvas } from '@src/services/cordyceps/media/screenshotter';
+import { Page } from '@src/services/cordyceps/page';
+import { ScreenshotOptions } from '@src/services/cordyceps/utilities/types';
+import { Severity } from '@src/utils/types';
 import { TestContext } from '../api';
-import { ScreenshotOptions } from '../../types';
-import { ScreenshotCanvas } from '../../screenshotter';
 
 // Thumbnail configuration for side panel display
 const THUMBNAIL_CONFIG = {

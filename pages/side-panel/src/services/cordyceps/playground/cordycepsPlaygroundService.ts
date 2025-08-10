@@ -1,17 +1,17 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { ICordycepsService } from './cordyceps.service';
-import { Progress } from './progress';
-import { BrowserWindow } from './browserWindow';
-import { Page } from './page';
-import { Severity, EventMessage } from '../../utils/types';
-import { SimpleEventEmitter } from '../../utils/SimpleEventEmitter';
 import { TestContext } from './playgroundTests/api';
 import { NavigationTest } from './playgroundTests/navigationTest';
 import { DOMInteractionTest } from './playgroundTests/domInteractionTest';
 import { LocatorTest } from './playgroundTests/locatorTest';
 import { PerformanceTest } from './playgroundTests/performanceTest';
+import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
+import { EventMessage, Severity } from '@src/utils/types';
+import { ICordycepsService } from '../cordyceps.service';
+import { BrowserWindow } from '../core/browserWindow';
+import { Progress } from '../core/progress';
+import { Page } from '../page';
 
 export const ICordycepsPlaygroundService = createDecorator<ICordycepsPlaygroundService>(
   'cordycepsPlaygroundService',

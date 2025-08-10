@@ -26,7 +26,7 @@ import { ICordycepsService, CordycepsService } from '@src/services/cordyceps/cor
 import {
   CordycepsPlaygroundService,
   ICordycepsPlaygroundService,
-} from '@src/services/cordyceps/cordycepsPlaygroundService';
+} from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
 
 export interface ISidePanelConfiguration {}
 

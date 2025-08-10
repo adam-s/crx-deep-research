@@ -1,6 +1,6 @@
-import { Page } from '../../page';
-import { Progress } from '../../progress';
-import { Severity } from '../../../../utils/types';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Page } from '@src/services/cordyceps/page';
+import { Severity } from '@src/utils/types';
 import type { TestContext } from '../api';
 
 export async function testAriaSnapshotFunctionality(

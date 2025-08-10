@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { useService } from './useService';
-import { ICordycepsPlaygroundService } from '../../services/cordyceps/cordycepsPlaygroundService';
 import { EventMessage, Severity } from '../../utils/types';
+import { ICordycepsPlaygroundService } from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
 
 export interface UseCordycepsPlaygroundReturn {
   /** Run all playground tests */

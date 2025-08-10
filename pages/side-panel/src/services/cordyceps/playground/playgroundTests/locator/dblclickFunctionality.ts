@@ -1,6 +1,6 @@
-import { Progress } from '../../progress';
-import { Page } from '../../page';
-import { Severity } from '../../../../utils/types';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Page } from '@src/services/cordyceps/page';
+import { Severity } from '@src/utils/types';
 import { TestContext } from '../api';
 
 export async function testDblclickFunctionality(

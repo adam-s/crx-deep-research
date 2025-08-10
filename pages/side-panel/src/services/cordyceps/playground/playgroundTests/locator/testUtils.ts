@@ -1,6 +1,6 @@
-import { Progress } from '../../progress';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Severity } from '@src/utils/types';
 import { TestContext } from '../api';
-import { Severity } from '../../../../utils/types';
 
 /**
  * Enhanced error handling for Chrome extension test environment

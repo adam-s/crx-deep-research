@@ -5,7 +5,7 @@ import {
 import { InjectedScript } from '@injected/injectedScript';
 import { UtilityScript } from '@injected/utilityScript';
 import { HandledInjectedScript, HandleManager } from './handledInjectedScript';
-
+import './browserUse.js';
 declare global {
   // Add type for global properties
   interface Window {

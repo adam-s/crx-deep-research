@@ -1,7 +1,7 @@
-import { Page } from '../../page';
-import { Progress } from '../../progress';
+import { Progress } from '@src/services/cordyceps/core/progress';
+import { Page } from '@src/services/cordyceps/page';
+import { Severity } from '@src/utils/types';
 import { TestContext } from '../api';
-import { Severity } from '../../../../utils/types';
 
 export async function testPageMissingMethodsFunctionality(
   page: Page,

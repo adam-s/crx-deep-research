@@ -1,6 +1,6 @@
-import { Progress } from '../progress';
+import { Severity } from '@src/utils/types';
+import { Progress } from '../../core/progress';
 import { TestContext } from './api';
-import { Severity } from '../../../utils/types';
 
 export interface DetailedErrorInfo extends Record<string, unknown> {
   error: string;

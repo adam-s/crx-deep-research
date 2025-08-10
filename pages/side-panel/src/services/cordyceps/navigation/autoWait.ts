@@ -1,5 +1,5 @@
+import { LifecycleEvent } from '../utilities/types';
 import { getNavigationTracker } from './navigationTracker';
-import type { LifecycleEvent } from './types';
 
 export type WaitUntil = LifecycleEvent;
 
