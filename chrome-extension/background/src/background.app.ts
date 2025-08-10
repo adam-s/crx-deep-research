@@ -17,6 +17,7 @@ import {
   CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_CREATE,
   CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_EVENT,
   CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND,
+  CRX_DEEP_RESEARCH_NAVIGATION_EVENT,
 } from '@shared/utils/message';
 import { MessageServer } from '@shared/ipc/message/MessageServer';
 import { MessageServerManagerService } from './services/messageServerManager.service';
@@ -119,6 +120,11 @@ export class BackgroundApp extends Disposable {
           case CRX_DEEP_RESEARCH_FILE_TRANSFER_PORT_COMMAND:
             // Commands are sent from side panel to content script
             // Background script just acknowledges, the content script handles the command directly
+            return false;
+
+          case CRX_DEEP_RESEARCH_NAVIGATION_EVENT:
+            // Navigation events are sent from content script to side panel via background
+            // Background script just passes these through, they are handled by NavigationTracker in side panel
             return false;
 
           default:

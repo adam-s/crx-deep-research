@@ -5,6 +5,7 @@ import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './frameExecutionContext';
+import { NavigationDelegate } from './navigationDelegate';
 import type {
   NavigateOptionsWithProgress,
   Rect,
@@ -20,6 +21,7 @@ import { ElementHandle } from './elementHandle';
 import { getContentFrameId, createPageSnapshotForAI } from './pageUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './screenshotter';
+import { getNavigationTracker } from './navigationTracker';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
@@ -28,6 +30,8 @@ export class Page extends Disposable {
   readonly session: Session;
   lastSnapshotFrameIds: number[] = [];
   readonly screenshotter: Screenshotter;
+  readonly navTracker = getNavigationTracker();
+  private readonly _navigationDelegate: NavigationDelegate;
 
   constructor(tabId: number, session: Session) {
     super();
@@ -35,6 +39,7 @@ export class Page extends Disposable {
     this.session = session;
     this.frameManager = this._register(new FrameManager(this));
     this.screenshotter = new Screenshotter(this);
+    this._navigationDelegate = new NavigationDelegate(tabId);
 
     this._setupContentScriptListener();
     console.log(`✅ Page created for tab ${tabId}`);
@@ -104,6 +109,101 @@ export class Page extends Disposable {
     return executeWithProgress(async p => {
       p.log(`Page navigating to "${url}"`);
       return this.mainFrame().goto(url, { ...options, progress: p });
+    }, options);
+  }
+
+  public async goBack(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+    return executeWithProgress(async p => {
+      p.log('Page navigating back');
+
+      // Start waiting for navigation before triggering the action
+      const navigationPromise = this.navTracker.waitForNavigation(
+        this.tabId,
+        0, // main frame
+        {
+          waitUntil: options?.waitUntil ?? 'load',
+          timeoutMs: options?.timeout ?? 30000,
+        },
+      );
+
+      // Trigger the back navigation
+      const success = await this._navigationDelegate.goBack();
+      if (!success) {
+        p.log('No history available for back navigation');
+        return null;
+      }
+
+      // Wait for the navigation to complete
+      await navigationPromise;
+      p.log('Back navigation completed');
+
+      // Return null for same-document navigation (following Playwright pattern)
+      // TODO: Return actual Response for new-document navigation when network interception is available
+      return null;
+    }, options);
+  }
+
+  public async goForward(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+    return executeWithProgress(async p => {
+      p.log('Page navigating forward');
+
+      // Start waiting for navigation before triggering the action
+      const navigationPromise = this.navTracker.waitForNavigation(
+        this.tabId,
+        0, // main frame
+        {
+          waitUntil: options?.waitUntil ?? 'load',
+          timeoutMs: options?.timeout ?? 30000,
+        },
+      );
+
+      // Trigger the forward navigation
+      const success = await this._navigationDelegate.goForward();
+      if (!success) {
+        p.log('No forward history available');
+        return null;
+      }
+
+      // Wait for the navigation to complete
+      await navigationPromise;
+      p.log('Forward navigation completed');
+
+      // Return null for same-document navigation (following Playwright pattern)
+      // TODO: Return actual Response for new-document navigation when network interception is available
+      return null;
+    }, options);
+  }
+
+  public async reload(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+    return executeWithProgress(async p => {
+      p.log('Page reloading');
+
+      // Start waiting for navigation before triggering the reload
+      const navigationPromise = this.navTracker.waitForNavigation(
+        this.tabId,
+        0, // main frame
+        {
+          waitUntil: options?.waitUntil ?? 'load',
+          timeoutMs: options?.timeout ?? 30000,
+        },
+      );
+
+      // Trigger the page reload using chrome.tabs.reload
+      try {
+        await chrome.tabs.reload(this.tabId);
+        p.log('Page reload initiated');
+      } catch (error) {
+        p.log(`Failed to reload tab: ${error}`);
+        throw new Error(`Page reload failed: ${error}`);
+      }
+
+      // Wait for the navigation to complete
+      await navigationPromise;
+      p.log('Page reload completed');
+
+      // Return null (following Playwright pattern)
+      // TODO: Return actual Response for new-document navigation when network interception is available
+      return null;
     }, options);
   }
 

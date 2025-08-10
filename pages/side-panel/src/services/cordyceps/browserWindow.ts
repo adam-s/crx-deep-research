@@ -183,7 +183,7 @@ export class BrowserWindow extends Disposable {
   }
 
   async newPage(options: { timeout?: number; progress?: Progress } = {}): Promise<Page> {
-    const progressController = new ProgressController(options.timeout);
+    const progressController = new ProgressController(options.timeout ?? 30000);
 
     return progressController.run(async p => {
       p.log('Creating new tab');

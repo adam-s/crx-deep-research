@@ -65,6 +65,18 @@ export interface IFileTransferPortCommandMessage extends IBaseMessage {
   command: unknown;
 }
 
+export const CRX_DEEP_RESEARCH_NAVIGATION_EVENT = 'cordyceps:navigation-event';
+export interface INavigationEventMessage extends IBaseMessage {
+  type: typeof CRX_DEEP_RESEARCH_NAVIGATION_EVENT;
+  detail: {
+    type: 'pushState' | 'replaceState' | 'popstate' | 'hashchange';
+    url: string;
+    timestamp: number;
+  };
+  tabId?: number;
+  frameId?: number;
+}
+
 export interface IInformationResponse {
   documentId?: string;
   windowId?: number;
@@ -85,6 +97,7 @@ export type DocumentMessage =
   | IFileTransferPortCreateMessage
   | IFileTransferPortEventMessage
   | IFileTransferPortCommandMessage
+  | INavigationEventMessage
   | { type: 'crx-deep-research:requestInformation' }
   | IIPCMessageTypes;
 

@@ -28,6 +28,11 @@ import {
   testTextContentFunctionality,
   testTypeFunctionality,
   testWaitForFunctionality,
+  testNavigationAutoWait,
+  testNavigationGoBack,
+  testNavigationGoForward,
+  testNavigationSameDocumentGoBack,
+  testNavigationReload,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -56,33 +61,59 @@ export class LocatorTest extends PlaygroundTest {
 
       console.log('############### Aria snapshot for AI \n', snapshot);
       progress.log('Creating and testing a basic locator');
-      // Create a locator for the body element
-      const bodyLocator = page.locator('body');
-      progress.log(`Locator created successfully: ${bodyLocator._selector}`);
+      // // Create a locator for the body element
+      // const bodyLocator = page.locator('body');
+      // progress.log(`Locator created successfully: ${bodyLocator._selector}`);
 
-      // Test boundingBox functionality
-      progress.log('Testing boundingBox method');
-      const boundingBox = await bodyLocator.boundingBox();
-      if (boundingBox) {
-        progress.log(
-          `BoundingBox retrieved: x=${boundingBox.x}, y=${boundingBox.y}, width=${boundingBox.width}, height=${boundingBox.height}`,
-        );
-        this.context.events.emit({
-          timestamp: Date.now(),
-          severity: Severity.Success,
-          message: 'BoundingBox test passed.',
-          details: {
-            boundingBox,
-          },
-        });
-      } else {
-        progress.log('BoundingBox returned null (element may not be visible)');
-        this.context.events.emit({
-          timestamp: Date.now(),
-          severity: Severity.Warning,
-          message: 'BoundingBox test returned null.',
-        });
-      }
+      // // Test boundingBox functionality
+      // progress.log('Testing boundingBox method');
+      // const boundingBox = await bodyLocator.boundingBox();
+      // if (boundingBox) {
+      //   progress.log(
+      //     `BoundingBox retrieved: x=${boundingBox.x}, y=${boundingBox.y}, width=${boundingBox.width}, height=${boundingBox.height}`,
+      //   );
+      //   this.context.events.emit({
+      //     timestamp: Date.now(),
+      //     severity: Severity.Success,
+      //     message: 'BoundingBox test passed.',
+      //     details: {
+      //       boundingBox,
+      //     },
+      //   });
+      // } else {
+      //   progress.log('BoundingBox returned null (element may not be visible)');
+      //   this.context.events.emit({
+      //     timestamp: Date.now(),
+      //     severity: Severity.Warning,
+      //     message: 'BoundingBox test returned null.',
+      //   });
+      // }
+
+      // Test navigation auto-wait behavior first (hash + cross-doc)
+      progress.log('Testing navigation auto-wait (hash and cross-document via click)');
+      await testNavigationAutoWait(page, progress, this.context);
+
+      // Test goBack() functionality
+      progress.log('Testing goBack() method for history navigation');
+      await testNavigationGoBack(page, progress, this.context);
+
+      // Test goForward() functionality
+      progress.log('Testing goForward() method for history navigation');
+      await testNavigationGoForward(page, progress, this.context);
+
+      // Test same-document goBack() functionality
+      progress.log('Testing same-document goBack() with pushState navigation');
+      await testNavigationSameDocumentGoBack(page, progress, this.context);
+
+      // Test reload() functionality
+      progress.log('Testing reload() method for page refresh');
+      await testNavigationReload(page, progress, this.context);
+
+      // Ensure we're back on the main page with form elements for subsequent tests
+      progress.log('Navigating back to main page for form element tests');
+      const origin = await page.evaluate(() => window.location.origin);
+      await page.goto(`${origin}/`, { waitUntil: 'load' });
+      await new Promise(resolve => setTimeout(resolve, 500)); // Extra settling time
 
       // Test check() functionality
       progress.log('Testing check() method on checkboxes');

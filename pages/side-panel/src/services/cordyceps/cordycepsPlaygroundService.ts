@@ -50,7 +50,9 @@ export class CordycepsPlaygroundService
   constructor(@ICordycepsService public readonly cordycepsService: ICordycepsService) {
     super();
     setTimeout(() => {
-      this.runLocatorTest();
+      this.runLocatorTest().catch(error => {
+        console.error('Locator test failed during auto-run:', error);
+      });
     }, 1000);
   }
 

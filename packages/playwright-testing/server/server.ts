@@ -25,6 +25,9 @@ export function createApp(): Application {
     { route: '/iframe1', file: 'iframe1.html', label: 'Iframe 1' },
     { route: '/iframe2', file: 'iframe2.html', label: 'Iframe 2' },
     { route: '/nested-iframe', file: 'nested-iframe.html', label: 'Nested iframe' },
+    { route: '/nav-page-1', file: 'nav-page-1.html', label: 'Navigation Test Page 1' },
+    { route: '/nav-page-2', file: 'nav-page-2.html', label: 'Navigation Test Page 2' },
+    { route: '/nav-page-3', file: 'nav-page-3.html', label: 'Navigation Test Page 3' },
   ];
 
   pages.forEach(({ route, file }) => {

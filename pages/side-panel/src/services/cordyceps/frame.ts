@@ -37,6 +37,8 @@ import {
 } from './frameUtils';
 import { FileTransferPortController } from './fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
+import { withAutoWait } from './autoWait';
+import { getNavigationTracker } from './navigationTracker';
 // #region Helper Functions
 
 /**
@@ -392,23 +394,44 @@ export class Frame extends Disposable {
   }
 
   /**
-   * Navigate this frame using the session's abstracted events with buffering.
+   * Navigate this frame using a Playwright-style algorithm backed by NavigationTracker.
+   * - Initiates navigation via chrome.tabs.update
+   * - Waits for 'commit', then for the requested lifecycle (default 'load')
+   * - Returns null (response plumbing can be added later)
    */
   async goto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
     if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
 
+    const waitUntil = options?.waitUntil ?? 'load';
+    const timeoutMs = options?.timeout ?? 30000;
+
     return executeWithProgress(async p => {
-      // 1) Trigger navigation and wait for it to complete
-      await this._navigateWithBuffer(url, { ...options, progress: p });
+      const tracker = getNavigationTracker();
 
-      // 2) If waitUntil is set (default "load"), wait for that lifecycle event
-      const waitUntil = options?.waitUntil ?? 'load';
-      await this._waitForLifecycle(waitUntil, { ...options, progress: p });
+      // Start listening for internal navigation events for this frame
+      const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
+      const disposable = tracker.onInternalNavigation(ev => {
+        if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
+          events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
+        }
+      });
+      p.cleanupWhenAborted(() => disposable.dispose());
 
-      // 3) Update our URL
-      this.setUrl(url);
+      // Initiate navigation directly via chrome.tabs.update
+      p.log(`Frame ${this.frameId} navigating to "${url}"`);
+      chrome.tabs.update(this.tabId, { url });
 
-      // 4) Return null for now (could return Response in the future)
+      // Wait for navigation to complete with the requested lifecycle
+      const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
+        toUrl: url,
+        waitUntil,
+        timeoutMs,
+      });
+
+      // Update our URL to the committed one (could differ due to redirects)
+      this.setUrl(navEv.url);
+
+      // Response mapping is not wired yet; return null for parity with same-document nav
       return null;
     }, options);
   }
@@ -551,8 +574,14 @@ export class Frame extends Disposable {
    * Click a selector, but only after the frame has loaded.
    */
   async click(selector: string, options?: ClickOptions): Promise<void> {
-    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.clickWithProgress(progress, options),
+    // Auto-wait for potential navigation triggered by the click on top frame.
+    return withAutoWait(
+      this.tabId,
+      () =>
+        this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+          handle.clickWithProgress(progress, options),
+        ),
+      { waitUntil: 'commit', timeoutMs: options?.timeout ?? 30000 },
     );
   }
 

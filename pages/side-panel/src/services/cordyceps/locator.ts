@@ -99,48 +99,24 @@ export class Locator {
     methodName: keyof ElementHandle,
     ...args: unknown[]
   ): Promise<T> {
-    console.log(
-      `[Locator._executeElementMethod] Starting method: ${String(methodName)}, selector: ${this._selector}, args:`,
-      args,
-    );
     return executeWithProgress(
       async progress => {
-        console.log(
-          `[Locator._executeElementMethod] Inside executeWithProgress for method: ${String(methodName)}`,
-        );
         // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
         const handle = await this._frame.waitForSelector(progress, this._selector, false, {
           strict: true,
           state: 'attached',
         });
 
-        console.log(
-          `[Locator._executeElementMethod] waitForSelector result for ${String(methodName)}:`,
-          handle ? 'handle found' : 'handle is null',
-        );
-
         if (!handle) {
-          console.error(
-            `[Locator._executeElementMethod] Element not found for selector: ${this._selector}, method: ${String(methodName)}`,
-          );
           throw new Error(`Element not found for selector: ${this._selector}`);
         }
 
         try {
-          console.log(
-            `[Locator._executeElementMethod] About to call method ${String(methodName)} on handle`,
-          );
           const method = handle[methodName] as (...args: unknown[]) => Promise<T>;
           const result = await method.apply(handle, args);
-          console.log(
-            `[Locator._executeElementMethod] Method ${String(methodName)} completed successfully, result:`,
-            result,
-          );
+
           return result;
         } finally {
-          console.log(
-            `[Locator._executeElementMethod] Disposing handle for method: ${String(methodName)}`,
-          );
           handle.dispose();
         }
       },

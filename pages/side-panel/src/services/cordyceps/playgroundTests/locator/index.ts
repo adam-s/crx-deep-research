@@ -26,4 +26,11 @@ export { testTapFunctionality } from './tapFunctionality';
 export { testTextContentFunctionality } from './textContentFunctionality';
 export { testTypeFunctionality } from './typeFunctionality';
 export { testWaitForFunctionality } from './waitForFunctionality';
+export {
+  testNavigationAutoWait,
+  testNavigationGoBack,
+  testNavigationGoForward,
+  testNavigationSameDocumentGoBack,
+  testNavigationReload,
+} from './navigationFunctionality';
 export * from './testUtils';
