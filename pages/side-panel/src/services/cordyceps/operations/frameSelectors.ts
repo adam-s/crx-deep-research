@@ -6,10 +6,10 @@ import {
   parseSelector,
   stringifySelector,
 } from '@injected/isomorphic/selectorParser';
-import { ElementHandle } from './elementHandle';
-import { Frame } from './frame';
+import { ElementHandle } from '../elementHandle';
+import { Frame } from '../frame';
 import { asLocator } from '@injected/isomorphic/locatorGenerators';
-import { FrameExecutionContext } from './frameExecutionContext';
+import { FrameExecutionContext } from '../core/frameExecutionContext';
 
 export type SelectorInfo = {
   parsed: ParsedSelector;

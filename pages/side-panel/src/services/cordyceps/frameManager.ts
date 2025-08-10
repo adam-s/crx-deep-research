@@ -1,6 +1,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Frame } from './frame';
-import { Progress } from './progress';
+import { Progress } from './core/progress';
 import { Page } from './page';
 import { assert } from '@injected/isomorphic/assert';
 

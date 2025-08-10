@@ -1,11 +1,11 @@
 /** @file Screenshot capture + stitcher (browser only). */
 
 import { assert } from '@injected/isomorphic/assert';
-import { Page } from './page';
-import { Rect, ScreenshotOptions, Size } from './types';
-import { Progress } from './progress';
-import { ElementHandle } from './elementHandle';
-import { Frame } from './frame';
+import { Page } from '../page';
+import { Rect, ScreenshotOptions, Size } from '../utilities/types';
+import { Progress } from '../core/progress';
+import { ElementHandle } from '../elementHandle';
+import { Frame } from '../frame';
 import { MultiMap } from '@injected/isomorphic/multimap';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
 

@@ -1,5 +1,5 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import type { FrameExecutionContext } from './frameExecutionContext';
+import type { FrameExecutionContext } from './core/frameExecutionContext';
 import {
   Rect,
   WaitForElementOptions,
@@ -9,17 +9,17 @@ import {
   SelectOptionOptions,
   CommonActionOptions,
   ScreenshotOptions,
-} from './types';
-import { Progress, executeWithProgress } from './progress';
+} from './utilities/types';
+import { Progress, executeWithProgress } from './core/progress';
 import { Frame } from './frame';
-import { convertToNodeBuffer } from './bufferUtils';
+import { convertToNodeBuffer } from './utilities/bufferUtils';
 import {
   throwRetargetableDOMError,
   throwElementIsNotAttached,
   OperationResult,
   STANDARD_TIMEOUT,
-} from './utils';
-import { ElementAction, executeElementOp } from './elementOperations';
+} from './utilities/utils';
+import { ElementAction, executeElementOp } from './operations/elementOperations';
 import {
   executeElementOperation,
   createFillElementScript,
@@ -38,7 +38,7 @@ import {
   createDelayPromise,
   requiresEnhancedInteraction,
   createCheckboxStateError,
-} from './elementHandleUtils';
+} from './utilities/elementHandleUtils';
 
 // This needs to know it's world, tab id, frame id, and element id that
 // exists in the dom

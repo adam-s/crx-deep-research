@@ -12,22 +12,22 @@
  */
 
 // #region Constants
-export * from './constants';
+export * from './utilities/constants';
 
 // #endregion
 
 // #region Error Utilities
-export * from './errorUtils';
+export * from './utilities/errorUtils';
 
 // #endregion
 
 // #region Buffer Utilities
-export * from './bufferUtils';
+export * from './utilities/bufferUtils';
 
 // #endregion
 
 // #region Validation Utilities
-export * from './validationUtils';
+export * from './utilities/validationUtils';
 
 // #endregion
 
@@ -41,7 +41,7 @@ export type {
   FrameConfiguration,
   Position,
   BoundingBox,
-} from './frameUtils';
+} from './utilities/frameUtils';
 
 export {
   createFrameConfiguration,
@@ -55,7 +55,7 @@ export {
   createFrameNthSelector,
   testIdAttributeName,
   setTestIdAttribute,
-} from './frameUtils';
+} from './utilities/frameUtils';
 
 // Locator utilities
 export {
@@ -63,14 +63,14 @@ export {
   buildSelectorWithOptions,
   executeElementMethodWithProgress,
   DEFAULT_LOCATOR_TIMEOUT,
-} from './locatorUtils';
+} from './utilities/locatorUtils';
 
 // Page utilities
 export {
   isJavaScriptErrorInEvaluate,
   validateScreenshotFormat,
   extractIframeSrc,
-} from './pageUtils';
+} from './utilities/pageUtils';
 
 // Element handle utilities - Key functions
 export {
@@ -91,6 +91,6 @@ export {
   isSuccessfulOperation,
   isElementDisconnected,
   extractErrorMessage,
-} from './elementHandleUtils';
+} from './utilities/elementHandleUtils';
 
 // #endregion

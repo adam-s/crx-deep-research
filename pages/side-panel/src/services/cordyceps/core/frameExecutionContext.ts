@@ -1,8 +1,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ProtocolError } from './protocolError';
-import { ElementHandle } from './elementHandle';
-import type { Frame } from './frame';
-import type { Session } from './session';
+import { ElementHandle } from '../elementHandle';
+import type { Frame } from '../frame';
+import type { Session } from '../session';
 
 type ScriptInjectionResult<T> = chrome.scripting.InjectionResult<Awaited<T>> & {
   error?: { message: string };

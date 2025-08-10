@@ -16,9 +16,9 @@
  */
 
 import { DEFAULTS } from './constants';
-import type { Frame } from './frame';
-import type { Progress } from './progress';
-import type { FrameManager } from './frameManager';
+import type { Frame } from '../frame';
+import type { Progress } from '../core/progress';
+import type { FrameManager } from '../frameManager';
 
 // #region Type Definitions
 

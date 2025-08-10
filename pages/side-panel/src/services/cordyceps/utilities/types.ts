@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-import { Frame } from './frame';
-import { type Progress } from './progress';
+import { Frame } from '../frame';
+import { type Progress } from '../core/progress';
 
 export type Rect = {
   x: number;

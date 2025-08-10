@@ -17,8 +17,8 @@
 
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type { Event } from 'vs/base/common/event';
-import type { Progress } from './progress';
-import type * as types from './types';
+import type { Progress } from '../core/progress';
+import type * as types from '../utilities/types';
 
 class Helper {
   static completeUserURL(urlString: string): string {

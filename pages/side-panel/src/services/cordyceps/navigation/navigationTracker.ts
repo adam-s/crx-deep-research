@@ -3,7 +3,7 @@ import {
   CRX_DEEP_RESEARCH_NAVIGATION_EVENT,
   type INavigationEventMessage,
 } from '@shared/utils/message';
-import type { LifecycleEvent } from './types';
+import type { LifecycleEvent } from '../utilities/types';
 
 export interface InternalNavigation {
   tabId: number;

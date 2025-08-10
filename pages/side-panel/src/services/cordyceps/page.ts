@@ -2,10 +2,10 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FrameManager } from './frameManager';
 import { Frame, FrameLocator } from './frame';
-import { Progress, executeWithProgress } from './progress';
+import { Progress, executeWithProgress } from './core/progress';
 import { Session } from './session';
-import { FrameExecutionContext } from './frameExecutionContext';
-import { NavigationDelegate } from './navigationDelegate';
+import { FrameExecutionContext } from './core/frameExecutionContext';
+import { NavigationDelegate } from './navigation/navigationDelegate';
 import type {
   NavigateOptionsWithProgress,
   Rect,
@@ -14,7 +14,7 @@ import type {
   SelectOptionOptions,
   ExpectScreenshotOptions,
   ScreenshotOptions,
-} from './types';
+} from './utilities/types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
 import { ElementHandle } from './elementHandle';
@@ -23,11 +23,11 @@ import {
   createPageSnapshotForAI,
   isJavaScriptErrorInEvaluate,
   validateScreenshotFormat,
-} from './pageUtils';
-import { convertBrowserBufferToNodeBuffer } from './bufferUtils';
+} from './utilities/pageUtils';
+import { convertBrowserBufferToNodeBuffer } from './utilities/bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
-import { Screenshotter, validateScreenshotOptions } from './screenshotter';
-import { getNavigationTracker } from './navigationTracker';
+import { Screenshotter, validateScreenshotOptions } from './media/screenshotter';
+import { getNavigationTracker } from './navigation/navigationTracker';
 
 export class Page extends Disposable {
   private _ownedContext?: object;

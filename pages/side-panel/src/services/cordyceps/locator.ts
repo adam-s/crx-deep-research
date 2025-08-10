@@ -11,7 +11,7 @@ import {
 } from '@injected/isomorphic/locatorUtils';
 import { asLocator } from '@injected/isomorphic/locatorGenerators';
 import { Frame, FrameLocator } from './frame';
-import { testIdAttributeName } from './frameUtils';
+import { testIdAttributeName } from './utilities/frameUtils';
 import {
   Rect,
   TimeoutOptions,
@@ -21,9 +21,9 @@ import {
   CommonActionOptions,
   WaitForElementOptions,
   FrameDragAndDropOptions,
-} from './types';
+} from './utilities/types';
 import { ElementHandle } from './elementHandle';
-import { executeWithProgress } from './progress';
+import { executeWithProgress } from './core/progress';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import {
   executeProgressElementOperation,
@@ -44,7 +44,7 @@ import {
   createUnsupportedOperationError,
   executeElementMethodWithProgress,
   executeWithElementHandle,
-} from './locatorUtils';
+} from './utilities/locatorUtils';
 
 export type LocatorOptions = {
   hasText?: string | RegExp;

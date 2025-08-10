@@ -1,9 +1,9 @@
 import { TIMEOUTS } from './constants';
-import { Progress, executeWithProgress } from './progress';
+import { Progress, executeWithProgress } from '../core/progress';
 import { OperationResult, STANDARD_TIMEOUT } from './utils';
-import { Frame } from './frame';
-import { ElementHandle } from './elementHandle';
-import { LocatorOptions } from './locator';
+import { Frame } from '../frame';
+import { ElementHandle } from '../elementHandle';
+import { LocatorOptions } from '../locator';
 import { escapeForTextSelector } from '@injected/isomorphic/stringUtils';
 
 export async function executeProgressElementOperation(

@@ -1,7 +1,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Progress, executeWithProgress } from './progress';
+import { Progress, executeWithProgress } from './core/progress';
 import type { FrameManager } from './frameManager';
-import type { FrameExecutionContext } from './frameExecutionContext';
+import type { FrameExecutionContext } from './core/frameExecutionContext';
 import type {
   NavigateOptionsWithProgress,
   WaitForElementOptions,
@@ -10,8 +10,8 @@ import type {
   SelectOptionOptions,
   FrameDragAndDropOptions,
   ScreenshotOptions,
-} from './types';
-import { FrameSelectors } from './frameSelectors';
+} from './utilities/types';
+import { FrameSelectors } from './operations/frameSelectors';
 import {
   getByTestIdSelector,
   getByAltTextSelector,
@@ -25,7 +25,7 @@ import {
 import { LocatorOptions, Locator } from './locator';
 import { isString } from '@injected/isomorphic/stringUtils';
 import { ElementHandle } from './elementHandle';
-import { DEFAULT_RETRY_TIMEOUTS } from './constants';
+import { DEFAULT_RETRY_TIMEOUTS } from './utilities/constants';
 import {
   calculateCenterPosition,
   testIdAttributeName,
@@ -40,11 +40,11 @@ import {
   createBoundingBoxError,
   createFrameEnterSelector,
   createFrameNthSelector,
-} from './frameUtils';
-import { FileTransferPortController } from './fileTransferPortController';
+} from './utilities/frameUtils';
+import { FileTransferPortController } from './file-transfer/fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
-import { withAutoWait } from './autoWait';
-import { getNavigationTracker } from './navigationTracker';
+import { withAutoWait } from './navigation/autoWait';
+import { getNavigationTracker } from './navigation/navigationTracker';
 // #region Helper Functions
 
 /**

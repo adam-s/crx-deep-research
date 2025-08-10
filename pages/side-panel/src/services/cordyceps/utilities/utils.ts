@@ -1,4 +1,4 @@
-import { Progress, executeWithProgress } from './progress';
+import { Progress, executeWithProgress } from '../core/progress';
 import { ClickOptions } from './types';
 
 // #region Result Types and Error Handling
