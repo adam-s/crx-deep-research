@@ -38,6 +38,12 @@ import {
   createChainedSelector,
   createInternalChainSelector,
   createFrameLocatorSelector,
+  DEFAULT_LOCATOR_TIMEOUT,
+  resolveTimeout,
+  createLocatorElementNotFoundError,
+  createUnsupportedOperationError,
+  executeElementMethodWithProgress,
+  executeWithElementHandle,
 } from './locatorUtils';
 
 export type LocatorOptions = {
@@ -70,26 +76,11 @@ export class Locator {
     task: (handle: ElementHandle) => Promise<R>,
     options: { title: string; internal?: boolean; timeout?: number },
   ): Promise<R> {
-    return executeWithProgress(
-      async progress => {
-        // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
-        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
-          strict: true,
-          state: 'attached',
-        });
-
-        if (!handle) {
-          throw new Error(`Element not found for selector: ${this._selector}`);
-        }
-
-        try {
-          return await task(handle);
-        } finally {
-          handle.dispose();
-        }
-      },
-      { timeout: options.timeout },
-    );
+    return executeWithElementHandle(this._frame, this._selector, task, {
+      title: options.title,
+      timeout: options.timeout,
+      state: 'attached',
+    });
   }
 
   /**
@@ -99,28 +90,12 @@ export class Locator {
     methodName: keyof ElementHandle,
     ...args: unknown[]
   ): Promise<T> {
-    return executeWithProgress(
-      async progress => {
-        // Use 'attached' state instead of default 'visible' so we can operate on hidden elements
-        const handle = await this._frame.waitForSelector(progress, this._selector, false, {
-          strict: true,
-          state: 'attached',
-        });
-
-        if (!handle) {
-          throw new Error(`Element not found for selector: ${this._selector}`);
-        }
-
-        try {
-          const method = handle[methodName] as (...args: unknown[]) => Promise<T>;
-          const result = await method.apply(handle, args);
-
-          return result;
-        } finally {
-          handle.dispose();
-        }
-      },
-      { timeout: 30000 },
+    return executeElementMethodWithProgress<T>(
+      this._frame,
+      this._selector,
+      methodName as string,
+      args,
+      DEFAULT_LOCATOR_TIMEOUT,
     );
   }
 
@@ -150,14 +125,14 @@ export class Locator {
   async fill(value: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
     return await this._withElement(h => h.fill(value, options), {
       title: 'Fill',
-      timeout: options?.timeout || 30000,
+      timeout: resolveTimeout(options?.timeout),
     });
   }
 
   async clear(options?: { timeout?: number; force?: boolean }): Promise<void> {
     return await this._withElement(h => h.clear(options), {
       title: 'Clear',
-      timeout: options?.timeout || 30000,
+      timeout: resolveTimeout(options?.timeout),
     });
   }
 
@@ -192,7 +167,7 @@ export class Locator {
       async () => {
         await this._frame.context.highlight(this._selector);
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: resolveTimeout(options?.timeout) },
     );
   }
 
@@ -201,7 +176,7 @@ export class Locator {
       async () => {
         await this._frame.context.hideHighlight();
       },
-      { timeout: 30000 },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT },
     );
   }
 
@@ -296,7 +271,10 @@ export class Locator {
     // Note: Due to Chrome extension CSP restrictions, we cannot pass functions as arguments
     // This is a simplified implementation that works for basic use cases
     throw new Error(
-      'evaluateAll is not implemented due to Chrome extension function serialization restrictions. Use evaluate() instead for single elements.',
+      createUnsupportedOperationError(
+        'evaluateAll',
+        'Chrome extension function serialization restrictions. Use evaluate() instead for single elements.',
+      ),
     );
   }
 
@@ -307,7 +285,7 @@ export class Locator {
   ): Promise<ElementHandle | null> {
     return await this._withElement(h => h.evaluateHandle(pageFunction, arg, options), {
       title: 'EvaluateHandle',
-      timeout: options?.timeout || 30000,
+      timeout: resolveTimeout(options?.timeout),
     });
   }
 
@@ -373,11 +351,11 @@ export class Locator {
           ...options,
         });
         if (!handle) {
-          throw new Error(`Element not found for selector: ${this._selector}`);
+          throw new Error(createLocatorElementNotFoundError(this._selector));
         }
         return handle;
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: resolveTimeout(options?.timeout) },
     );
   }
 
@@ -392,7 +370,7 @@ export class Locator {
         );
         return handles || [];
       },
-      { timeout: 30000 },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT },
     );
   }
 
@@ -422,7 +400,7 @@ export class Locator {
 
         return texts;
       },
-      { timeout: 30000 },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT },
     );
   }
 
@@ -443,7 +421,7 @@ export class Locator {
 
         return texts;
       },
-      { timeout: 30000 },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT },
     );
   }
 
@@ -488,47 +466,41 @@ export class Locator {
 
   // #region Simple Element Operations for Locator
 
-  /**
-   * Get text content of the first matching element
-   */
+  // Text content getters
   async getTextContent(): Promise<string> {
     const result = await this._executeElementMethod<string>('getTextContent');
     return result;
   }
-
-  /**
-   * Get inner text of the first matching element
-   */
   async getInnerText(): Promise<string> {
     return this._executeElementMethod<string>('getInnerText');
   }
+  async innerHTML(): Promise<string> {
+    return this._executeElementMethod<string>('innerHTML');
+  }
+  async innerText(): Promise<string> {
+    return this._executeElementMethod<string>('innerText');
+  }
+  async textContent(): Promise<string> {
+    return this._executeElementMethod<string>('textContent');
+  }
+  async inputValue(): Promise<string> {
+    return this._executeElementMethod<string>('inputValue');
+  }
 
-  /**
-   * Get value of the first matching input element
-   */
+  // Form element getters/setters
   async getValue(): Promise<string> {
     return this._executeElementMethod<string>('getValue');
   }
-
-  /**
-   * Check if the first matching input element is checked
-   */
+  async setValue(value: string): Promise<void> {
+    return this._executeElementMethod<void>('setValue', value);
+  }
   async isChecked(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isChecked');
   }
 
-  /**
-   * Get tag name of the first matching element
-   */
+  // Element properties
   async getTagName(): Promise<string> {
     return this._executeElementMethod<string>('getTagName');
-  }
-
-  /**
-   * Set value of the first matching input element
-   */
-  async setValue(value: string): Promise<void> {
-    return this._executeElementMethod<void>('setValue', value);
   }
 
   /**
@@ -573,16 +545,10 @@ export class Locator {
     );
   }
 
-  /**
-   * Set text content of the first matching element
-   */
   async setTextContent(text: string): Promise<void> {
     return this._executeElementMethod<void>('setTextContent', text);
   }
 
-  /**
-   * Set checked state of the first matching input element by calling check() or uncheck()
-   */
   async setChecked(
     checked: boolean,
     options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
@@ -594,124 +560,49 @@ export class Locator {
     }
   }
 
-  /**
-   * Get attribute value of the first matching element
-   */
+  // Attribute methods
   async getAttribute(name: string): Promise<string | null> {
     return this._executeElementMethod<string | null>('getAttribute', name);
   }
-
-  /**
-   * Set attribute value of the first matching element
-   */
   async setAttribute(name: string, value: string): Promise<void> {
     return this._executeElementMethod<void>('setAttribute', name, value);
   }
-
-  /**
-   * Check if the first matching element has an attribute
-   */
   async hasAttribute(name: string): Promise<boolean> {
     return this._executeElementMethod<boolean>('hasAttribute', name);
   }
-
-  /**
-   * Check if the first matching element has a CSS class
-   */
   async hasClass(className: string): Promise<boolean> {
     return this._executeElementMethod<boolean>('hasClass', className);
   }
 
-  /**
-   * Check if the first matching element is visible
-   */
+  // Element state checks
   async isVisible(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isVisible');
   }
-
-  /**
-   * Check if the first matching element is hidden
-   */
   async isHidden(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isHidden');
   }
-
-  /**
-   * Check if the first matching element is enabled
-   */
   async isEnabled(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isEnabled');
   }
-
-  /**
-   * Check if the first matching element is disabled
-   */
   async isDisabled(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isDisabled');
   }
-
-  /**
-   * Check if the first matching element is editable
-   */
   async isEditable(): Promise<boolean> {
     return this._executeElementMethod<boolean>('isEditable');
   }
 
-  /**
-   * Focus the first matching element
-   */
+  // Interaction methods
   async focus(): Promise<void> {
     return this._executeElementMethod<void>('focus');
   }
-
-  /**
-   * Hover over the first matching element
-   */
   async hover(): Promise<void> {
     return this._executeElementMethod<void>('hover');
   }
-
-  /**
-   * Press a key on the first matching element
-   */
   async press(key: string, options: { delay?: number; timeout?: number } = {}): Promise<void> {
     return this._executeElementMethod<void>('press', key, options);
   }
-
-  /**
-   * Type text into the first matching element
-   */
   async type(text: string, options: { delay?: number; timeout?: number } = {}): Promise<void> {
     return this._executeElementMethod<void>('type', text, options);
-  }
-
-  /**
-   * Get the innerHTML of the first matching element
-   */
-  async innerHTML(): Promise<string> {
-    return this._executeElementMethod<string>('innerHTML');
-  }
-
-  /**
-   * Get the innerText of the first matching element
-   */
-  async innerText(): Promise<string> {
-    return this._executeElementMethod<string>('innerText');
-  }
-
-  /**
-   * Get the textContent of the first matching element
-   */
-  async textContent(): Promise<string> {
-    const result = await this._executeElementMethod<string>('textContent');
-    return result;
-  }
-
-  /**
-   * Get the input value of the first matching element
-   */
-  async inputValue(): Promise<string> {
-    return this._executeElementMethod<string>('inputValue');
   }
 
   /**
@@ -720,7 +611,7 @@ export class Locator {
    * @param options Configuration options for the ARIA snapshot
    * @param options.forAI Whether to optimize the snapshot for AI consumption (default: true)
    * @param options.refPrefix Prefix to use for element references in the snapshot (default: '')
-   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: DEFAULT_LOCATOR_TIMEOUT)
    * @returns A string representation of the ARIA accessibility tree for the element
    *
    * @example
@@ -740,7 +631,7 @@ export class Locator {
   }): Promise<string> {
     const forAI = options?.forAI ?? true;
     const refPrefix = options?.refPrefix ?? '';
-    const timeout = options?.timeout ?? 30000;
+    const timeout = resolveTimeout(options?.timeout);
 
     return executeWithProgress(
       async progress => {
@@ -749,7 +640,7 @@ export class Locator {
         });
 
         if (!handle) {
-          throw new Error(`Element not found for selector: ${this._selector}`);
+          throw new Error(createLocatorElementNotFoundError(this._selector));
         }
 
         try {
@@ -767,7 +658,7 @@ export class Locator {
    * This method scrolls the page to ensure the element is visible in the viewport.
    *
    * @param options Configuration options for the scroll operation
-   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: DEFAULT_LOCATOR_TIMEOUT)
    *
    * @example
    * ```typescript
@@ -776,7 +667,7 @@ export class Locator {
    * ```
    */
   async scrollIntoViewIfNeeded(options: TimeoutOptions = {}): Promise<void> {
-    const timeout = options?.timeout ?? 30000;
+    const timeout = resolveTimeout(options?.timeout);
 
     return executeWithProgress(
       async progress => {
@@ -785,7 +676,7 @@ export class Locator {
         });
 
         if (!handle) {
-          throw new Error(`Element not found for selector: ${this._selector}`);
+          throw new Error(createLocatorElementNotFoundError(this._selector));
         }
 
         try {
@@ -804,7 +695,7 @@ export class Locator {
    *
    * @param options Configuration options for the wait operation
    * @param options.state The state to wait for: 'attached', 'detached', 'visible', or 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait for the operation in milliseconds (default: DEFAULT_LOCATOR_TIMEOUT)
    *
    * @example
    * ```typescript
@@ -829,7 +720,7 @@ export class Locator {
   waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void>;
   async waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void> {
     const state = options?.state ?? 'visible';
-    const timeout = options?.timeout ?? 30000;
+    const timeout = resolveTimeout(options?.timeout);
 
     return executeWithProgress(
       async progress => {
