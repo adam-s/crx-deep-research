@@ -22,9 +22,9 @@ import {
   getContentFrameId,
   createPageSnapshotForAI,
   isJavaScriptErrorInEvaluate,
-  convertBrowserBufferToNodeBuffer,
   validateScreenshotFormat,
 } from './pageUtils';
+import { convertBrowserBufferToNodeBuffer } from './bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './screenshotter';
 import { getNavigationTracker } from './navigationTracker';

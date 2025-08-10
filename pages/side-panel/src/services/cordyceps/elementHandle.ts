@@ -12,6 +12,7 @@ import {
 } from './types';
 import { Progress, executeWithProgress } from './progress';
 import { Frame } from './frame';
+import { convertToNodeBuffer } from './bufferUtils';
 import {
   throwRetargetableDOMError,
   throwElementIsNotAttached,
@@ -36,7 +37,6 @@ import {
   isResultDisconnected,
   createDelayPromise,
   requiresEnhancedInteraction,
-  convertToNodeBuffer,
   createCheckboxStateError,
 } from './elementHandleUtils';
 

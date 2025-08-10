@@ -15,6 +15,7 @@
  * - Snapshot line formatting and processing
  */
 
+import { DEFAULTS } from './constants';
 import type { Frame } from './frame';
 import type { Progress } from './progress';
 import type { FrameManager } from './frameManager';
@@ -72,39 +73,6 @@ export function isJavaScriptErrorInEvaluate(error: unknown): boolean {
 }
 
 /**
- * Check if a buffer-like object is a BrowserBuffer that needs conversion
- * Pure function for buffer type checking and compatibility
- *
- * @param bufferLike The object to check
- * @returns True if the object appears to be a convertible buffer
- */
-export function isBrowserBuffer(bufferLike: unknown): bufferLike is {
-  length: number;
-  toString: (encoding: string) => string;
-} {
-  return !!(
-    bufferLike &&
-    typeof (bufferLike as { length?: unknown }).length === 'number' &&
-    typeof (bufferLike as { toString?: unknown }).toString === 'function'
-  );
-}
-
-/**
- * Convert a browser buffer to Node.js Buffer for compatibility
- * Pure function for buffer conversion
- *
- * @param bufferLike The browser buffer to convert
- * @returns Node.js Buffer or the original object if not convertible
- */
-export function convertBrowserBufferToNodeBuffer(bufferLike: unknown): Buffer {
-  if (isBrowserBuffer(bufferLike)) {
-    const base64 = bufferLike.toString('base64');
-    return Buffer.from(base64, 'base64');
-  }
-  return bufferLike as unknown as Buffer;
-}
-
-/**
  * Validate that only PNG screenshots are supported
  * Pure function for screenshot format validation
  *
@@ -113,8 +81,8 @@ export function convertBrowserBufferToNodeBuffer(bufferLike: unknown): Buffer {
  * @throws Error if format is not supported
  */
 export function validateScreenshotFormat(format: string): boolean {
-  if (format !== 'png') {
-    throw new Error('Only PNG screenshots are supported');
+  if (format !== DEFAULTS.SCREENSHOT_FORMAT) {
+    throw new Error(`Only ${DEFAULTS.SCREENSHOT_FORMAT.toUpperCase()} screenshots are supported`);
   }
   return true;
 }

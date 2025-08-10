@@ -1,3 +1,4 @@
+import { TIMEOUTS } from './constants';
 import { Progress, executeWithProgress } from './progress';
 import { OperationResult, STANDARD_TIMEOUT } from './utils';
 import { Frame } from './frame';
@@ -164,7 +165,7 @@ export function joinSelectors(baseSelector: string, ...additionalSelectors: stri
 /**
  * Default timeout for locator operations in milliseconds
  */
-export const DEFAULT_LOCATOR_TIMEOUT = 30000;
+export const DEFAULT_LOCATOR_TIMEOUT = TIMEOUTS.DEFAULT_OPERATION;
 
 /**
  * Resolves timeout value with fallback to default
@@ -213,7 +214,10 @@ export function createUnsupportedOperationError(operation: string, reason: strin
  * @param maxTimeout Maximum allowed timeout (default: 5 minutes)
  * @returns True if valid, throws if invalid
  */
-export function validateTimeout(timeout?: number, maxTimeout: number = 300000): boolean {
+export function validateTimeout(
+  timeout?: number,
+  maxTimeout: number = TIMEOUTS.MAX_TIMEOUT,
+): boolean {
   if (timeout !== undefined && (timeout < 0 || timeout > maxTimeout)) {
     throw new Error(`Timeout must be between 0 and ${maxTimeout}ms, got ${timeout}ms`);
   }

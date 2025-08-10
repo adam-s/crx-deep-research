@@ -1,3 +1,5 @@
+import { DEFAULTS } from './constants';
+
 // #region Type Definitions
 
 export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion'; // extensionTypes.DocumentLifecycle
@@ -326,12 +328,6 @@ export function describeBoundingBox(boundingBox: BoundingBox): string {
 // #region Frame Constants and Pure Functions
 
 /**
- * Default timeout values for retry operations in milliseconds
- * Used by Frame._retryWithProgressAndTimeouts method
- */
-export const DEFAULT_RETRY_TIMEOUTS = [0, 20, 50, 100, 100, 500];
-
-/**
  * Validates if a wait state is supported
  * @param state The state to validate
  * @returns True if the state is valid
@@ -469,7 +465,7 @@ export function createFrameNthSelector(frameSelector: string, index: number): st
 
 // #region Test ID Management
 
-let _testIdAttributeName: string = 'data-testid';
+let _testIdAttributeName: string = DEFAULTS.TEST_ID_ATTRIBUTE;
 
 /**
  * Get the current test ID attribute name

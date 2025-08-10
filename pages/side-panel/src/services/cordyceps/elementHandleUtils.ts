@@ -111,24 +111,11 @@ export function requiresEnhancedInteraction(options?: {
 }
 
 /**
- * Convert buffer-like objects to Node.js Buffer (from pageUtils pattern)
- * Pure function for buffer conversion
+ * Create error message for checkbox state validation failure
+ * Pure function for checkbox-specific error handling
  *
- * @param bufferLike The buffer-like object to convert
- * @returns Node.js Buffer
+ * @returns Formatted error message for checkbox state issues
  */
-export function convertToNodeBuffer(bufferLike: unknown): Buffer {
-  if (
-    bufferLike &&
-    typeof (bufferLike as { length?: unknown }).length === 'number' &&
-    typeof (bufferLike as { toString?: unknown }).toString === 'function'
-  ) {
-    const base64 = (bufferLike as { toString: (encoding: string) => string }).toString('base64');
-    return Buffer.from(base64, 'base64');
-  }
-  return bufferLike as unknown as Buffer;
-}
-
 /**
  * Create error message for checkbox state validation failure
  * Pure function for checkbox-specific error handling

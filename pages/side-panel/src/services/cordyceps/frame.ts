@@ -25,11 +25,11 @@ import {
 import { LocatorOptions, Locator } from './locator';
 import { isString } from '@injected/isomorphic/stringUtils';
 import { ElementHandle } from './elementHandle';
+import { DEFAULT_RETRY_TIMEOUTS } from './constants';
 import {
   calculateCenterPosition,
   testIdAttributeName,
   createDragAndDropScript,
-  DEFAULT_RETRY_TIMEOUTS,
   validateWaitState,
   isNonRetriableError,
   doesStateMatch,
@@ -179,7 +179,7 @@ export class Frame extends Disposable {
 
   public async _retryWithProgressAndTimeouts<R>(
     progress: Progress,
-    timeouts: number[] = DEFAULT_RETRY_TIMEOUTS,
+    timeouts: readonly number[] = DEFAULT_RETRY_TIMEOUTS,
     action: (continuePolling: symbol) => Promise<R | symbol>,
   ): Promise<R> {
     const continuePolling = Symbol('continuePolling');
