@@ -1,9 +1,10 @@
 /**
  * TypeScript implementation of browser-use controller views
  */
+import { ActionModel } from './registry/views';
 
 // Action Input Models
-export class SearchGoogleAction {
+export class SearchGoogleAction extends ActionModel {
   query: string = '';
 
   static schema() {
@@ -15,7 +16,7 @@ export class SearchGoogleAction {
   }
 }
 
-export class GoToUrlAction {
+export class GoToUrlAction extends ActionModel {
   url: string = '';
 
   static schema() {
@@ -27,7 +28,7 @@ export class GoToUrlAction {
   }
 }
 
-export class ClickElementAction {
+export class ClickElementAction extends ActionModel {
   index: number = 0;
   xpath?: string;
 
@@ -41,7 +42,7 @@ export class ClickElementAction {
   }
 }
 
-export class InputTextAction {
+export class InputTextAction extends ActionModel {
   index: number = 0;
   text: string = '';
   xpath?: string;
@@ -64,13 +65,14 @@ export class InputTextAction {
 // In Python: class DoneAction(BaseModel):
 //   text: str
 //   success: bool
-export class DoneAction {
+export class DoneAction extends ActionModel {
   text: string;
   success: boolean;
 
-  constructor(params: { text: string; success: boolean }) {
-    this.text = params.text;
-    this.success = params.success;
+  constructor(params?: { text: string; success: boolean }) {
+    super();
+    this.text = params?.text || '';
+    this.success = params?.success || false;
   }
 
   static schema() {
@@ -83,7 +85,7 @@ export class DoneAction {
   }
 }
 
-export class SwitchTabAction {
+export class SwitchTabAction extends ActionModel {
   pageId: number = 0;
 
   static schema() {
@@ -95,7 +97,7 @@ export class SwitchTabAction {
   }
 }
 
-export class OpenTabAction {
+export class OpenTabAction extends ActionModel {
   url: string = '';
 
   static schema() {
@@ -107,7 +109,7 @@ export class OpenTabAction {
   }
 }
 
-export class ScrollAction {
+export class ScrollAction extends ActionModel {
   amount?: number;
 
   static schema() {
@@ -119,7 +121,7 @@ export class ScrollAction {
   }
 }
 
-export class SendKeysAction {
+export class SendKeysAction extends ActionModel {
   keys: string = '';
 
   static schema() {
@@ -131,7 +133,7 @@ export class SendKeysAction {
   }
 }
 
-export class ExtractPageContentAction {
+export class ExtractPageContentAction extends ActionModel {
   value: string = '';
 
   static schema() {
@@ -147,8 +149,9 @@ export class ExtractPageContentAction {
  * Accepts absolutely anything in the incoming data
  * and discards it, so the final parsed model is empty.
  */
-export class NoParamsAction {
-  constructor(_?: any) {
+export class NoParamsAction extends ActionModel {
+  constructor() {
+    super();
     // Ignore all inputs
     // This is equivalent to Python's @model_validator(mode='before')
     // def ignore_all_inputs(cls, values):
@@ -166,7 +169,7 @@ export class NoParamsAction {
 /**
  * Action to select an option from a dropdown by text
  */
-export class SelectDropdownOptionAction {
+export class SelectDropdownOptionAction extends ActionModel {
   index: number = 0;
   text: string = '';
 
@@ -183,7 +186,7 @@ export class SelectDropdownOptionAction {
 /**
  * Action to wait for a specified number of seconds
  */
-export class WaitAction {
+export class WaitAction extends ActionModel {
   seconds: number = 3;
 
   static schema() {
@@ -198,7 +201,7 @@ export class WaitAction {
 /**
  * Action to scroll to text on the page
  */
-export class ScrollToTextAction {
+export class ScrollToTextAction extends ActionModel {
   text: string = '';
 
   static schema() {
@@ -213,7 +216,7 @@ export class ScrollToTextAction {
 /**
  * Action to get dropdown options
  */
-export class GetDropdownOptionsAction {
+export class GetDropdownOptionsAction extends ActionModel {
   index: number = 0;
 
   static schema() {

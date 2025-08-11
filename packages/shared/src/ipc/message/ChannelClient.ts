@@ -46,7 +46,7 @@ type IRawPromiseRequest = {
   id: number;
   channelName: string;
   name: string;
-  arg: any;
+  arg: unknown;
 };
 type IRawRequest =
   | IRawPromiseRequest
@@ -56,7 +56,7 @@ type IRawRequest =
       id: number;
       channelName: string;
       name: string;
-      arg: any;
+      arg: unknown;
     }
   | { type: RequestType.EventDispose; id: number };
 
@@ -85,7 +85,7 @@ export function responseTypeToStr(type: ResponseType): string {
 type IRawPromiseSuccessResponse = {
   type: ResponseType.PromiseSuccess;
   id: number;
-  data: any;
+  data: unknown;
 };
 type IRawPromiseErrorResponse = {
   type: ResponseType.PromiseError;
@@ -95,12 +95,12 @@ type IRawPromiseErrorResponse = {
 type IRawPromiseErrorObjResponse = {
   type: ResponseType.PromiseErrorObj;
   id: number;
-  data: any;
+  data: unknown;
 };
 type IRawEventFireResponse = {
   type: ResponseType.EventFire;
   id: number;
-  data: any;
+  data: unknown;
 };
 type IRawResponse =
   | { type: ResponseType.Initialize }
@@ -120,7 +120,7 @@ enum State {
 
 interface PendingRequest {
   request: IRawPromiseRequest | IRawEventListenRequest;
-  timeoutTimer: any;
+  timeoutTimer: NodeJS.Timeout | number;
 }
 
 /**
@@ -130,8 +130,8 @@ interface PendingRequest {
  * with at most one single return value.
  */
 export interface IChannel {
-  call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T>;
-  listen<T>(event: string, arg?: any): Event<T>;
+  call<T>(command: string, arg?: unknown, cancellationToken?: CancellationToken): Promise<T>;
+  listen<T>(event: string, arg?: unknown): Event<T>;
 }
 
 /**
@@ -143,10 +143,10 @@ export interface IServerChannel<TContext = string> {
   call<T>(
     ctx: TContext,
     command: string,
-    arg?: any,
+    arg?: unknown,
     cancellationToken?: CancellationToken,
   ): Promise<T>;
-  listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
+  listen<T>(ctx: TContext, event: string, arg?: unknown): Event<T>;
 }
 
 /**
@@ -179,7 +179,7 @@ type IRawEventListenRequest = {
   id: number;
   channelName: string;
   name: string;
-  arg: any;
+  arg: unknown;
 };
 
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
@@ -237,7 +237,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
     }
   }
 
-  private send(header: any, body: any = undefined): number {
+  private send(header: unknown, body: unknown = undefined): number {
     const writer = new BufferWriter();
     serialize(writer, header);
     serialize(writer, body);
@@ -461,7 +461,7 @@ class ChannelDebugger {
   logEvent(
     channelName: string,
     eventName: string,
-    data: any,
+    data: unknown,
     phase: 'raw' | 'processed' = 'processed',
   ) {
     if (!this.options.enabled || !this.options.logEvents) return;

@@ -169,13 +169,17 @@ export class SidePanelApp extends Disposable {
   }
 
   private _registerListeners(): void {
+    interface ChromeMessage {
+      type: string;
+      windowId?: number;
+      [key: string]: unknown;
+    }
+
     document.addEventListener('visibilitychange', () => {
       const listener = (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        message: any,
+        message: ChromeMessage,
         _: chrome.runtime.MessageSender,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        sendResponse: (response?: any) => void,
+        sendResponse: (response?: unknown) => void,
       ) => {
         if (message.type === `crx-deep-research:sidePanelVisibilityChangeTest:${this.windowId}`) {
           setTimeout(() => {

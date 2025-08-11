@@ -31,6 +31,12 @@ export interface IBrowserUsePlaygroundService {
   saveConversation: (title?: string) => Promise<string>;
   /** Run simple conversation service tests */
   testConversationService: () => Promise<void>;
+  /** Run browser-use context tests */
+  runContextTests: () => Promise<void>;
+  /** Run quick context test */
+  runQuickContextTest: () => Promise<boolean>;
+  /** Run _waitForStableNetwork functionality tests */
+  runWaitForStableNetworkTests: () => Promise<void>;
 }
 
 export class BrowserUsePlaygroundService
@@ -64,6 +70,12 @@ export class BrowserUsePlaygroundService
     try {
       // First, run conversation service tests
       await this.testConversationService();
+
+      // Run browser-use context tests
+      await this.runContextTests();
+
+      // Run _waitForStableNetwork functionality tests
+      await this.runWaitForStableNetworkTests();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -393,6 +405,119 @@ export class BrowserUsePlaygroundService
         timestamp: Date.now(),
         severity: Severity.Error,
         message: 'Conversation service tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runContextTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting browser-use context tests',
+    });
+
+    try {
+      // Import the context test functions dynamically
+      const { runBrowserUseContextTests } = await import('./browserUseContextTests');
+      const { runBrowserContextMethodTests, TestProgress } = await import(
+        './browserContextMethodTests'
+      );
+
+      // Run the comprehensive context tests
+      await runBrowserUseContextTests(this);
+
+      // Run the specific method tests
+      const methodTestProgress = new TestProgress('Browser Context Method Tests');
+      await runBrowserContextMethodTests(methodTestProgress, this);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 All browser-use context tests passed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Browser-use context tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickContextTest(): Promise<boolean> {
+    try {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Starting quick browser-use context test',
+      });
+
+      // Import the quick test function dynamically
+      const { quickBrowserUseContextTest } = await import('./browserUseContextTests');
+
+      // Run the quick context test
+      const result = await quickBrowserUseContextTest();
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick context test passed successfully!',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick context test completed but returned false',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick context test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  public async runWaitForStableNetworkTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForStableNetwork functionality tests',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runAllWaitForStableNetworkTests } = await import('./waitForStableNetworkTest');
+
+      // Create test context compatible with the test requirements
+      const testContext = {
+        events: this.events,
+        browserUseService: this,
+      };
+
+      // Run the comprehensive _waitForStableNetwork tests
+      await runAllWaitForStableNetworkTests(testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 All _waitForStableNetwork tests passed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '_waitForStableNetwork tests failed',
         error: error instanceof Error ? error : new Error(String(error)),
       });
       throw error;

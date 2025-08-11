@@ -39,7 +39,33 @@ export async function runExternalTests(service: BrowserUsePlaygroundService): Pr
   }
 }
 
-// Example 3: Manual testing with error handling
+// Example 4: Run browser-use context tests
+export async function runContextTests(service: BrowserUsePlaygroundService): Promise<void> {
+  console.log('🧪 Running browser-use context tests...');
+
+  try {
+    await service.runContextTests();
+    console.log('✅ Context tests completed successfully!');
+  } catch (error) {
+    console.error('❌ Context tests failed:', error);
+  }
+}
+
+// Example 5: Run quick context test
+export async function runQuickContextTest(service: BrowserUsePlaygroundService): Promise<void> {
+  console.log('⚡ Running quick context test...');
+
+  try {
+    const result = await service.runQuickContextTest();
+    if (result) {
+      console.log('✅ Quick context test passed!');
+    } else {
+      console.log('❌ Quick context test failed!');
+    }
+  } catch (error) {
+    console.error('❌ Quick context test failed:', error);
+  }
+}
 export async function runManualTests(service: BrowserUsePlaygroundService): Promise<void> {
   console.log('🔧 Running manual conversation tests...');
 
