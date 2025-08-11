@@ -598,4 +598,26 @@ export class BrowserContext {
       return false;
     }
   }
+
+  /**
+   * @TODO change after public methods use
+   *
+   * Handle disallowed navigation - throw error or navigate to a safe URL
+   */
+  async _handleDisallowedNavigation(url: string): Promise<void> {
+    console.error(`Disallowed URL: ${url}`);
+
+    // Navigate to a blank page if the current URL is not allowed
+    try {
+      const page = await this.getCurrentPage();
+      await page.goto('about:blank');
+      console.log('Successfully navigated to about:blank for security');
+    } catch (error) {
+      console.warn('Failed to navigate to about:blank, but continuing with error:', error);
+      // Continue anyway - the important part is throwing the error
+    }
+
+    // Throw error to notify the calling code
+    throw new Error(`URL not allowed: ${url}`);
+  }
 }

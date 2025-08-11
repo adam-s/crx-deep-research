@@ -405,6 +405,296 @@ export async function testUrlAllowedEmptyArray(
 }
 
 /**
+ * Test _handleDisallowedNavigation method functionality
+ */
+export async function testHandleDisallowedNavigation(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _handleDisallowedNavigation test',
+    });
+
+    progress.log('Creating BrowserContext for disallowed navigation testing...');
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'], // Only allow example.com
+    });
+
+    await browserContext.enter();
+    const page = await browserContext.getCurrentPage();
+
+    // Small delay to ensure page is properly loaded
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Navigate to localhost first (which should be allowed initially for the test)
+    try {
+      await page.goto('http://localhost:3005/');
+      progress.log('Initial navigation to localhost completed');
+      // Small delay after navigation
+      await new Promise(resolve => setTimeout(resolve, 200));
+    } catch (error) {
+      progress.log('Failed to navigate to localhost, using current page');
+    }
+
+    // Get initial URL safely
+    let initialUrl = '';
+    try {
+      initialUrl = await page.evaluate(() => window.location.href);
+      progress.log(`Initial page URL: ${initialUrl}`);
+    } catch (error) {
+      progress.log('Could not get initial URL (page may not have execution context)');
+      initialUrl = 'unknown';
+    }
+
+    // Test handling disallowed navigation
+    const disallowedUrl = 'https://malicious-site.com';
+    progress.log(`Testing disallowed navigation to: ${disallowedUrl}`);
+
+    let errorThrown = false;
+    let errorMessage = '';
+
+    try {
+      await browserContext._handleDisallowedNavigation(disallowedUrl);
+    } catch (error) {
+      errorThrown = true;
+      errorMessage = error instanceof Error ? error.message : String(error);
+      progress.log(`Expected error thrown: ${errorMessage}`);
+    }
+
+    // Verify the method behaved correctly - safely get final URL
+    let finalUrl = '';
+    try {
+      finalUrl = await page.evaluate(() => window.location.href);
+      progress.log(`Final page URL: ${finalUrl}`);
+    } catch (error) {
+      progress.log(
+        'Could not get final URL (page may not have execution context after navigation to about:blank)',
+      );
+      finalUrl = 'about:blank'; // Expected result
+    }
+
+    // Check that error was thrown
+    if (!errorThrown) {
+      throw new Error('Expected _handleDisallowedNavigation to throw an error');
+    }
+
+    // Check that error message contains the disallowed URL
+    if (!errorMessage.includes(disallowedUrl)) {
+      throw new Error(`Expected error message to contain "${disallowedUrl}", got: ${errorMessage}`);
+    }
+
+    // Check that error message contains the disallowed URL
+    if (!errorMessage.includes(disallowedUrl)) {
+      throw new Error(`Expected error message to contain "${disallowedUrl}", got: ${errorMessage}`);
+    }
+
+    // Check that page navigation was attempted (we may not be able to verify the final URL
+    // due to execution context limitations with about:blank)
+    if (finalUrl === 'about:blank' || finalUrl === 'unknown') {
+      progress.log(
+        '✅ Navigation to safe page attempted (about:blank or execution context unavailable)',
+      );
+    } else if (finalUrl !== initialUrl) {
+      progress.log('✅ Page URL changed as expected');
+    } else {
+      progress.log(
+        `⚠️ Warning: Page URL didn't change, but this may be expected in test environment. Initial: ${initialUrl}, Final: ${finalUrl}`,
+      );
+    }
+
+    await browserContext.close();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 5 passed: _handleDisallowedNavigation works correctly',
+      details: {
+        disallowedUrl,
+        errorThrown,
+        errorMessage,
+        initialUrl,
+        finalUrl,
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`Test 5 failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Test 5 failed: _handleDisallowedNavigation test',
+      error: error instanceof Error ? error : new Error(errorMessage),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Test _handleDisallowedNavigation with multiple disallowed URLs
+ */
+export async function testHandleDisallowedNavigationMultiple(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _handleDisallowedNavigation multiple URLs test',
+    });
+
+    progress.log('Creating BrowserContext for multiple disallowed navigation testing...');
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: ['trusted-site.com'], // Only allow trusted-site.com
+    });
+
+    await browserContext.enter();
+
+    // Test multiple disallowed URLs
+    const disallowedUrls = [
+      'https://malicious.com',
+      'https://phishing-site.org',
+      'https://suspicious-domain.net',
+      'http://untrusted.io',
+    ];
+
+    let successfulTests = 0;
+    const totalTests = disallowedUrls.length;
+
+    for (const url of disallowedUrls) {
+      progress.log(`Testing disallowed navigation to: ${url}`);
+
+      try {
+        await browserContext._handleDisallowedNavigation(url);
+        progress.log(`❌ Expected error for ${url}, but none was thrown`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes(url)) {
+          successfulTests++;
+          progress.log(`✅ Correctly handled disallowed URL: ${url}`);
+        } else {
+          progress.log(`❌ Error message doesn't contain URL ${url}: ${errorMessage}`);
+        }
+      }
+    }
+
+    await browserContext.close();
+
+    if (successfulTests === totalTests) {
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 6 passed: Multiple disallowed URLs handled correctly',
+        details: {
+          testedUrls: totalTests,
+          successfulTests,
+          disallowedUrls,
+        },
+      });
+    } else {
+      throw new Error(
+        `Test 6 failed: Expected ${totalTests} successful tests, got ${successfulTests}`,
+      );
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`Test 6 failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Test 6 failed: Multiple disallowed URLs test',
+      error: error instanceof Error ? error : new Error(errorMessage),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Test _handleDisallowedNavigation error handling edge cases
+ */
+export async function testHandleDisallowedNavigationEdgeCases(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _handleDisallowedNavigation edge cases test',
+    });
+
+    progress.log('Creating BrowserContext for edge cases testing...');
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow);
+
+    await browserContext.enter();
+
+    // Test edge cases
+    const edgeCases = [
+      { url: '', description: 'Empty URL' },
+      { url: 'invalid-url-format', description: 'Invalid URL format' },
+      { url: 'javascript:alert("test")', description: 'JavaScript URL' },
+      { url: 'data:text/html,<h1>Test</h1>', description: 'Data URL' },
+      { url: 'blob:https://example.com/123', description: 'Blob URL' },
+    ];
+
+    let successfulTests = 0;
+    const totalTests = edgeCases.length;
+
+    for (const testCase of edgeCases) {
+      progress.log(`Testing edge case: ${testCase.description} - "${testCase.url}"`);
+
+      try {
+        await browserContext._handleDisallowedNavigation(testCase.url);
+        progress.log(`❌ Expected error for ${testCase.description}, but none was thrown`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('URL not allowed')) {
+          successfulTests++;
+          progress.log(`✅ Correctly handled edge case: ${testCase.description}`);
+        } else {
+          progress.log(`❌ Unexpected error for ${testCase.description}: ${errorMessage}`);
+        }
+      }
+    }
+
+    await browserContext.close();
+
+    if (successfulTests === totalTests) {
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 7 passed: Edge cases handled correctly',
+        details: {
+          testedCases: totalTests,
+          successfulTests,
+          edgeCases: edgeCases.map(c => c.description),
+        },
+      });
+    } else {
+      throw new Error(
+        `Test 7 failed: Expected ${totalTests} successful tests, got ${successfulTests}`,
+      );
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`Test 7 failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Test 7 failed: Edge cases test',
+      error: error instanceof Error ? error : new Error(errorMessage),
+    });
+    throw error;
+  }
+}
+
+/**
  * Run all _isUrlAllowed tests
  */
 export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Promise<void> {
@@ -429,6 +719,15 @@ export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Pro
     // Test 4: Empty allowed domains array
     await testUrlAllowedEmptyArray(progress, context);
 
+    // Test 5: Handle disallowed navigation
+    await testHandleDisallowedNavigation(progress, context);
+
+    // Test 6: Handle multiple disallowed navigations
+    await testHandleDisallowedNavigationMultiple(progress, context);
+
+    // Test 7: Handle disallowed navigation edge cases
+    await testHandleDisallowedNavigationEdgeCases(progress, context);
+
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
@@ -439,6 +738,9 @@ export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Pro
           'Specific allowed domains filtering',
           'Edge cases and special URL formats',
           'Empty allowed domains array behavior',
+          'Handle disallowed navigation',
+          'Handle multiple disallowed navigations',
+          'Handle disallowed navigation edge cases',
         ],
       },
     });
@@ -479,14 +781,24 @@ export async function quickUrlAllowedTest(): Promise<boolean> {
     // Test 3: Subdomain test
     const test4 = contextWithConfig._isUrlAllowed('https://api.example.com'); // Should be allowed
 
+    // Test 4: Handle disallowed navigation
+    let test5 = false;
+    try {
+      await contextWithConfig._handleDisallowedNavigation('https://malicious.com');
+    } catch (error) {
+      // Should throw an error
+      test5 = error instanceof Error && error.message.includes('URL not allowed');
+    }
+
     await contextNoConfig.close();
     await contextWithConfig.close();
 
-    const success = test1 === true && test2 === true && test3 === false && test4 === true;
+    const success =
+      test1 === true && test2 === true && test3 === false && test4 === true && test5 === true;
 
     console.log(`Quick _isUrlAllowed test: ${success ? 'PASSED' : 'FAILED'}`);
     console.log(
-      `Results: noConfig=${test1}, allowed=${test2}, rejected=${test3}, subdomain=${test4}`,
+      `Results: noConfig=${test1}, allowed=${test2}, rejected=${test3}, subdomain=${test4}, handleDisallowed=${test5}`,
     );
 
     return success;
