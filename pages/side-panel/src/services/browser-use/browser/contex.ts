@@ -15,6 +15,7 @@ interface ElementForSelector {
 interface BrowserContextConfig {
   maximumWaitPageLoadTime?: number; // seconds
   waitForNetworkIdlePageLoadTime?: number; // seconds
+  allowedDomains?: string[]; // Optional list of allowed domains for URL filtering
 }
 
 /**
@@ -349,6 +350,12 @@ export class BrowserContext {
       // Don't throw here - we want cleanup to complete even if there are errors
     }
   }
+  /**
+   * Check if the browser context is active
+   */
+  isActive(): boolean {
+    return this.session.state === BrowserContextState.ACTIVE;
+  }
 
   /**
    * @TODO change after public methods use
@@ -555,6 +562,40 @@ export class BrowserContext {
       requestDisposable.dispose();
       responseDisposable.dispose();
       throw e;
+    }
+  }
+
+  /**
+   * @TODO change after public methods use
+   *
+   * Check if a URL is allowed based on the allowed domains configuration
+   * Matches the Python implementation's _is_url_allowed method
+   */
+  _isUrlAllowed(url: string): boolean {
+    if (!this.config.allowedDomains || this.config.allowedDomains.length === 0) {
+      return true;
+    }
+
+    try {
+      // Parse the URL to extract the domain
+      const urlObj = new URL(url);
+      let domain = urlObj.hostname.toLowerCase();
+
+      // Remove port number if present
+      if (domain.includes(':')) {
+        const parts = domain.split(':');
+        domain = parts[0] || '';
+      }
+
+      // Check if domain matches any allowed domain pattern
+      return this.config.allowedDomains.some(
+        allowedDomain =>
+          domain === allowedDomain.toLowerCase() ||
+          domain.endsWith('.' + allowedDomain.toLowerCase()),
+      );
+    } catch (e: unknown) {
+      console.error('Error checking URL allowlist:', e);
+      return false;
     }
   }
 }

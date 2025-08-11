@@ -37,6 +37,10 @@ export interface IBrowserUsePlaygroundService {
   runQuickContextTest: () => Promise<boolean>;
   /** Run _waitForStableNetwork functionality tests */
   runWaitForStableNetworkTests: () => Promise<void>;
+  /** Run _isUrlAllowed functionality tests */
+  runUrlAllowedTests: () => Promise<void>;
+  /** Run quick URL allowed test */
+  runQuickUrlAllowedTest: () => Promise<boolean>;
 }
 
 export class BrowserUsePlaygroundService
@@ -76,6 +80,9 @@ export class BrowserUsePlaygroundService
 
       // Run _waitForStableNetwork functionality tests
       await this.runWaitForStableNetworkTests();
+
+      // Run _isUrlAllowed functionality tests
+      await this.runUrlAllowedTests();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -521,6 +528,82 @@ export class BrowserUsePlaygroundService
         error: error instanceof Error ? error : new Error(String(error)),
       });
       throw error;
+    }
+  }
+
+  public async runUrlAllowedTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _isUrlAllowed functionality tests',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runAllUrlAllowedTests } = await import('./urlAllowedTest');
+
+      // Create test context compatible with the test requirements
+      const testContext = {
+        events: this.events,
+        browserUseService: this,
+      };
+
+      // Run the comprehensive _isUrlAllowed tests
+      await runAllUrlAllowedTests(testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 All _isUrlAllowed tests passed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '_isUrlAllowed tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickUrlAllowedTest(): Promise<boolean> {
+    try {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Starting quick _isUrlAllowed test',
+      });
+
+      // Import the quick test function dynamically
+      const { quickUrlAllowedTest } = await import('./urlAllowedTest');
+
+      // Run the quick URL allowed test
+      const result = await quickUrlAllowedTest();
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick URL allowed test passed successfully!',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick URL allowed test completed but returned false',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick URL allowed test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
     }
   }
 }
