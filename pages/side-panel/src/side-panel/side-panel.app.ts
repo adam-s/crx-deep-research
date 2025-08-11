@@ -14,6 +14,12 @@ import {
   ILocalAsyncStorage,
   LocalAsyncStorageService,
 } from '@crx-deep-research/shared/src/storage/localAsyncStorage/localAsyncStorage.service';
+import {
+  IConversationService,
+  ConversationService,
+} from '@shared/features/conversation/conversation.service';
+import { ConversationDataAccessObject } from '@shared/features/conversation/ConversationDataAccessObject';
+import { createAppDatabase } from '@shared/storage/dexie/createAppDatabase';
 
 import { renderSidePanel } from '@src/side-panel/index';
 
@@ -31,6 +37,10 @@ import {
   CordycepsPlaygroundService,
   ICordycepsPlaygroundService,
 } from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
+import {
+  BrowserUsePlaygroundService,
+  IBrowserUsePlaygroundService,
+} from '@src/services/browser-use/playground/browserUsePlaygroundService';
 
 export interface ISidePanelConfiguration {}
 
@@ -77,6 +87,9 @@ export class SidePanelApp extends Disposable {
       serviceCollection.set(id, descriptor);
     }
 
+    // Register the database
+    const db = createAppDatabase([ConversationDataAccessObject.plugin]);
+
     // Register ILogService
     const logService = instantiationService.createInstance(LogService);
     serviceCollection.set(ILogService, logService);
@@ -87,6 +100,11 @@ export class SidePanelApp extends Disposable {
     );
     serviceCollection.set(ILocalAsyncStorage, localAsyncStorageService);
     await localAsyncStorageService.start();
+
+    // Register ConversationDataAccessObject and ConversationService
+    const conversationDAO = new ConversationDataAccessObject(db);
+    const conversationService = new ConversationService(logService, conversationDAO);
+    serviceCollection.set(IConversationService, conversationService);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const messageClient = new MessageClient( // Message Client
@@ -127,6 +145,11 @@ export class SidePanelApp extends Disposable {
       instantiationService.createInstance(CordycepsPlaygroundService),
     );
     serviceCollection.set(ICordycepsPlaygroundService, cordycepsPlaygroundService);
+
+    const browserUsePlaygroundService = this._register(
+      instantiationService.createInstance(BrowserUsePlaygroundService),
+    );
+    serviceCollection.set(IBrowserUsePlaygroundService, browserUsePlaygroundService);
 
     return instantiationService;
   }

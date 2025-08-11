@@ -1,6 +1,7 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
 import { BrowserUseTestRunner } from '../components/BrowserUseTestRunner';
+import { BrowserUseConsole } from '../components/BrowserUseConsole';
 
 // Define breakpoints (consider moving to a shared constants file)
 const BREAKPOINTS = {
@@ -34,6 +35,15 @@ const useStyles = makeStyles({
       gridRow: '1',
     },
   },
+  console: {
+    gridColumn: '1',
+    gridRow: '2',
+    minHeight: 0,
+    [`@media (min-width: ${BREAKPOINTS.TABLET})`]: {
+      gridColumn: '1',
+      gridRow: '2',
+    },
+  },
 });
 
 export const BrowserUse: React.FC = () => {
@@ -43,6 +53,9 @@ export const BrowserUse: React.FC = () => {
     <div data-test-id="browseruse" className={styles.root}>
       <div className={styles.testRunner}>
         <BrowserUseTestRunner />
+      </div>
+      <div className={styles.console}>
+        <BrowserUseConsole />
       </div>
     </div>
   );
