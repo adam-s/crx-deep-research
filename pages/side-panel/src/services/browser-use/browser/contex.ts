@@ -353,6 +353,19 @@ export class BrowserContext {
   }
 
   /**
+   * Stop loading the current page
+   */
+  async stopLoading(): Promise<void> {
+    try {
+      const page = await this.getCurrentPage();
+      await page.evaluate(() => window.stop());
+      console.info('Stopped page loading');
+    } catch (e: unknown) {
+      console.error('Error stopping page loading:', e);
+    }
+  }
+
+  /**
    * Takes a screenshot of the current page
    * Exact match to Python implementation's take_screenshot method
    * @param fullPage Whether to take a screenshot of the full page or just the viewport

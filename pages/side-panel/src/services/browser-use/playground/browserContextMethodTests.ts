@@ -356,6 +356,170 @@ export async function testCloseMethod(
 }
 
 /**
+ * Test stopLoading() method functionality
+ */
+export async function testStopLoadingMethod(
+  progress: TestProgress,
+  context: BrowserUsePlaygroundService,
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.stopLoading() method...');
+  try {
+    // Create mock BrowserWindow for testing with real window ID
+    let currentWindowId: number;
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      currentWindowId = currentWindow.id!;
+    } catch (error) {
+      // Fallback: skip the test if Chrome APIs are not available
+      progress.log(
+        '⚠️ Skipping stopLoading() tests - Chrome APIs not available in test environment',
+      );
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'stopLoading() tests skipped - Chrome APIs not available',
+        details: { reason: 'Cannot access chrome.windows API in test environment' },
+      });
+      return;
+    }
+
+    // Mock page with window.stop() evaluation capability
+    const mockPage = {
+      tabId: 1,
+      url: () => 'https://example.com',
+      evaluate: async (fn: () => void) => {
+        // Mock window.stop() behavior
+        fn(); // Execute the function to simulate evaluation
+        return undefined;
+      },
+    };
+
+    const mockBrowserWindow = {
+      windowId: currentWindowId, // Use real window ID
+      pages: () => [mockPage],
+      getCurrentPage: async () => mockPage,
+    } as unknown as import('@src/services/cordyceps/browserWindow').BrowserWindow;
+
+    // Test 1: stopLoading() with active context
+    progress.log('Test 1: stopLoading() with active context');
+
+    const browserContext = new BrowserContext(mockBrowserWindow);
+    await browserContext.enter();
+
+    // Call stopLoading() - should execute without error
+    await browserContext.stopLoading();
+
+    progress.log('✅ Test 1 passed: stopLoading() executed successfully with active context');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 1 passed: stopLoading() works with active context',
+      details: { contextState: browserContext.session.state },
+    });
+
+    // Test 2: stopLoading() with uninitialized context (should auto-initialize)
+    progress.log('Test 2: stopLoading() with uninitialized context');
+
+    const uninitializedContext = new BrowserContext(mockBrowserWindow);
+
+    // Check initial state
+    if (uninitializedContext.session.state !== BrowserContextState.CREATED) {
+      throw new Error(`Expected initial state CREATED, got ${uninitializedContext.session.state}`);
+    }
+
+    // Call stopLoading() - should trigger auto-initialization
+    await uninitializedContext.stopLoading();
+
+    // Should be in ACTIVE state after auto-initialization
+    if (
+      (uninitializedContext.session.state as BrowserContextState) !== BrowserContextState.ACTIVE
+    ) {
+      throw new Error(
+        `Expected context to be ACTIVE after stopLoading(), got ${uninitializedContext.session.state}`,
+      );
+    }
+
+    progress.log('✅ Test 2 passed: stopLoading() auto-initializes uninitialized context');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 2 passed: stopLoading() auto-initializes context',
+      details: { finalState: uninitializedContext.session.state },
+    });
+
+    // Test 3: stopLoading() error handling
+    progress.log('Test 3: stopLoading() error handling');
+
+    // Create a mock page that throws an error during evaluate
+    const errorMockPage = {
+      tabId: 1,
+      url: () => 'https://example.com',
+      evaluate: async () => {
+        throw new Error('Evaluation failed');
+      },
+    };
+
+    const errorMockBrowserWindow = {
+      windowId: currentWindowId,
+      pages: () => [errorMockPage],
+      getCurrentPage: async () => errorMockPage,
+    } as unknown as import('@src/services/cordyceps/browserWindow').BrowserWindow;
+
+    const errorTestContext = new BrowserContext(errorMockBrowserWindow);
+    await errorTestContext.enter();
+
+    // Should not throw error - error handling is internal
+    await errorTestContext.stopLoading();
+
+    progress.log('✅ Test 3 passed: stopLoading() handles errors gracefully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 3 passed: stopLoading() error handling works',
+      details: { errorHandlingSuccess: true },
+    });
+
+    // Test 4: stopLoading() with closed context
+    progress.log('Test 4: stopLoading() with closed context');
+
+    const closedTestContext = new BrowserContext(mockBrowserWindow);
+    await closedTestContext.enter();
+    await closedTestContext.close();
+
+    // Verify context is closed
+    if (closedTestContext.session.state !== BrowserContextState.CLOSED) {
+      throw new Error(`Expected CLOSED state, got ${closedTestContext.session.state}`);
+    }
+
+    // Call stopLoading() on closed context - should handle gracefully
+    await closedTestContext.stopLoading();
+
+    progress.log('✅ Test 4 passed: stopLoading() handles closed context gracefully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 4 passed: stopLoading() works with closed context',
+      details: { contextState: closedTestContext.session.state },
+    });
+
+    // Clean up
+    await browserContext.close();
+    await uninitializedContext.close();
+    await errorTestContext.close();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`stopLoading() method test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'stopLoading() method tests failed',
+      details: { error: errorMessage },
+    });
+    throw error;
+  }
+}
+
+/**
  * Test method interaction patterns
  */
 export async function testMethodInteractions(
@@ -475,6 +639,51 @@ export async function testMethodInteractions(
         finalState: multiCallContext.session.state,
       },
     });
+
+    // Test 3: stopLoading() interaction with other methods
+    progress.log('Test 3: stopLoading() interaction with other methods');
+
+    const stopLoadingContext = new BrowserContext(mockBrowserWindow);
+
+    // Test stopLoading() before initialization
+    await stopLoadingContext.stopLoading();
+
+    // Should auto-initialize
+    if ((stopLoadingContext.session.state as BrowserContextState) !== BrowserContextState.ACTIVE) {
+      throw new Error('stopLoading() did not auto-initialize context');
+    }
+
+    // Test getCurrentPage() after stopLoading()
+    const pageAfterStop = await stopLoadingContext.getCurrentPage();
+    if (!pageAfterStop) {
+      throw new Error('getCurrentPage() failed after stopLoading()');
+    }
+
+    // Test stopLoading() again after getCurrentPage()
+    await stopLoadingContext.stopLoading();
+
+    // State should remain ACTIVE
+    if ((stopLoadingContext.session.state as BrowserContextState) !== BrowserContextState.ACTIVE) {
+      throw new Error('State not ACTIVE after second stopLoading()');
+    }
+
+    // Test close() after stopLoading()
+    await stopLoadingContext.close();
+
+    if ((stopLoadingContext.session.state as BrowserContextState) !== BrowserContextState.CLOSED) {
+      throw new Error('Failed to close after stopLoading() operations');
+    }
+
+    progress.log('✅ Test 3 passed: stopLoading() interactions work correctly');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'Test 3 passed: stopLoading() method interactions work correctly',
+      details: {
+        finalState: stopLoadingContext.session.state,
+        pageRetrievedAfterStop: !!pageAfterStop,
+      },
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Method interaction test failed: ${errorMessage}`);
@@ -501,6 +710,7 @@ export async function runBrowserContextMethodTests(
     // Run all method test suites
     await testGetCurrentPageMethod(progress, context);
     await testCloseMethod(progress, context);
+    await testStopLoadingMethod(progress, context);
     await testMethodInteractions(progress, context);
 
     progress.log('✅ All browser context method tests completed successfully!');
@@ -510,10 +720,11 @@ export async function runBrowserContextMethodTests(
       severity: Severity.Success,
       message: 'All browser context method tests completed successfully',
       details: {
-        totalTestSuites: 3,
+        totalTestSuites: 4,
         testSuites: [
           'getCurrentPage() Method Tests',
           'close() Method Tests',
+          'stopLoading() Method Tests',
           'Method Interaction Tests',
         ],
       },
