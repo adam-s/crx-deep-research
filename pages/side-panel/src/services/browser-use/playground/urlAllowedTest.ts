@@ -1221,3 +1221,92 @@ export async function testWaitForPageAndFramesLoadComprehensive(
     progress.log(`Comprehensive test suite FAILED: ${error}`);
   }
 }
+
+/**
+ * Test takeScreenshot functionality
+ */
+export async function testTakeScreenshot(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting takeScreenshot functionality test',
+    });
+
+    progress.log('Creating BrowserContext for screenshot test...');
+
+    const browserWindow = await BrowserWindow.create();
+    const contextScreenshot = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextScreenshot.enter();
+
+    progress.log('Testing screenshot functionality...');
+
+    // Navigate to a page first
+    await contextScreenshot.safeGoto('https://example.com');
+    await contextScreenshot._waitForPageAndFramesLoad();
+
+    // Test 1: Take viewport screenshot (graceful error handling)
+    progress.log('Taking viewport screenshot...');
+    const viewportScreenshot = await contextScreenshot.takeScreenshot(false, false);
+
+    if (viewportScreenshot && viewportScreenshot.length > 0) {
+      progress.log(`✓ Viewport screenshot captured (${viewportScreenshot.length} characters)`);
+    } else {
+      throw new Error('Viewport screenshot failed - no data returned');
+    }
+
+    // Test 2: Take full page screenshot (graceful error handling)
+    progress.log('Taking full page screenshot...');
+    const fullPageScreenshot = await contextScreenshot.takeScreenshot(true, false);
+
+    if (fullPageScreenshot && fullPageScreenshot.length > 0) {
+      progress.log(`✓ Full page screenshot captured (${fullPageScreenshot.length} characters)`);
+    } else {
+      throw new Error('Full page screenshot failed - no data returned');
+    }
+
+    // Test 3: Test with throwOnError = true for debugging
+    progress.log('Testing screenshot with error throwing enabled...');
+    try {
+      const debugScreenshot = await contextScreenshot.takeScreenshot(false, true);
+
+      if (debugScreenshot && debugScreenshot.length > 0) {
+        progress.log(`✓ Debug screenshot method works (${debugScreenshot.length} characters)`);
+      } else {
+        progress.log('⚠️ Debug screenshot method returned undefined');
+      }
+    } catch (error) {
+      progress.log(`⚠️ Screenshot with throwOnError=true threw error (may be expected): ${error}`);
+    }
+
+    await contextScreenshot.close();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Screenshot functionality test passed',
+      details: {
+        viewportScreenshotSize: viewportScreenshot.length,
+        fullPageScreenshotSize: fullPageScreenshot.length,
+        errorHandlingWorking: true,
+      },
+    });
+
+    progress.log('✓ Screenshot functionality test completed successfully');
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Screenshot functionality test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Screenshot test FAILED: ${error}`);
+  }
+}

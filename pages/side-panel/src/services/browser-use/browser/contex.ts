@@ -1,8 +1,13 @@
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Page } from '@src/services/cordyceps/page';
-import { RequestInfo, ResponseInfo } from '@src/services/cordyceps/utilities/types';
+import {
+  RequestInfo,
+  ResponseInfo,
+  ScreenshotOptions,
+} from '@src/services/cordyceps/utilities/types';
 import { BrowserState } from './views';
 import type { NavigateOptionsWithProgress } from '@src/services/cordyceps/utilities/types';
+import { executeWithProgress } from '@src/services/cordyceps/core/progress';
 
 // Interface for element objects used in CSS selector generation
 interface ElementForSelector {
@@ -345,6 +350,48 @@ export class BrowserContext {
     // If URL is allowed, proceed with navigation
     const page = await this.getCurrentPage();
     return await page.goto(url, options);
+  }
+
+  /**
+   * Takes a screenshot of the current page
+   * Exact match to Python implementation's take_screenshot method
+   * @param fullPage Whether to take a screenshot of the full page or just the viewport
+   * @param throwOnError Whether to throw errors or return undefined on failure (default: false for graceful handling)
+   * @returns Base64 encoded screenshot or undefined if error occurs and throwOnError is false
+   */
+  async takeScreenshot(
+    fullPage: boolean = false,
+    throwOnError: boolean = false,
+  ): Promise<string | undefined> {
+    try {
+      return await executeWithProgress(async progress => {
+        const page = await this.getCurrentPage();
+
+        progress.log('Taking screenshot');
+
+        const screenshotOptions: ScreenshotOptions = {
+          fullPage,
+          animations: 'disabled',
+          type: 'png',
+        };
+
+        const screenshot = await page.screenshot(progress, screenshotOptions);
+        const screenshotB64 = screenshot.toString('base64');
+
+        // await this.removeHighlights();
+        // Note: This line is commented out in the Python implementation
+
+        return screenshotB64;
+      });
+    } catch (error) {
+      console.error('Error taking screenshot:', error);
+
+      if (throwOnError) {
+        throw error;
+      }
+
+      return undefined;
+    }
   }
 
   /**

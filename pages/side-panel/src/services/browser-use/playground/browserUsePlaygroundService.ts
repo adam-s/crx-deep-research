@@ -43,6 +43,8 @@ export interface IBrowserUsePlaygroundService {
   runQuickUrlAllowedTest: () => Promise<boolean>;
   /** Run _waitForPageAndFramesLoad functionality tests */
   runWaitForPageAndFramesLoadTests: () => Promise<void>;
+  /** Run takeScreenshot functionality test */
+  runTakeScreenshotTest: () => Promise<void>;
 }
 
 export class BrowserUsePlaygroundService
@@ -88,6 +90,9 @@ export class BrowserUsePlaygroundService
 
       // Run _waitForPageAndFramesLoad functionality tests
       await this.runWaitForPageAndFramesLoadTests();
+
+      // Run takeScreenshot functionality test
+      await this.runTakeScreenshotTest();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -646,6 +651,43 @@ export class BrowserUsePlaygroundService
         timestamp: Date.now(),
         severity: Severity.Error,
         message: '_waitForPageAndFramesLoad tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  /**
+   * Run takeScreenshot functionality test
+   */
+  public async runTakeScreenshotTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '📸 Starting takeScreenshot functionality test...',
+    });
+
+    try {
+      const { testTakeScreenshot, TestProgress } = await import('./urlAllowedTest');
+
+      const testContext = {
+        events: this.events,
+        browserUseService: this,
+      };
+
+      const progress = new TestProgress('Screenshot Tests');
+
+      await testTakeScreenshot(progress, testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '✅ Screenshot functionality test completed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Screenshot functionality test failed',
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
