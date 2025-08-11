@@ -182,6 +182,31 @@ export class BrowserWindow extends Disposable {
     return Array.from(this._pages.values());
   }
 
+  /**
+   * Get the current active page
+   * Returns the page for the currently active tab in this window
+   */
+  async getCurrentPage(): Promise<Page> {
+    // Get the active tab in this window
+    const [activeTab] = await chrome.tabs.query({
+      active: true,
+      windowId: this.windowId,
+    });
+
+    if (!activeTab?.id) {
+      throw new Error('No active tab found in side panel context - this should never happen');
+    }
+
+    // Return the page for the active tab, creating one if it doesn't exist
+    let page = this._pages.get(activeTab.id);
+    if (!page) {
+      page = this._createPage(activeTab.id);
+      await this._fetchAllFramesForTab(page);
+    }
+
+    return page;
+  }
+
   async newPage(options: { timeout?: number; progress?: Progress } = {}): Promise<Page> {
     const progressController = new ProgressController(options.timeout ?? 30000);
 

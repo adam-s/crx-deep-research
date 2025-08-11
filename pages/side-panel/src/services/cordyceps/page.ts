@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { FrameManager } from './frameManager';
 import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './core/progress';
@@ -14,6 +15,8 @@ import type {
   SelectOptionOptions,
   ExpectScreenshotOptions,
   ScreenshotOptions,
+  RequestInfo,
+  ResponseInfo,
 } from './utilities/types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
@@ -28,6 +31,8 @@ import { convertBrowserBufferToNodeBuffer } from './utilities/bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './media/screenshotter';
 import { getNavigationTracker } from './navigation/navigationTracker';
+import { NetworkListenerManager } from './navigation/networkListenerManager';
+import { waitForCondition } from './navigation/autoWait';
 
 export class Page extends Disposable {
   private _ownedContext?: object;
@@ -39,6 +44,11 @@ export class Page extends Disposable {
   readonly navTracker = getNavigationTracker();
   private readonly _navigationDelegate: NavigationDelegate;
 
+  // Network events using centralized manager to prevent memory leaks
+  private readonly _networkEvents!: ReturnType<typeof NetworkListenerManager.prototype.registerTab>;
+  readonly onRequest!: Event<RequestInfo>;
+  readonly onResponse!: Event<ResponseInfo>;
+
   constructor(tabId: number, session: Session) {
     super();
     this.tabId = tabId;
@@ -47,8 +57,24 @@ export class Page extends Disposable {
     this.screenshotter = new Screenshotter(this);
     this._navigationDelegate = new NavigationDelegate(tabId);
 
+    // Initialize network events using centralized manager to prevent memory leaks
+    this._networkEvents = this._register(
+      NetworkListenerManager.getInstance().registerTab(this.tabId),
+    );
+    this.onRequest = this._networkEvents.onRequest;
+    this.onResponse = this._networkEvents.onResponse;
+
     this._setupContentScriptListener();
     console.log(`✅ Page created for tab ${tabId}`);
+  }
+
+  /**
+   * Explicitly close this page and clean up all resources.
+   * This provides a clear API for ownership and helps in testing.
+   */
+  close(): void {
+    console.log(`🚪 Explicitly closing Page for tab ${this.tabId}`);
+    this.dispose();
   }
 
   dispose(): void {
@@ -99,6 +125,8 @@ export class Page extends Disposable {
   async waitForMainFrame(progress?: Progress): Promise<Frame> {
     if (progress) {
       progress.log('Waiting for main frame to be attached');
+      // Use progress.race to handle abort conditions and timeouts
+      return progress.race(this.frameManager.waitForMainFrame());
     }
     return this.frameManager.waitForMainFrame();
   }
@@ -604,5 +632,58 @@ export class Page extends Disposable {
         timedOut: false,
       };
     }
+  }
+
+  /**
+   * Wait for network stability with race condition handling.
+   * This method delegates to NetworkListenerManager for network stability detection.
+   *
+   * @param progress Progress controller for abort handling
+   * @param options Network stability options
+   * @returns Promise that resolves when network is stable
+   */
+  async waitForNetworkStability(
+    progress: Progress,
+    options: {
+      idleTime?: number;
+      timeout?: number;
+      ignoredResourceTypes?: string[];
+    } = {},
+  ): Promise<void> {
+    return NetworkListenerManager.waitForNetworkStability(this._networkEvents, progress, options);
+  }
+
+  /**
+   * Wait for a condition with race condition handling and progress support.
+   * This method delegates to the autoWait utility for general-purpose waiting.
+   *
+   * @param progress Progress controller for abort handling
+   * @param condition Function that returns true when condition is met
+   * @param options Waiting options
+   * @returns Promise that resolves when condition is met
+   */
+  async waitForCondition(
+    progress: Progress,
+    condition: () => boolean | Promise<boolean>,
+    options: {
+      pollInterval?: number;
+      timeout?: number;
+      description?: string;
+    } = {},
+  ): Promise<void> {
+    return waitForCondition(progress, condition, options);
+  }
+
+  /**
+   * Temporary: expose per-tab network emitter debug snapshot for diagnostics.
+   */
+  getNetworkDebugSnapshot(): {
+    requestListeners: number;
+    responseListeners: number;
+    requestEmits: number;
+    responseEmits: number;
+    emitterId: string;
+  } | null {
+    return NetworkListenerManager.getInstance().getTabEmitterDebug(this.tabId);
   }
 }

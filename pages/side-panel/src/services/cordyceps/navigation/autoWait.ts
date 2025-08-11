@@ -1,7 +1,43 @@
 import { LifecycleEvent } from '../utilities/types';
 import { getNavigationTracker } from './navigationTracker';
+import type { Progress } from '../core/progress';
 
 export type WaitUntil = LifecycleEvent;
+
+/**
+ * Helper to add timeout to a promise with proper cleanup
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onCancel: () => void,
+  label: string,
+): Promise<T> {
+  let isComplete = false;
+
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      if (isComplete) return;
+      isComplete = true;
+      onCancel();
+      reject(new Error(`${label} timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then(value => {
+        if (isComplete) return;
+        isComplete = true;
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch(error => {
+        if (isComplete) return;
+        isComplete = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
 
 export class SignalBarrier {
   private readonly _tabId: number;
@@ -64,4 +100,87 @@ export async function withAutoWait<T>(
   } finally {
     barrier.dispose();
   }
+}
+
+/**
+ * Wait for a condition with race condition handling and progress support.
+ * This is a general-purpose utility for waiting with proper abort support.
+ *
+ * @param progress Progress controller for abort handling
+ * @param condition Function that returns true when condition is met
+ * @param options Waiting options
+ * @returns Promise that resolves when condition is met
+ */
+/**
+ * Wait for a condition with race condition handling and progress support.
+ * This is a general-purpose utility for waiting with proper abort support.
+ *
+ * @param progress Progress controller for abort handling
+ * @param condition Function that returns true when condition is met
+ * @param options Waiting options
+ * @returns Promise that resolves when condition is met
+ */
+export async function waitForCondition(
+  progress: Progress,
+  condition: () => boolean | Promise<boolean>,
+  options: {
+    pollInterval?: number;
+    timeout?: number;
+    description?: string;
+  } = {},
+): Promise<void> {
+  const { pollInterval = 100, timeout = 30000, description = 'condition' } = options;
+
+  progress.log(`Waiting for ${description} (polling: ${pollInterval}ms, timeout: ${timeout}ms)`);
+
+  const conditionPromise = new Promise<void>((resolve, reject) => {
+    let pollId: ReturnType<typeof setTimeout> | undefined;
+
+    const checkCondition = async () => {
+      try {
+        const result = await condition();
+        if (result) {
+          progress.log(`${description} met`);
+          if (pollId) {
+            clearTimeout(pollId);
+          }
+          resolve();
+          return;
+        }
+      } catch (error) {
+        progress.log(`Error checking ${description}: ${error}`);
+        if (pollId) {
+          clearTimeout(pollId);
+        }
+        reject(error);
+        return;
+      }
+
+      // Schedule next check
+      pollId = setTimeout(checkCondition, pollInterval);
+    };
+
+    // Set up cleanup
+    progress.cleanupWhenAborted(() => {
+      if (pollId) {
+        clearTimeout(pollId);
+      }
+    });
+
+    // Start checking
+    checkCondition();
+  });
+
+  // Use withTimeout helper to avoid Promise resolve reassignment bugs
+  const timeoutPromise = withTimeout(
+    conditionPromise,
+    timeout,
+    () => {
+      // Cleanup is handled by the conditionPromise itself
+    },
+    description,
+  );
+
+  // Race against progress abort signal
+  return progress.race(timeoutPromise);
 }

@@ -1,4 +1,4 @@
-import { Progress } from '../core/progress';
+import { Progress, executeWithProgress } from '../core/progress';
 import { OperationResult, handleOperationResult, STANDARD_TIMEOUT } from './utils';
 import { SelectOption } from './types';
 
@@ -139,7 +139,6 @@ export async function executeElementOperation(
   operationName: string,
   timeout: number = STANDARD_TIMEOUT,
 ): Promise<void> {
-  const { executeWithProgress } = await import('../core/progress');
   return executeWithProgress(
     async progress => {
       const result = await operation(progress);

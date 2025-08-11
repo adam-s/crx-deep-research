@@ -1,5 +1,5 @@
 import { Severity } from '@src/utils/types';
-import { Progress } from '../../core/progress';
+import { Progress, ProgressController } from '../../core/progress';
 import { Page } from '../../page';
 import { PlaygroundTest } from './api';
 import {
@@ -28,11 +28,14 @@ import {
   testTextContentFunctionality,
   testTypeFunctionality,
   testWaitForFunctionality,
+  testBrowserContextNetworkStability,
   testNavigationAutoWait,
   testNavigationGoBack,
   testNavigationGoForward,
   testNavigationSameDocumentGoBack,
   testNavigationReload,
+  testNetworkEventFunctionality,
+  debugNetworkEvents,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -52,7 +55,7 @@ export class LocatorTest extends PlaygroundTest {
     const testStart = Date.now();
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 100));
       // If we don't wait, some of the iframes will not have been loaded
       // we need to have wait methods added later.
       // Get the ariaSnapshotForAI first   // Get the ariaSnapshotForAI first
@@ -61,33 +64,33 @@ export class LocatorTest extends PlaygroundTest {
 
       console.log('############### Aria snapshot for AI \n', snapshot);
       progress.log('Creating and testing a basic locator');
-      // // Create a locator for the body element
-      // const bodyLocator = page.locator('body');
-      // progress.log(`Locator created successfully: ${bodyLocator._selector}`);
+      // Create a locator for the body element
+      const bodyLocator = page.locator('body');
+      progress.log(`Locator created successfully: ${bodyLocator._selector}`);
 
-      // // Test boundingBox functionality
-      // progress.log('Testing boundingBox method');
-      // const boundingBox = await bodyLocator.boundingBox();
-      // if (boundingBox) {
-      //   progress.log(
-      //     `BoundingBox retrieved: x=${boundingBox.x}, y=${boundingBox.y}, width=${boundingBox.width}, height=${boundingBox.height}`,
-      //   );
-      //   this.context.events.emit({
-      //     timestamp: Date.now(),
-      //     severity: Severity.Success,
-      //     message: 'BoundingBox test passed.',
-      //     details: {
-      //       boundingBox,
-      //     },
-      //   });
-      // } else {
-      //   progress.log('BoundingBox returned null (element may not be visible)');
-      //   this.context.events.emit({
-      //     timestamp: Date.now(),
-      //     severity: Severity.Warning,
-      //     message: 'BoundingBox test returned null.',
-      //   });
-      // }
+      // Test boundingBox functionality
+      progress.log('Testing boundingBox method');
+      const boundingBox = await bodyLocator.boundingBox();
+      if (boundingBox) {
+        progress.log(
+          `BoundingBox retrieved: x=${boundingBox.x}, y=${boundingBox.y}, width=${boundingBox.width}, height=${boundingBox.height}`,
+        );
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'BoundingBox test passed.',
+          details: {
+            boundingBox,
+          },
+        });
+      } else {
+        progress.log('BoundingBox returned null (element may not be visible)');
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'BoundingBox test returned null.',
+        });
+      }
 
       // Test navigation auto-wait behavior first (hash + cross-doc)
       progress.log('Testing navigation auto-wait (hash and cross-document via click)');
@@ -220,6 +223,62 @@ export class LocatorTest extends PlaygroundTest {
       // Test screenshotter functionality
       progress.log('Testing screenshotter functionality (screenshot page)');
       await testScreenshotterFunctionality(page, progress, this.context);
+
+      // Test network event functionality (DEBUG VERSION) - Use fresh progress to avoid timeout
+      progress.log('DEBUGGING: Testing network event functionality (request/response monitoring)');
+      try {
+        // Create a fresh progress controller with a shorter timeout for this specific test
+        const networkProgressController = new ProgressController(15000); // 15 second timeout
+        await networkProgressController.run(async networkProgress => {
+          await debugNetworkEvents(page, networkProgress, this.context);
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`Network debugging test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Network debugging test failed but continuing with other tests',
+          details: { error: errorMessage },
+        });
+      }
+
+      // Test basic network event functionality
+      progress.log('Testing basic network event functionality');
+      try {
+        const networkEventProgressController = new ProgressController(10000); // 10 second timeout
+        await networkEventProgressController.run(async networkEventProgress => {
+          await testNetworkEventFunctionality(page, networkEventProgress, this.context);
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`Network event functionality test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Network event functionality test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
+
+      // Test browser context network stability
+      progress.log('Testing BrowserContext network stability functionality');
+      try {
+        // Create a fresh progress controller for this test to avoid timeout issues
+        const browserContextProgressController = new ProgressController(15000); // 15 second timeout
+        await browserContextProgressController.run(async browserContextProgress => {
+          await testBrowserContextNetworkStability(page, browserContextProgress, this.context);
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`BrowserContext network stability test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'BrowserContext network stability test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
 
       this.context.events.emit({
         timestamp: Date.now(),

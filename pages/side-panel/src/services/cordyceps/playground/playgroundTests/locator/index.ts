@@ -26,6 +26,14 @@ export { testTapFunctionality } from './tapFunctionality';
 export { testTextContentFunctionality } from './textContentFunctionality';
 export { testTypeFunctionality } from './typeFunctionality';
 export { testWaitForFunctionality } from './waitForFunctionality';
+export { testNetworkEventFunctionality } from './networkEventFunctionality';
+export {
+  testBrowserContextNetworkStability,
+  testNetworkStabilityPerformance,
+} from './browserContextNetworkStability';
+export { debugNetworkEvents } from './debugNetworkEventsWithSnapshots';
+export { testCompareEventSubscriptions } from './compareEventSubscriptions';
+export { testPageListenersFix } from './testPageListenersFix';
 export {
   testNavigationAutoWait,
   testNavigationGoBack,

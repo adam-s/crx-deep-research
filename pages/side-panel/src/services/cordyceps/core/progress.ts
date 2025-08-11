@@ -45,8 +45,9 @@ export interface Progress {
   log(message: string): void;
   /** Register a cleanup callback that only runs if the operation is aborted. */
   cleanupWhenAborted(cleanup: (error?: Error) => void): void;
-  /** Race your promise against the internal abort signal. */
+  /** Race your promise(s) against the internal abort signal. */
   race<T>(promise: Promise<T>): Promise<T>;
+  race<T>(promises: Promise<T>[]): Promise<T>;
   /**
    * Race your promise against the internal abort signal,
    * and schedule a cleanup for the result if still running.
@@ -54,6 +55,8 @@ export interface Progress {
   raceWithCleanup<T>(promise: Promise<T>, cleanup: (result: T) => void): Promise<T>;
   /** Wait for a specified timeout period, abortable by the progress signal. */
   wait(timeoutMs: number): Promise<void>;
+  /** Abort the operation with an error; subsequent races will reject. */
+  abort(error: Error): void;
 }
 
 /**
@@ -63,9 +66,10 @@ export interface Progress {
 export class ProgressController implements Progress {
   private _state: 'before' | 'running' | 'aborted' | 'finished' = 'before';
   private _cleanupCallbacks: Array<(error?: Error) => void> = [];
-  private _abortReject!: (error: Error) => void;
+  private _abortReject: (error: Error) => void;
   private _abortPromise: Promise<never>;
   private _timer?: NodeJS.Timeout;
+  private _aborted = false;
 
   /**
    * @param timeout - maximum duration in milliseconds before automatic abort
@@ -76,12 +80,14 @@ export class ProgressController implements Progress {
     private readonly _parent?: Progress,
   ) {
     // Create an abort promise and capture its reject function.
+    let abortRejectLocal: (error: Error) => void = () => {};
     this._abortPromise = new Promise<never>((_, reject) => {
-      this._abortReject = (error: Error) => {
+      abortRejectLocal = (error: Error) => {
         (error as AbortError)[kAbortErrorSymbol] = true;
         reject(error);
       };
     });
+    this._abortReject = abortRejectLocal;
     // Prevent unhandled rejection warnings.
     this._abortPromise.catch(() => {});
   }
@@ -100,8 +106,11 @@ export class ProgressController implements Progress {
     }
   }
 
-  public race<T>(promise: Promise<T>): Promise<T> {
-    return Promise.race([promise, this._abortPromise]);
+  public race<T>(promise: Promise<T>): Promise<T>;
+  public race<T>(promises: Promise<T>[]): Promise<T>;
+  public race<T>(promiseOrPromises: Promise<T> | Promise<T>[]): Promise<T> {
+    const promises = Array.isArray(promiseOrPromises) ? promiseOrPromises : [promiseOrPromises];
+    return Promise.race([...promises, this._abortPromise]);
   }
 
   public raceWithCleanup<T>(promise: Promise<T>, cleanup: (result: T) => void): Promise<T> {
@@ -146,8 +155,8 @@ export class ProgressController implements Progress {
       throw caughtError;
     } finally {
       if (this._timer) clearTimeout(this._timer);
-      // Run cleanup callbacks if we ended up in an aborted state
-      if (this._cleanupCallbacks.length > 0) {
+      // Run cleanup callbacks only if we ended up in an aborted state
+      if (this._aborted && this._cleanupCallbacks.length > 0) {
         for (const cb of this._cleanupCallbacks) {
           try {
             cb(caughtError);
@@ -166,6 +175,7 @@ export class ProgressController implements Progress {
   public abort(error: Error): void {
     if (this._state !== 'running') return;
     this._state = 'aborted';
+    this._aborted = true;
     this._abortReject(error);
   }
 }

@@ -151,3 +151,22 @@ export type ExpectScreenshotOptions = ImageComparatorOptions &
       selector: string;
     };
   };
+
+// Network event types for chrome.webRequest integration
+export interface RequestInfo {
+  id: string;
+  url: string;
+  method: string;
+  resourceType: string;
+  headers: Record<string, string>;
+  timestamp: number;
+}
+
+export interface ResponseInfo {
+  id: string;
+  url: string;
+  status: number;
+  headers: Record<string, string>;
+  timestamp: number;
+  request: RequestInfo;
+}
