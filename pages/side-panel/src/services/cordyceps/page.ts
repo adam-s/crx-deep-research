@@ -139,6 +139,19 @@ export class Page extends Disposable {
     return this.frameManager.frames();
   }
 
+  /**
+   * Get the current URL of the page.
+   * Returns the URL of the main frame.
+   */
+  url(): string {
+    try {
+      return this.mainFrame().url() || 'about:blank';
+    } catch (error) {
+      console.warn('Failed to get page URL:', error);
+      return 'about:blank';
+    }
+  }
+
   public async goto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
     return executeWithProgress(async p => {
       p.log(`Page navigating to "${url}"`);

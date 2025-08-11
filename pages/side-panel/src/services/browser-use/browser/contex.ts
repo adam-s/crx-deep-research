@@ -2,6 +2,7 @@ import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Page } from '@src/services/cordyceps/page';
 import { RequestInfo, ResponseInfo } from '@src/services/cordyceps/utilities/types';
 import { BrowserState } from './views';
+import type { NavigateOptionsWithProgress } from '@src/services/cordyceps/utilities/types';
 
 // Interface for element objects used in CSS selector generation
 interface ElementForSelector {
@@ -331,6 +332,22 @@ export class BrowserContext {
   }
 
   /**
+   * Safe navigation that validates URL before navigating
+   * This method should be used instead of direct page.goto() to ensure URL validation
+   */
+  async safeGoto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
+    // Check if URL is allowed before navigation
+    if (!this._isUrlAllowed(url)) {
+      await this._handleDisallowedNavigation(url);
+      return null; // This line won't be reached due to exception, but for clarity
+    }
+
+    // If URL is allowed, proceed with navigation
+    const page = await this.getCurrentPage();
+    return await page.goto(url, options);
+  }
+
+  /**
    * Close the browser context - Clean up resources and prepare for shutdown
    * Note: In a Chrome extension side panel, we don't actually close browser tabs
    */
@@ -619,5 +636,51 @@ export class BrowserContext {
 
     // Throw error to notify the calling code
     throw new Error(`URL not allowed: ${url}`);
+  }
+
+  /**
+   * @TODO change after public methods use
+   *
+   * Ensures page is fully loaded before continuing.
+   * Waits for either network to be idle or minimum WAIT_TIME, whichever is longer.
+   * Also checks if the loaded URL is allowed.
+   *
+   * This matches the Python implementation's _wait_for_page_and_frames_load method
+   * @param timeoutOverwrite Optional timeout override in seconds
+   */
+  async _waitForPageAndFramesLoad(options?: { timeoutOverwrite?: number }): Promise<void> {
+    // Start timing
+    const startTime = Date.now();
+
+    try {
+      // Wait for network to stabilize with smart filtering
+      await this._waitForStableNetwork();
+
+      // Check if the loaded URL is allowed
+      const page = await this.getCurrentPage();
+      const url = page.url();
+
+      if (!this._isUrlAllowed(url)) {
+        await this._handleDisallowedNavigation(url);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('URL not allowed:')) {
+        throw error; // Re-throw URL not allowed errors
+      }
+      console.warn('Page load failed, continuing...');
+    }
+
+    // Use timeout override if provided (match Python implementation's default value)
+    // Use a default of 0.25 seconds if minimumWaitPageLoadTime is not available
+    const minimumWait = options?.timeoutOverwrite ?? 0.25;
+
+    // Calculate remaining time to meet minimum wait time
+    const elapsed = (Date.now() - startTime) / 1000; // Convert to seconds
+    const remaining = Math.max(minimumWait - elapsed, 0);
+
+    // Sleep remaining time if needed
+    if (remaining > 0) {
+      await new Promise(resolve => setTimeout(resolve, remaining * 1000));
+    }
   }
 }

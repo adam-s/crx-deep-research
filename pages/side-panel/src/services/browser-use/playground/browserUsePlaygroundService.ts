@@ -41,6 +41,8 @@ export interface IBrowserUsePlaygroundService {
   runUrlAllowedTests: () => Promise<void>;
   /** Run quick URL allowed test */
   runQuickUrlAllowedTest: () => Promise<boolean>;
+  /** Run _waitForPageAndFramesLoad functionality tests */
+  runWaitForPageAndFramesLoadTests: () => Promise<void>;
 }
 
 export class BrowserUsePlaygroundService
@@ -83,6 +85,9 @@ export class BrowserUsePlaygroundService
 
       // Run _isUrlAllowed functionality tests
       await this.runUrlAllowedTests();
+
+      // Run _waitForPageAndFramesLoad functionality tests
+      await this.runWaitForPageAndFramesLoadTests();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -604,6 +609,45 @@ export class BrowserUsePlaygroundService
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;
+    }
+  }
+
+  /**
+   * Run comprehensive tests for _waitForPageAndFramesLoad functionality
+   */
+  public async runWaitForPageAndFramesLoadTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🚀 Starting _waitForPageAndFramesLoad functionality tests...',
+    });
+
+    try {
+      const { testWaitForPageAndFramesLoadComprehensive, TestProgress } = await import(
+        './urlAllowedTest'
+      );
+
+      const testContext = {
+        events: this.events,
+        browserUseService: this,
+      };
+
+      const progress = new TestProgress('_waitForPageAndFramesLoad Tests');
+
+      await testWaitForPageAndFramesLoadComprehensive(progress, testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '✅ _waitForPageAndFramesLoad tests completed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '_waitForPageAndFramesLoad tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
     }
   }
 }

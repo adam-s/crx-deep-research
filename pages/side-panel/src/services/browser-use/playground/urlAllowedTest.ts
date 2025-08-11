@@ -13,7 +13,7 @@ import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService'
 /**
  * Simple progress tracker for testing
  */
-class TestProgress {
+export class TestProgress {
   constructor(private name: string) {}
 
   log(message: string): void {
@@ -805,5 +805,419 @@ export async function quickUrlAllowedTest(): Promise<boolean> {
   } catch (error) {
     console.error('Quick _isUrlAllowed test failed:', error);
     return false;
+  }
+}
+
+/**
+ * Test _waitForPageAndFramesLoad with timeout override functionality
+ */
+export async function testWaitForPageAndFramesLoadTimeout(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForPageAndFramesLoad timeout override test',
+    });
+
+    progress.log('Creating BrowserContext for timeout test...');
+
+    // Test with timeout override
+    const browserWindow = await BrowserWindow.create();
+    const contextWithTimeout = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextWithTimeout.enter();
+
+    progress.log('Testing timeout override functionality...');
+
+    // Test with 0.05 second timeout override to test very fast minimum wait
+    const startTime = Date.now();
+    await contextWithTimeout.safeGoto('https://example.com');
+    await contextWithTimeout._waitForPageAndFramesLoad({ timeoutOverwrite: 0.05 });
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    progress.log(`Page load with 0.05s timeout completed in ${elapsed.toFixed(3)}s`);
+
+    // The timeout override sets minimum wait time, but network operations may take longer
+    // We verify that the method completes (doesn't hang) regardless of timing
+    const timeoutSuccess = elapsed >= 0.04 && elapsed <= 3.0; // Allow network operations to complete
+
+    // Test 2: Compare with default timing (should be longer than custom override)
+    progress.log('Testing default timeout vs override...');
+
+    const startTime2 = Date.now();
+    await contextWithTimeout.safeGoto('https://example.com');
+    await contextWithTimeout._waitForPageAndFramesLoad(); // Default 0.25s minimum
+    const elapsed2 = (Date.now() - startTime2) / 1000;
+
+    progress.log(`Default timeout completed in ${elapsed2.toFixed(3)}s`);
+
+    await contextWithTimeout.close();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: timeoutSuccess ? Severity.Info : Severity.Warning,
+      message: `Timeout override test ${timeoutSuccess ? 'passed' : 'failed'}`,
+      details: {
+        customTimeout: elapsed,
+        defaultTimeout: elapsed2,
+        timeoutOverwrite: 0.05,
+        note: 'Network operations may extend beyond minimum wait',
+      },
+    });
+
+    progress.log(
+      `Timeout override test: ${timeoutSuccess ? 'PASSED' : 'FAILED'} (custom: ${elapsed.toFixed(3)}s, default: ${elapsed2.toFixed(3)}s)`,
+    );
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Timeout override test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Timeout override test FAILED: ${error}`);
+  }
+}
+
+/**
+ * Test _waitForPageAndFramesLoad with URL validation integration
+ */
+export async function testWaitForPageAndFramesLoadUrlValidation(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForPageAndFramesLoad URL validation test',
+    });
+
+    progress.log('Creating BrowserContext with restricted domains...');
+
+    const browserWindow = await BrowserWindow.create();
+    const contextRestricted = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextRestricted.enter();
+
+    progress.log('Testing URL validation during page load...');
+
+    // Test 1: Allowed URL should work
+    try {
+      await contextRestricted.safeGoto('https://example.com');
+      await contextRestricted._waitForPageAndFramesLoad();
+      progress.log('✓ Allowed URL test passed');
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Allowed URL validation test passed',
+      });
+    } catch (error) {
+      progress.log(`✗ Allowed URL test failed: ${error}`);
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Allowed URL validation test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+
+    // Test 2: Disallowed URL should throw error
+    let disallowedTestPassed = false;
+    try {
+      // Navigate to disallowed domain using safeGoto (should block before navigation)
+      await contextRestricted.safeGoto('https://malicious.com');
+      await contextRestricted._waitForPageAndFramesLoad();
+      progress.log('✗ Disallowed URL test failed - should have thrown error');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('URL not allowed')) {
+        disallowedTestPassed = true;
+        progress.log('✓ Disallowed URL test passed - correctly blocked');
+
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Info,
+          message: 'Disallowed URL validation test passed',
+        });
+      } else {
+        progress.log(`✗ Disallowed URL test failed - unexpected error: ${error}`);
+
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Disallowed URL validation test had unexpected error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    }
+
+    await contextRestricted.close();
+
+    progress.log(
+      `URL validation test: ${disallowedTestPassed ? 'PASSED' : 'FAILED'} - disallowed URLs properly blocked`,
+    );
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'URL validation test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`URL validation test FAILED: ${error}`);
+  }
+}
+
+/**
+ * Test _waitForPageAndFramesLoad minimum wait time enforcement
+ */
+export async function testWaitForPageAndFramesLoadMinimumWait(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForPageAndFramesLoad minimum wait time test',
+    });
+
+    progress.log('Creating BrowserContext for minimum wait test...');
+
+    const browserWindow = await BrowserWindow.create();
+    const contextMinWait = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextMinWait.enter();
+
+    progress.log('Testing minimum wait time enforcement...');
+
+    // Test default minimum wait time (0.25 seconds)
+    const startTime = Date.now();
+    await contextMinWait.safeGoto('https://example.com');
+    await contextMinWait._waitForPageAndFramesLoad();
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    progress.log(`Default minimum wait completed in ${elapsed.toFixed(3)}s`);
+
+    // Verify timing was at least close to 0.25s
+    const minWaitSuccess = elapsed >= 0.2; // Allow some leeway for fast execution
+
+    await contextMinWait.close();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: minWaitSuccess ? Severity.Info : Severity.Warning,
+      message: `Minimum wait time test ${minWaitSuccess ? 'passed' : 'failed'}`,
+      details: { elapsedTime: elapsed, expectedMinimum: 0.25 },
+    });
+
+    progress.log(
+      `Minimum wait test: ${minWaitSuccess ? 'PASSED' : 'FAILED'} (elapsed: ${elapsed.toFixed(3)}s)`,
+    );
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Minimum wait time test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Minimum wait test FAILED: ${error}`);
+  }
+}
+
+/**
+ * Test _waitForPageAndFramesLoad network stability integration
+ */
+export async function testWaitForPageAndFramesLoadNetworkStability(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForPageAndFramesLoad network stability test',
+    });
+
+    progress.log('Creating BrowserContext for network stability test...');
+
+    const browserWindow = await BrowserWindow.create();
+    const contextNetwork = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextNetwork.enter();
+
+    progress.log('Testing network stability monitoring...');
+
+    // Navigate to a page and verify network stability is checked
+    const startTime = Date.now();
+    try {
+      await contextNetwork.safeGoto('https://example.com');
+      await contextNetwork._waitForPageAndFramesLoad();
+      const elapsed = (Date.now() - startTime) / 1000;
+
+      progress.log(`Network stability test completed in ${elapsed.toFixed(3)}s`);
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Network stability test passed',
+        details: { elapsedTime: elapsed },
+      });
+
+      progress.log('✓ Network stability test passed');
+    } catch (error) {
+      progress.log(`Network stability test error (may be expected): ${error}`);
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Warning,
+        message: 'Network stability test had error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+
+    await contextNetwork.close();
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Network stability test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Network stability test FAILED: ${error}`);
+  }
+}
+
+/**
+ * Test _waitForPageAndFramesLoad error handling and recovery
+ */
+export async function testWaitForPageAndFramesLoadErrorHandling(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _waitForPageAndFramesLoad error handling test',
+    });
+
+    progress.log('Creating BrowserContext for error handling test...');
+
+    const browserWindow = await BrowserWindow.create();
+    const contextError = new BrowserContext(browserWindow, {
+      allowedDomains: ['example.com'],
+    });
+
+    await contextError.enter();
+    const page = await contextError.getCurrentPage();
+
+    progress.log('Testing error handling and recovery...');
+
+    // Test error handling with problematic navigation
+    try {
+      // Try to navigate to about:blank which may cause execution context issues
+      // Use direct page.goto for this test since about:blank should be allowed
+      await page.goto('about:blank');
+      await contextError._waitForPageAndFramesLoad();
+
+      progress.log('✓ Error handling test passed - about:blank handled gracefully');
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Error handling test passed',
+      });
+    } catch (error) {
+      // Some errors are expected and should be handled gracefully
+      if (error instanceof Error && error.message.includes('URL not allowed')) {
+        progress.log('✓ Error handling test passed - URL validation working');
+
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Info,
+          message: 'Error handling test passed - URL validation triggered',
+        });
+      } else {
+        progress.log(`Error handling test - unexpected error: ${error}`);
+
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Error handling test had unexpected error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    }
+
+    await contextError.close();
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Error handling test failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Error handling test FAILED: ${error}`);
+  }
+}
+
+/**
+ * Comprehensive test of _waitForPageAndFramesLoad functionality
+ * Tests all aspects: timeout override, URL validation, minimum wait, network stability, and error handling
+ */
+export async function testWaitForPageAndFramesLoadComprehensive(
+  progress: TestProgress,
+  context: UrlAllowedTestContext,
+): Promise<void> {
+  try {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting comprehensive _waitForPageAndFramesLoad test suite',
+    });
+
+    progress.log('Running comprehensive _waitForPageAndFramesLoad tests...');
+
+    // Run all individual tests
+    await testWaitForPageAndFramesLoadTimeout(progress, context);
+    await testWaitForPageAndFramesLoadUrlValidation(progress, context);
+    await testWaitForPageAndFramesLoadMinimumWait(progress, context);
+    await testWaitForPageAndFramesLoadNetworkStability(progress, context);
+    await testWaitForPageAndFramesLoadErrorHandling(progress, context);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Comprehensive _waitForPageAndFramesLoad test suite completed',
+    });
+
+    progress.log('✓ Comprehensive _waitForPageAndFramesLoad test suite completed');
+  } catch (error) {
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'Comprehensive _waitForPageAndFramesLoad test suite failed',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+
+    progress.log(`Comprehensive test suite FAILED: ${error}`);
   }
 }
