@@ -273,6 +273,35 @@ export class NetworkListenerManager extends Disposable {
       tabData.requestEmitter.fire(requestInfo);
     };
 
+    const onBeforeSendHeaders = (details: chrome.webRequest.WebRequestHeadersDetails) => {
+      // Filter out invalid/unwanted requests early
+      if (details.tabId < 0) {
+        return;
+      }
+
+      // Filter out own extension requests to reduce noise
+      if (details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
+        return;
+      }
+
+      const tabData = this._tabEmitters.get(details.tabId);
+      if (!tabData) {
+        return;
+      }
+
+      const requestInfo = tabData.pendingRequests.get(details.requestId);
+      if (requestInfo && details.requestHeaders) {
+        // Convert chrome headers array to object
+        const headers: Record<string, string> = {};
+        for (const header of details.requestHeaders) {
+          if (header.name && header.value) {
+            headers[header.name.toLowerCase()] = header.value;
+          }
+        }
+        requestInfo.headers = headers;
+      }
+    };
+
     const onCompleted = (details: chrome.webRequest.WebResponseDetails) => {
       // Apply same filtering as onBeforeRequest
       if (details.tabId < 0 || details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
@@ -293,7 +322,9 @@ export class NetworkListenerManager extends Disposable {
         id: details.requestId,
         url: details.url,
         status: details.statusCode || 0,
-        headers: {}, // responseHeaders not available in basic WebResponseDetails
+        headers:
+          (requestInfo as RequestInfo & { _responseHeaders?: Record<string, string> })
+            ._responseHeaders || {},
         timestamp: details.timeStamp,
         request: requestInfo,
         tabId: details.tabId,
@@ -304,6 +335,39 @@ export class NetworkListenerManager extends Disposable {
       // Debug: count emitted response events
       tabData.debug.responseEmits += 1;
       tabData.responseEmitter.fire(responseInfo);
+    };
+
+    const onHeadersReceived = (details: chrome.webRequest.WebResponseHeadersDetails) => {
+      // Filter out invalid/unwanted requests early
+      if (details.tabId < 0) {
+        return;
+      }
+
+      // Filter out own extension requests to reduce noise
+      if (details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
+        return;
+      }
+
+      const tabData = this._tabEmitters.get(details.tabId);
+      if (!tabData) {
+        return;
+      }
+
+      const requestInfo = tabData.pendingRequests.get(details.requestId);
+      if (requestInfo && details.responseHeaders) {
+        // Store response headers for later use in onCompleted
+        // Convert chrome headers array to object
+        const headers: Record<string, string> = {};
+        for (const header of details.responseHeaders) {
+          if (header.name && header.value) {
+            headers[header.name.toLowerCase()] = header.value;
+          }
+        }
+        // Store response headers on the request for pickup in onCompleted
+        (
+          requestInfo as RequestInfo & { _responseHeaders?: Record<string, string> }
+        )._responseHeaders = headers;
+      }
     };
 
     const onErrorOccurred = (details: chrome.webRequest.WebRequestDetails) => {
@@ -321,6 +385,30 @@ export class NetworkListenerManager extends Disposable {
       chrome.webRequest.onBeforeRequest.addListener(onBeforeRequest, { urls: ['<all_urls>'] });
     } catch (error) {
       return; // Exit if we can't add the primary listener
+    }
+
+    try {
+      chrome.webRequest.onBeforeSendHeaders.addListener(
+        onBeforeSendHeaders,
+        { urls: ['<all_urls>'] },
+        ['requestHeaders'],
+      );
+    } catch (error) {
+      console.log(
+        `[NetworkListenerManager._setupGlobalListeners] Failed to add onBeforeSendHeaders listener:`,
+        error,
+      );
+    }
+
+    try {
+      chrome.webRequest.onHeadersReceived.addListener(onHeadersReceived, { urls: ['<all_urls>'] }, [
+        'responseHeaders',
+      ]);
+    } catch (error) {
+      console.log(
+        `[NetworkListenerManager._setupGlobalListeners] Failed to add onHeadersReceived listener:`,
+        error,
+      );
     }
 
     try {
@@ -346,6 +434,8 @@ export class NetworkListenerManager extends Disposable {
       dispose: () => {
         console.log(`[NetworkListenerManager.dispose] Removing chrome.webRequest listeners`);
         chrome.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
+        chrome.webRequest.onBeforeSendHeaders.removeListener(onBeforeSendHeaders);
+        chrome.webRequest.onHeadersReceived.removeListener(onHeadersReceived);
         chrome.webRequest.onCompleted.removeListener(onCompleted);
         chrome.webRequest.onErrorOccurred.removeListener(onErrorOccurred);
         this._globalListenersRegistered = false;

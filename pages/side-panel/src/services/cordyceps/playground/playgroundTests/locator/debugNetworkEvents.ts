@@ -136,6 +136,17 @@ export async function debugNetworkEvents(
           progress.log(
             `✅ Request object details: id=${request.id}, timestamp=${request.timestamp}, resourceType=${request.resourceType}`,
           );
+
+          // Log header capture information
+          const headerKeys = Object.keys(request.headers);
+          progress.log(
+            `✅ Request headers: ${headerKeys.length} captured (${headerKeys.join(', ')})`,
+          );
+          if (headerKeys.length > 0) {
+            progress.log(
+              `🔍 Sample headers: ${JSON.stringify(request.headers).substring(0, 200)}...`,
+            );
+          }
         } catch (e) {
           progress.log(`❌ Error in request listener: ${e}`);
         }
@@ -160,6 +171,17 @@ export async function debugNetworkEvents(
           progress.log(
             `✅ Response object details: id=${response.id}, timestamp=${response.timestamp}, requestId=${response.request.id}`,
           );
+
+          // Log header capture information
+          const responseHeaderKeys = Object.keys(response.headers);
+          progress.log(
+            `✅ Response headers: ${responseHeaderKeys.length} captured (${responseHeaderKeys.join(', ')})`,
+          );
+          if (responseHeaderKeys.length > 0) {
+            progress.log(
+              `🔍 Sample response headers: ${JSON.stringify(response.headers).substring(0, 200)}...`,
+            );
+          }
         } catch (e) {
           progress.log(`❌ Error in response listener: ${e}`);
         }

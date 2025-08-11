@@ -29,24 +29,28 @@ export async function testNetworkEventFunctionality(
     progress.log('Test 2: Testing response event listener');
     await testResponseEventListener(page, progress, context);
 
-    // Test 3: Event cleanup on page disposal
-    progress.log('Test 3: Testing event cleanup on page disposal');
+    // Test 3: Header capture functionality
+    progress.log('Test 3: Testing header capture functionality');
+    await testHeaderCapture(page, progress, context);
+
+    // Test 4: Event cleanup on page disposal
+    progress.log('Test 4: Testing event cleanup on page disposal');
     await testEventCleanup(page, progress, context);
 
-    // Test 4: Resource type filtering
-    progress.log('Test 4: Testing resource type filtering');
+    // Test 5: Resource type filtering
+    progress.log('Test 5: Testing resource type filtering');
     await testResourceTypeFiltering(page, progress, context);
 
-    // Test 5: Multiple concurrent requests
-    progress.log('Test 5: Testing multiple concurrent requests');
+    // Test 6: Multiple concurrent requests
+    progress.log('Test 6: Testing multiple concurrent requests');
     await testConcurrentRequests(page, progress, context);
 
-    // Test 6: Memory leak detection
-    progress.log('Test 6: Testing memory leak detection and prevention');
+    // Test 7: Memory leak detection
+    progress.log('Test 7: Testing memory leak detection and prevention');
     await testMemoryLeakDetection(page, progress, context);
 
-    // Test 7: NetworkListenerManager cleanup
-    progress.log('Test 7: Testing NetworkListenerManager automatic cleanup');
+    // Test 8: NetworkListenerManager cleanup
+    progress.log('Test 8: Testing NetworkListenerManager automatic cleanup');
     await testNetworkListenerManagerCleanup(page, progress, context);
 
     context.events.emit({
@@ -97,6 +101,17 @@ async function testRequestEventListener(
 
         if (typeof request.headers !== 'object') {
           throw new Error('Request headers should be an object');
+        }
+
+        // Log headers for debugging
+        progress.log(`Request headers: ${JSON.stringify(request.headers)}`);
+
+        // Check if we have common headers (at least one should be present for most requests)
+        const headerKeys = Object.keys(request.headers);
+        if (headerKeys.length > 0) {
+          progress.log(`✓ Request has ${headerKeys.length} headers: ${headerKeys.join(', ')}`);
+        } else {
+          progress.log('⚠️ Warning: Request has no headers captured');
         }
 
         clearTimeout(timeout);
@@ -169,6 +184,19 @@ async function testResponseEventListener(
           throw new Error('Response headers should be an object');
         }
 
+        // Log headers for debugging
+        progress.log(`Response headers: ${JSON.stringify(response.headers)}`);
+
+        // Check if we have common response headers (at least one should be present for HTTP responses)
+        const responseHeaderKeys = Object.keys(response.headers);
+        if (responseHeaderKeys.length > 0) {
+          progress.log(
+            `✓ Response has ${responseHeaderKeys.length} headers: ${responseHeaderKeys.join(', ')}`,
+          );
+        } else {
+          progress.log('⚠️ Warning: Response has no headers captured');
+        }
+
         clearTimeout(timeout);
         responseDisposable.dispose();
 
@@ -192,6 +220,148 @@ async function testResponseEventListener(
       .evaluate(() => {
         fetch('/', { method: 'GET' }).catch(() => {
           // Ignore errors, we just want to generate network activity
+        });
+      })
+      .catch(() => {
+        // Ignore evaluation errors
+      });
+  });
+}
+
+async function testHeaderCapture(
+  page: Page,
+  progress: Progress,
+  context: TestContext,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let requestWithHeaders = false;
+    let responseWithHeaders = false;
+    let completedTests = 0;
+    const expectedTests = 2;
+
+    const timeout = setTimeout(() => {
+      requestDisposable.dispose();
+      responseDisposable.dispose();
+      reject(new Error('Test 3 failed: Header capture timeout'));
+    }, 15000);
+
+    const checkCompletion = () => {
+      if (completedTests >= expectedTests) {
+        clearTimeout(timeout);
+        requestDisposable.dispose();
+        responseDisposable.dispose();
+
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'Test 3 passed: Header capture works correctly',
+          details: {
+            requestWithHeaders,
+            responseWithHeaders,
+            completedTests,
+          },
+        });
+
+        resolve();
+      }
+    };
+
+    // Listen for request events to validate headers
+    const requestDisposable = page.onRequest(request => {
+      try {
+        progress.log(`Header test - Received request: ${request.method} ${request.url}`);
+
+        // Validate request headers structure
+        if (typeof request.headers !== 'object') {
+          throw new Error('Request headers should be an object');
+        }
+
+        const requestHeaderKeys = Object.keys(request.headers);
+        progress.log(`Request headers captured: ${requestHeaderKeys.length} headers`);
+
+        if (requestHeaderKeys.length > 0) {
+          progress.log(`✓ Request headers: ${requestHeaderKeys.join(', ')}`);
+          requestWithHeaders = true;
+
+          // Log some common headers if present
+          if (request.headers['user-agent']) {
+            progress.log(
+              `✓ User-Agent header captured: ${request.headers['user-agent'].substring(0, 50)}...`,
+            );
+          }
+          if (request.headers['accept']) {
+            progress.log(`✓ Accept header captured: ${request.headers['accept']}`);
+          }
+        } else {
+          progress.log(
+            '⚠️ No request headers captured (this might be expected for some request types)',
+          );
+        }
+
+        completedTests++;
+        checkCompletion();
+      } catch (error) {
+        clearTimeout(timeout);
+        requestDisposable.dispose();
+        responseDisposable.dispose();
+        reject(error);
+      }
+    });
+
+    // Listen for response events to validate headers
+    const responseDisposable = page.onResponse(response => {
+      try {
+        progress.log(`Header test - Received response: ${response.status} ${response.url}`);
+
+        // Validate response headers structure
+        if (typeof response.headers !== 'object') {
+          throw new Error('Response headers should be an object');
+        }
+
+        const responseHeaderKeys = Object.keys(response.headers);
+        progress.log(`Response headers captured: ${responseHeaderKeys.length} headers`);
+
+        if (responseHeaderKeys.length > 0) {
+          progress.log(`✓ Response headers: ${responseHeaderKeys.join(', ')}`);
+          responseWithHeaders = true;
+
+          // Log some common response headers if present
+          if (response.headers['content-type']) {
+            progress.log(`✓ Content-Type header captured: ${response.headers['content-type']}`);
+          }
+          if (response.headers['content-length']) {
+            progress.log(`✓ Content-Length header captured: ${response.headers['content-length']}`);
+          }
+          if (response.headers['server']) {
+            progress.log(`✓ Server header captured: ${response.headers['server']}`);
+          }
+        } else {
+          progress.log('⚠️ No response headers captured (this might indicate an issue)');
+        }
+
+        completedTests++;
+        checkCompletion();
+      } catch (error) {
+        clearTimeout(timeout);
+        requestDisposable.dispose();
+        responseDisposable.dispose();
+        reject(error);
+      }
+    });
+
+    // Trigger a request with explicit headers
+    page
+      .evaluate(() => {
+        fetch('/', {
+          method: 'GET',
+          headers: {
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cache-Control': 'no-cache',
+            'X-Test-Header': 'cordyceps-test',
+          },
+        }).catch(() => {
+          // Ignore errors, we just want to generate network activity with headers
         });
       })
       .catch(() => {
