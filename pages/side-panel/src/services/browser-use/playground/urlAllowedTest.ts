@@ -59,13 +59,13 @@ export async function testUrlAllowedNoConfiguration(
 
     // Test various URLs - all should be allowed
     const testUrls = [
-      'https://example.com',
-      'https://google.com',
-      'https://github.com',
-      'http://localhost:3000',
-      'https://subdomain.example.com',
-      'https://api.github.com/repos',
-      'https://www.google.com/search?q=test',
+      'http://localhost:3005',
+      'http://localhost:3005/nav-page-1',
+      'http://localhost:3005/nav-page-2',
+      'http://localhost:3005/iframe1',
+      'http://localhost:3005/iframe2',
+      'http://localhost:3005/nested-iframe',
+      'http://localhost:8080/test',
     ];
 
     let passedTests = 0;
@@ -125,27 +125,26 @@ export async function testUrlAllowedWithAllowedDomains(
     progress.log('Creating BrowserContext with specific allowed domains...');
     const browserWindow = await BrowserWindow.create();
     const browserContext = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com', 'github.com', 'localhost'],
+      allowedDomains: ['localhost', '127.0.0.1', 'test-local.dev'],
     });
 
     // Test URLs that should be allowed
     const allowedUrls = [
-      'https://example.com',
-      'https://www.example.com', // subdomain should be allowed
-      'https://api.example.com', // subdomain should be allowed
-      'https://github.com',
-      'https://api.github.com', // subdomain should be allowed
-      'http://localhost:3000', // localhost with port
+      'http://localhost:3005',
+      'http://localhost:3005/nav-page-1', // subdomain should be allowed
+      'http://localhost:3005/iframe1', // subdomain should be allowed
+      'http://localhost:8080',
+      'http://127.0.0.1:3005', // localhost with port
       'https://localhost', // localhost without port
     ];
 
     // Test URLs that should be rejected
     const rejectedUrls = [
-      'https://google.com', // not in allowed list
-      'https://stackoverflow.com', // not in allowed list
-      'https://badexample.com', // contains 'example.com' but not a subdomain
-      'https://notgithub.com', // contains 'github.com' but not a subdomain
-      'https://example.net', // different TLD
+      'http://test-remote.com', // not in allowed list
+      'http://forbidden-site.org', // not in allowed list
+      'http://bad-localhost.com', // contains 'localhost' but not a subdomain
+      'http://not-local.net', // contains 'local' but not a subdomain
+      'http://localhost.fake', // different TLD
     ];
 
     let allowedPassed = 0;
@@ -225,58 +224,58 @@ export async function testUrlAllowedEdgeCases(
     progress.log('Creating BrowserContext for edge case testing...');
     const browserWindow = await BrowserWindow.create();
     const browserContext = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com', 'test-site.org'],
+      allowedDomains: ['localhost', 'test-local.dev'],
     });
 
     // Test edge cases
     const edgeCaseTests = [
       // URLs with ports
-      { url: 'https://example.com:8080/path', expected: true, description: 'URL with port' },
-      { url: 'http://example.com:3000', expected: true, description: 'HTTP URL with port' },
+      { url: 'http://localhost:8080/path', expected: true, description: 'URL with port' },
+      { url: 'http://localhost:3005', expected: true, description: 'HTTP URL with port' },
 
       // URLs with paths and query parameters
       {
-        url: 'https://example.com/api/v1/users?page=1',
+        url: 'http://localhost:3005/nav-page-1?page=1',
         expected: true,
         description: 'URL with path and query',
       },
       {
-        url: 'https://api.example.com/graphql',
+        url: 'http://test-local.dev/api/test',
         expected: true,
-        description: 'Subdomain with path',
+        description: 'Test domain with path',
       },
 
       // URLs with special characters
       {
-        url: 'https://example.com/search?q=hello%20world',
+        url: 'http://localhost:3005/search?q=hello%20world',
         expected: true,
         description: 'URL with encoded characters',
       },
 
       // Case sensitivity tests
-      { url: 'https://EXAMPLE.COM', expected: true, description: 'Uppercase domain' },
-      { url: 'https://Example.Com/Path', expected: true, description: 'Mixed case domain' },
+      { url: 'http://LOCALHOST:3005', expected: true, description: 'Uppercase domain' },
+      { url: 'http://LocalHost:3005/Path', expected: true, description: 'Mixed case domain' },
 
       // Subdomain variations
       {
-        url: 'https://deep.nested.example.com',
+        url: 'http://api.test-local.dev',
         expected: true,
-        description: 'Deep nested subdomain',
+        description: 'Subdomain of test domain',
       },
-      { url: 'https://sub.test-site.org', expected: true, description: 'Subdomain with hyphen' },
+      { url: 'http://sub.test-local.dev', expected: true, description: 'Subdomain with hyphen' },
 
       // Invalid or malformed URLs should return false
       { url: 'not-a-url', expected: false, description: 'Invalid URL format' },
       {
-        url: 'ftp://example.com',
+        url: 'ftp://localhost',
         expected: true,
         description: 'FTP protocol (should work if domain matches)',
       },
 
       // URLs that should be rejected
-      { url: 'https://malicious.com', expected: false, description: 'Unallowed domain' },
+      { url: 'http://blocked-site.com', expected: false, description: 'Unallowed domain' },
       {
-        url: 'https://examplefake.com',
+        url: 'http://localhostfake.com',
         expected: false,
         description: 'Similar but different domain',
       },
@@ -358,7 +357,7 @@ export async function testUrlAllowedEmptyArray(
 
     // Test various URLs - all should be allowed when array is empty
     const testUrls = [
-      'https://example.com',
+      'http://localhost:3005',
       'https://google.com',
       'https://any-domain.com',
       'http://localhost:3000',
@@ -421,7 +420,7 @@ export async function testHandleDisallowedNavigation(
     progress.log('Creating BrowserContext for disallowed navigation testing...');
     const browserWindow = await BrowserWindow.create();
     const browserContext = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'], // Only allow example.com
+      allowedDomains: ['localhost'], // Only allow localhost
     });
 
     await browserContext.enter();
@@ -550,16 +549,16 @@ export async function testHandleDisallowedNavigationMultiple(
     progress.log('Creating BrowserContext for multiple disallowed navigation testing...');
     const browserWindow = await BrowserWindow.create();
     const browserContext = new BrowserContext(browserWindow, {
-      allowedDomains: ['trusted-site.com'], // Only allow trusted-site.com
+      allowedDomains: ['localhost'], // Only allow localhost
     });
 
     await browserContext.enter();
 
     // Test multiple disallowed URLs
     const disallowedUrls = [
-      'https://malicious.com',
-      'https://phishing-site.org',
-      'https://suspicious-domain.net',
+      'http://blocked-site.com',
+      'http://phishing-site.org',
+      'http://suspicious-domain.net',
       'http://untrusted.io',
     ];
 
@@ -640,7 +639,7 @@ export async function testHandleDisallowedNavigationEdgeCases(
       { url: 'invalid-url-format', description: 'Invalid URL format' },
       { url: 'javascript:alert("test")', description: 'JavaScript URL' },
       { url: 'data:text/html,<h1>Test</h1>', description: 'Data URL' },
-      { url: 'blob:https://example.com/123', description: 'Blob URL' },
+      { url: 'blob:http://localhost:3005/123', description: 'Blob URL' },
     ];
 
     let successfulTests = 0;
@@ -769,22 +768,22 @@ export async function quickUrlAllowedTest(): Promise<boolean> {
 
     // Test 1: No configuration (should allow all)
     const contextNoConfig = new BrowserContext(browserWindow);
-    const test1 = contextNoConfig._isUrlAllowed('https://example.com');
+    const test1 = contextNoConfig._isUrlAllowed('http://localhost:3005');
 
     // Test 2: With allowed domains
     const contextWithConfig = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
-    const test2 = contextWithConfig._isUrlAllowed('https://example.com'); // Should be allowed
-    const test3 = contextWithConfig._isUrlAllowed('https://google.com'); // Should be rejected
+    const test2 = contextWithConfig._isUrlAllowed('http://localhost:3005'); // Should be allowed
+    const test3 = contextWithConfig._isUrlAllowed('http://remote-site.com'); // Should be rejected
 
     // Test 3: Subdomain test
-    const test4 = contextWithConfig._isUrlAllowed('https://api.example.com'); // Should be allowed
+    const test4 = contextWithConfig._isUrlAllowed('http://localhost:8080'); // Should be allowed
 
     // Test 4: Handle disallowed navigation
     let test5 = false;
     try {
-      await contextWithConfig._handleDisallowedNavigation('https://malicious.com');
+      await contextWithConfig._handleDisallowedNavigation('http://blocked-site.com');
     } catch (error) {
       // Should throw an error
       test5 = error instanceof Error && error.message.includes('URL not allowed');
@@ -827,7 +826,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
     // Test with timeout override
     const browserWindow = await BrowserWindow.create();
     const contextWithTimeout = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextWithTimeout.enter();
@@ -836,7 +835,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
 
     // Test with 0.05 second timeout override to test very fast minimum wait
     const startTime = Date.now();
-    await contextWithTimeout.safeGoto('https://example.com');
+    await contextWithTimeout.safeGoto('http://localhost:3005');
     await contextWithTimeout._waitForPageAndFramesLoad({ timeoutOverwrite: 0.05 });
     const elapsed = (Date.now() - startTime) / 1000;
 
@@ -850,7 +849,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
     progress.log('Testing default timeout vs override...');
 
     const startTime2 = Date.now();
-    await contextWithTimeout.safeGoto('https://example.com');
+    await contextWithTimeout.safeGoto('http://localhost:3005');
     await contextWithTimeout._waitForPageAndFramesLoad(); // Default 0.25s minimum
     const elapsed2 = (Date.now() - startTime2) / 1000;
 
@@ -903,7 +902,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
 
     const browserWindow = await BrowserWindow.create();
     const contextRestricted = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextRestricted.enter();
@@ -912,7 +911,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
 
     // Test 1: Allowed URL should work
     try {
-      await contextRestricted.safeGoto('https://example.com');
+      await contextRestricted.safeGoto('http://localhost:3005');
       await contextRestricted._waitForPageAndFramesLoad();
       progress.log('✓ Allowed URL test passed');
 
@@ -936,7 +935,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
     let disallowedTestPassed = false;
     try {
       // Navigate to disallowed domain using safeGoto (should block before navigation)
-      await contextRestricted.safeGoto('https://malicious.com');
+      await contextRestricted.safeGoto('http://blocked-site.com');
       await contextRestricted._waitForPageAndFramesLoad();
       progress.log('✗ Disallowed URL test failed - should have thrown error');
     } catch (error) {
@@ -996,7 +995,7 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
 
     const browserWindow = await BrowserWindow.create();
     const contextMinWait = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextMinWait.enter();
@@ -1005,7 +1004,7 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
 
     // Test default minimum wait time (0.25 seconds)
     const startTime = Date.now();
-    await contextMinWait.safeGoto('https://example.com');
+    await contextMinWait.safeGoto('http://localhost:3005');
     await contextMinWait._waitForPageAndFramesLoad();
     const elapsed = (Date.now() - startTime) / 1000;
 
@@ -1056,7 +1055,7 @@ export async function testWaitForPageAndFramesLoadNetworkStability(
 
     const browserWindow = await BrowserWindow.create();
     const contextNetwork = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextNetwork.enter();
@@ -1066,7 +1065,7 @@ export async function testWaitForPageAndFramesLoadNetworkStability(
     // Navigate to a page and verify network stability is checked
     const startTime = Date.now();
     try {
-      await contextNetwork.safeGoto('https://example.com');
+      await contextNetwork.safeGoto('http://localhost:3005');
       await contextNetwork._waitForPageAndFramesLoad();
       const elapsed = (Date.now() - startTime) / 1000;
 
@@ -1122,7 +1121,7 @@ export async function testWaitForPageAndFramesLoadErrorHandling(
 
     const browserWindow = await BrowserWindow.create();
     const contextError = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextError.enter();
@@ -1240,7 +1239,7 @@ export async function testTakeScreenshot(
 
     const browserWindow = await BrowserWindow.create();
     const contextScreenshot = new BrowserContext(browserWindow, {
-      allowedDomains: ['example.com'],
+      allowedDomains: ['localhost'],
     });
 
     await contextScreenshot.enter();
@@ -1248,7 +1247,7 @@ export async function testTakeScreenshot(
     progress.log('Testing screenshot functionality...');
 
     // Navigate to a page first
-    await contextScreenshot.safeGoto('https://example.com');
+    await contextScreenshot.safeGoto('http://localhost:3005');
     await contextScreenshot._waitForPageAndFramesLoad();
 
     // Test 1: Take viewport screenshot (graceful error handling)

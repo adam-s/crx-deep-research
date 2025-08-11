@@ -45,6 +45,10 @@ export interface IBrowserUsePlaygroundService {
   runWaitForPageAndFramesLoadTests: () => Promise<void>;
   /** Run takeScreenshot functionality test */
   runTakeScreenshotTest: () => Promise<void>;
+  /** Run _getTabsInfo functionality test */
+  runGetTabsInfoTest: () => Promise<void>;
+  /** Run quick _getTabsInfo test */
+  runQuickGetTabsInfoTest: () => Promise<boolean>;
 }
 
 export class BrowserUsePlaygroundService
@@ -176,7 +180,7 @@ export class BrowserUsePlaygroundService
 
       // Create agent
       const task =
-        'Navigate to the browser-use GitHub repository at https://github.com/browser-use/browser-use and find information about the project and its contributors';
+        'Navigate to the local test server at http://localhost:3005 and explore the navigation test pages to understand the available test resources and content structure';
 
       // Add task message to conversation
       await this._conversationService.addMessage(conversationId, {
@@ -690,6 +694,75 @@ export class BrowserUsePlaygroundService
         message: 'Screenshot functionality test failed',
         error: error instanceof Error ? error : new Error(String(error)),
       });
+    }
+  }
+
+  public async runGetTabsInfoTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _getTabsInfo() functionality test',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runGetTabsInfoTest, TestProgress } = await import('./getTabsInfoTest');
+
+      const progress = new TestProgress('GetTabsInfo Tests');
+
+      await runGetTabsInfoTest(progress, this);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '✅ _getTabsInfo() functionality test completed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '_getTabsInfo() functionality test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  public async runQuickGetTabsInfoTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Running quick _getTabsInfo() test',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runQuickGetTabsInfoTest } = await import('./getTabsInfoTest');
+
+      const result = await runQuickGetTabsInfoTest();
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick _getTabsInfo() test passed',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick _getTabsInfo() test failed',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick _getTabsInfo() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
     }
   }
 }

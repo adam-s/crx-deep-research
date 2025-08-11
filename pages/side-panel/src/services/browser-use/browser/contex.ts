@@ -5,7 +5,7 @@ import {
   ResponseInfo,
   ScreenshotOptions,
 } from '@src/services/cordyceps/utilities/types';
-import { BrowserState } from './views';
+import { BrowserState, TabInfo } from './views';
 import type { NavigateOptionsWithProgress } from '@src/services/cordyceps/utilities/types';
 import { executeWithProgress } from '@src/services/cordyceps/core/progress';
 
@@ -414,6 +414,7 @@ export class BrowserContext {
       // Don't throw here - we want cleanup to complete even if there are errors
     }
   }
+
   /**
    * Check if the browser context is active
    */
@@ -729,5 +730,21 @@ export class BrowserContext {
     if (remaining > 0) {
       await new Promise(resolve => setTimeout(resolve, remaining * 1000));
     }
+  }
+
+  /**
+   * Get tabs info
+   */
+  async _getTabsInfo(): Promise<TabInfo[]> {
+    const tabs: TabInfo[] = [];
+    const pages = this.browserWindow.pages();
+    for (let i = 0; i < pages.length; i++) {
+      tabs.push({
+        pageId: i,
+        url: pages[i].url(),
+        title: await pages[i].title(),
+      });
+    }
+    return tabs;
   }
 }

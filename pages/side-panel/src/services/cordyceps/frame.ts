@@ -169,6 +169,10 @@ export class Frame extends Disposable {
     console.log(`✅ Frame ${this.frameId} cleared all child frames`);
   }
 
+  title(): Promise<string> {
+    return this.evaluate(() => document.title);
+  }
+
   url(): string | undefined {
     return this._url;
   }

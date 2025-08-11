@@ -152,6 +152,10 @@ export class Page extends Disposable {
     }
   }
 
+  title(): Promise<string> {
+    return this.mainFrame().title();
+  }
+
   public async goto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
     return executeWithProgress(async p => {
       p.log(`Page navigating to "${url}"`);
