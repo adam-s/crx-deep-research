@@ -45,6 +45,19 @@ export class Session extends Disposable {
   readonly onErrorOccurred: Event<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails> =
     this._onErrorOccurred.event;
 
+  // MV3-compatible request events
+  private readonly _onBeforeRequest = this._register(
+    new Emitter<chrome.webRequest.WebRequestDetails>(),
+  );
+  readonly onBeforeRequest: Event<chrome.webRequest.WebRequestDetails> =
+    this._onBeforeRequest.event;
+
+  private readonly _onResponseStarted = this._register(
+    new Emitter<chrome.webRequest.WebResponseHeadersDetails>(),
+  );
+  readonly onResponseStarted: Event<chrome.webRequest.WebResponseHeadersDetails> =
+    this._onResponseStarted.event;
+
   readonly windowId: number;
 
   constructor(windowId: number) {
@@ -53,6 +66,7 @@ export class Session extends Disposable {
     this._setupMessageListener();
     this._setupTabListeners();
     this._setupWebNavigationListeners();
+    this._setupRequestObservation();
     console.log(`✅ Session created for window ${windowId}`);
   }
 
@@ -121,6 +135,95 @@ export class Session extends Disposable {
         chrome.tabs.onRemoved.removeListener(tabRemovedListener);
       },
     });
+  }
+
+  /**
+   * Setup MV3-compatible request observation.
+   * Uses webRequest API for observation only (no blocking).
+   */
+  private _setupRequestObservation(): void {
+    const onBeforeRequest = (details: chrome.webRequest.WebRequestDetails) => {
+      this._onBeforeRequest.fire(details);
+    };
+
+    const onResponseStarted = (details: chrome.webRequest.WebResponseHeadersDetails) => {
+      this._onResponseStarted.fire(details);
+    };
+
+    // MV3: webRequest for observation only (no "blocking" permission)
+    chrome.webRequest.onBeforeRequest.addListener(onBeforeRequest, { urls: ['<all_urls>'] });
+
+    chrome.webRequest.onResponseStarted.addListener(onResponseStarted, { urls: ['<all_urls>'] }, [
+      'responseHeaders',
+    ]);
+
+    this._register({
+      dispose: () => {
+        chrome.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
+        chrome.webRequest.onResponseStarted.removeListener(onResponseStarted);
+      },
+    });
+
+    console.log(`🔧 Request observation setup completed for window ${this.windowId}`);
+  }
+
+  /**
+   * Setup declarativeNetRequest rules for a specific tab.
+   * MV3-compatible alternative to webRequestBlocking.
+   */
+  async setupDeclarativeRulesForTab(tabId: number): Promise<void> {
+    try {
+      const baseRuleId = tabId * 1000; // Unique rule ID base per tab
+
+      const rules: chrome.declarativeNetRequest.Rule[] = [
+        // Add custom header to identify Cordyceps requests
+        {
+          id: baseRuleId + 1,
+          priority: 1,
+          action: {
+            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            requestHeaders: [
+              {
+                header: 'X-Cordyceps-Tab',
+                operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+                value: tabId.toString(),
+              },
+            ],
+          },
+          condition: {
+            tabIds: [tabId],
+            resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+          },
+        },
+      ];
+
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        addRules: rules,
+        removeRuleIds: [baseRuleId + 1], // Remove existing rule first
+      });
+
+      console.log(`🔧 Declarative rules setup completed for tab ${tabId}`);
+    } catch (error) {
+      console.warn(`Failed to setup declarative rules for tab ${tabId}:`, error);
+    }
+  }
+
+  /**
+   * Clean up declarativeNetRequest rules for a specific tab.
+   */
+  async cleanupDeclarativeRulesForTab(tabId: number): Promise<void> {
+    try {
+      const baseRuleId = tabId * 1000;
+      const ruleIds = [baseRuleId + 1, baseRuleId + 2]; // Add more rule IDs as needed
+
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: ruleIds,
+      });
+
+      console.log(`🧹 Declarative rules cleaned up for tab ${tabId}`);
+    } catch (error) {
+      console.warn(`Failed to cleanup declarative rules for tab ${tabId}:`, error);
+    }
   }
 
   /**

@@ -64,8 +64,44 @@ export class Page extends Disposable {
     this.onRequest = this._networkEvents.onRequest;
     this.onResponse = this._networkEvents.onResponse;
 
+    // Setup content script listener immediately - this is needed for execution context creation
     this._setupContentScriptListener();
+
+    // Run async initialization (fire and forget for now)
+    this._initialize().catch(error => {
+      console.error(`Failed to initialize Page ${tabId}:`, error);
+    });
+
     console.log(`✅ Page created for tab ${tabId}`);
+  }
+
+  /**
+   * Initialize the page after construction.
+   * This method consolidates all async initialization steps that can be deferred.
+   */
+  async _initialize(): Promise<void> {
+    // TODO: Add HTTP credentials setup when needed
+    // await this._updateHttpCredentials();
+
+    // Setup request interception using Session's MV3-compatible APIs
+    await this._updateRequestInterception();
+
+    console.log(`✅ Page ${this.tabId} initialized`);
+  }
+
+  /**
+   * Setup request interception for this page using Session's MV3-compatible APIs.
+   * Delegates to Session for declarativeNetRequest rules and webRequest observation.
+   */
+  private async _updateRequestInterception(): Promise<void> {
+    try {
+      // Use Session's declarativeNetRequest setup for this tab
+      await this.session.setupDeclarativeRulesForTab(this.tabId);
+
+      console.log(`🔧 Request interception delegated to Session for tab ${this.tabId}`);
+    } catch (error) {
+      console.warn(`Failed to setup request interception for tab ${this.tabId}:`, error);
+    }
   }
 
   /**
@@ -80,6 +116,11 @@ export class Page extends Disposable {
   dispose(): void {
     console.log(`🗑️ Disposing Page for tab ${this.tabId}`);
     console.log(`🗑️ Page disposing FrameManager with ${this.frameManager.frames().length} frames`);
+
+    // Clean up declarative rules for this tab
+    this.session.cleanupDeclarativeRulesForTab(this.tabId).catch(error => {
+      console.warn(`Failed to cleanup declarative rules during dispose:`, error);
+    });
 
     if (this._ownedContext) {
       console.log(`🗑️ Page disposing owned context for tab ${this.tabId}`);
