@@ -434,7 +434,6 @@ export async function testHandleDisallowedNavigation(
       severity: Severity.Info,
       message: 'Starting _handleDisallowedNavigation test',
     });
-
     progress.log('Creating BrowserContext for disallowed navigation testing...');
     browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'], // Only allow localhost

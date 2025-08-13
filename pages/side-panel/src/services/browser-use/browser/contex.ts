@@ -718,8 +718,14 @@ export class BrowserContext {
     // Navigate to a blank page if the current URL is not allowed
     try {
       const page = await this.getCurrentPage();
-      await page.goto('about:blank');
-      console.log('Successfully navigated to about:blank for security');
+      // Do not await here: about:blank often doesn't emit webNavigation events,
+      // causing goto() to wait for lifecycle that never arrives. Fire-and-forget.
+      try {
+        chrome.tabs.update(page.tabId, { url: 'about:blank' });
+        console.log('Issued navigation to about:blank for security');
+      } catch (innerErr) {
+        console.warn('chrome.tabs.update failed when navigating to about:blank:', innerErr);
+      }
     } catch (error) {
       console.warn('Failed to navigate to about:blank, but continuing with error:', error);
       // Continue anyway - the important part is throwing the error
