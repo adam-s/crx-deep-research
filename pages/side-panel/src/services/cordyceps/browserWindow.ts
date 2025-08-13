@@ -59,7 +59,21 @@ export class BrowserWindow extends Disposable {
       this.session.onCompleted(d => {
         const page = this._pages.get(d.tabId);
         if (!page) return;
-        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+
+        // Get the specific frame or use main frame as fallback only if it exists
+        let frame = page.frameManager.frame(d.frameId);
+        if (!frame) {
+          try {
+            frame = page.frameManager.mainFrame();
+          } catch (error) {
+            // Main frame not yet attached, skip this event
+            console.log(
+              `Skipping completed event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+            );
+            return;
+          }
+        }
+
         frame._onLifecycleEvent('load');
         // Relay page-level load for consumers
         page._fireLoad(frame);
@@ -69,7 +83,21 @@ export class BrowserWindow extends Disposable {
       this.session.onDOMContentLoaded(d => {
         const page = this._pages.get(d.tabId);
         if (!page) return;
-        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+
+        // Get the specific frame or use main frame as fallback only if it exists
+        let frame = page.frameManager.frame(d.frameId);
+        if (!frame) {
+          try {
+            frame = page.frameManager.mainFrame();
+          } catch (error) {
+            // Main frame not yet attached, skip this event
+            console.log(
+              `Skipping DOMContentLoaded event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+            );
+            return;
+          }
+        }
+
         frame._onLifecycleEvent('domcontentloaded');
         // Relay page-level domcontentloaded for consumers
         page._fireDomContentLoaded(frame);
@@ -143,7 +171,21 @@ export class BrowserWindow extends Disposable {
       this.session.onHistoryStateUpdated(d => {
         const page = this._pages.get(d.tabId);
         if (!page) return;
-        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+
+        // Get the specific frame or use main frame as fallback only if it exists
+        let frame = page.frameManager.frame(d.frameId);
+        if (!frame) {
+          try {
+            frame = page.frameManager.mainFrame();
+          } catch (error) {
+            // Main frame not yet attached, skip this event
+            console.log(
+              `Skipping history state updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+            );
+            return;
+          }
+        }
+
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
       }),
@@ -152,7 +194,21 @@ export class BrowserWindow extends Disposable {
       this.session.onReferenceFragmentUpdated(d => {
         const page = this._pages.get(d.tabId);
         if (!page) return;
-        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+
+        // Get the specific frame or use main frame as fallback only if it exists
+        let frame = page.frameManager.frame(d.frameId);
+        if (!frame) {
+          try {
+            frame = page.frameManager.mainFrame();
+          } catch (error) {
+            // Main frame not yet attached, skip this event
+            console.log(
+              `Skipping reference fragment updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+            );
+            return;
+          }
+        }
+
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
       }),
@@ -191,19 +247,24 @@ export class BrowserWindow extends Disposable {
         await this._handleMainFrameNavigation(details.tabId);
         const page = this._pages.get(details.tabId);
         if (page) {
-          const main = page.frameManager.mainFrame();
-          const newDoc = details.documentId ? { documentId: details.documentId } : undefined;
-          // Emit internal navigation to unblock waiters
-          main._fireInternalNavigation(
-            details.url,
-            '',
-            newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
-            undefined,
-            true,
-          );
-          // Invalidate previous execution context; new one will be created when content script loads
-          main._onNewDocumentCommitted('Main frame committed new document');
-          page.frameNavigatedToNewDocument(main);
+          try {
+            const main = page.frameManager.mainFrame();
+            const newDoc = details.documentId ? { documentId: details.documentId } : undefined;
+            // Emit internal navigation to unblock waiters
+            main._fireInternalNavigation(
+              details.url,
+              '',
+              newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
+              undefined,
+              true,
+            );
+            // Invalidate previous execution context; new one will be created when content script loads
+            main._onNewDocumentCommitted('Main frame committed new document');
+            page.frameNavigatedToNewDocument(main);
+          } catch (error) {
+            console.warn(`Main frame not ready for tab ${details.tabId} after navigation:`, error);
+            // The main frame will be processed when it's properly attached
+          }
         }
       } else {
         // Subframe navigation - handle frame attachment for existing page
@@ -271,16 +332,21 @@ export class BrowserWindow extends Disposable {
       page.frameManager.clearFrames();
       // Re-fetch all frames for the tab.
       await this._fetchAllFramesForTab(page);
-      const main = page.frameManager.mainFrame();
-      if (main) {
-        try {
-          const tab = await chrome.tabs.get(tabId);
-          if (tab.url) main.setUrl(tab.url);
-        } catch {
-          // ignore
+
+      try {
+        const main = page.frameManager.mainFrame();
+        if (main) {
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab.url) main.setUrl(tab.url);
+          } catch {
+            // ignore
+          }
+          // Reset lifecycle and notify page about new document
+          main._onClearLifecycle();
         }
-        // Reset lifecycle and notify page about new document
-        main._onClearLifecycle();
+      } catch (error) {
+        console.log(`Main frame not ready yet for tab ${tabId}, will be processed when attached`);
       }
     } catch (error) {
       console.log(

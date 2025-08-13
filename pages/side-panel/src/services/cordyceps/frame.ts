@@ -286,7 +286,11 @@ export class Frame extends Disposable {
     );
     this._stopNetworkIdleTimer();
     if (this._inflightRequests.size === 0) this._startNetworkIdleTimer();
-    this.frameManager.page.mainFrame()._recalculateNetworkIdle(this);
+    try {
+      this.frameManager.page.mainFrame()._recalculateNetworkIdle(this);
+    } catch (error) {
+      // Main frame not ready, skip network idle recalculation
+    }
     this._onLifecycleEvent('commit');
   }
 
@@ -315,7 +319,11 @@ export class Frame extends Disposable {
     if (this._firedLifecycleEvents.has('networkidle') || this._detachedScope.isClosed()) return;
     this._networkIdleTimer = setTimeout(() => {
       this._firedNetworkIdleSelf = true;
-      this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+      try {
+        this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+      } catch (error) {
+        // Main frame not ready, skip network idle recalculation
+      }
     }, 500);
   }
 
@@ -336,7 +344,11 @@ export class Frame extends Disposable {
       // can arrive while the idle timer is already active from commit.
       if (!this._networkIdleTimer) this._startNetworkIdleTimer();
     }
-    this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+    try {
+      this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+    } catch (error) {
+      // Main frame not ready, skip network idle recalculation
+    }
   }
 
   _recalculateNetworkIdle(frameThatAllowsRemovingNetworkIdle?: Frame) {
@@ -372,7 +384,11 @@ export class Frame extends Disposable {
     this._fireAddLifecycle(event);
     if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
       console.log('api', `  "${event}" event fired`);
-    this.frameManager.mainFrame()._recalculateNetworkIdle();
+    try {
+      this.frameManager.mainFrame()._recalculateNetworkIdle();
+    } catch (error) {
+      // Main frame not ready, skip network idle recalculation
+    }
   }
 
   // #endregion END nav
@@ -1420,7 +1436,25 @@ export class Frame extends Disposable {
     options?: { timeout?: number },
   ): Promise<R> {
     return await executeWithProgress(
-      async () => {
+      async p => {
+        // Ensure execution context is available. During history navigations
+        // (e.g. goBack/goForward), the content script may not yet be reloaded
+        // for the new document, causing this._context to be undefined briefly.
+        // Wait a short period for the context to be re-created instead of
+        // throwing synchronously.
+        if (!this._context) {
+          try {
+            await this._retryWithProgressAndTimeouts(
+              p,
+              [50, 100, 200, 400, 800, 1200, 2000],
+              async continuePolling => (this._context ? true : continuePolling),
+            );
+          } catch {
+            // fall through to error check below
+          }
+        }
+
+        if (!this._context) throw new Error(`Frame ${this.frameId} has no execution context`);
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
           const result = await this.context.executeScript(pageFunction, 'ISOLATED', arg);

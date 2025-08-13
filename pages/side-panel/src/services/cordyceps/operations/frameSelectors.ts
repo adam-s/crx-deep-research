@@ -65,6 +65,12 @@ export class FrameSelectors {
     // This is for later when we support frame navigation
     const frameChunks = splitSelectorByFrame(selector);
 
+    console.log(`🔍 Resolving frame selector: "${selector}"`);
+    console.log(
+      `   Split into ${frameChunks.length} chunks:`,
+      frameChunks.map(chunk => stringifySelector(chunk)),
+    );
+
     for (const chunk of frameChunks) {
       visitAllSelectorParts(chunk, (part, nested) => {
         if (nested && part.name === 'internal:control' && part.body === 'enter-frame') {
@@ -83,24 +89,34 @@ export class FrameSelectors {
       // @see https://chatgpt.com/share/68894910-90f8-8004-9173-1fcbf62d9913
       frame = this._jumpToAriaRefFrameIfNeeded(selector, info, frame);
       const context = frame.context;
+      const frameChunk = stringifySelector(frameChunks[i]);
+
+      console.log(`🔍 Evaluating frame chunk ${i}: "${frameChunk}" in frame ${frame.frameId}`);
+
       const handleId = await context.frameSelectorEvaluation(
         info.parsed,
         info.strict,
         i === 0 && scope?.remoteObject ? scope.remoteObject : null,
-        stringifySelector(frameChunks[i]),
+        frameChunk,
         info.world,
       );
 
       if (!handleId) {
+        console.error(`❌ Frame chunk evaluation failed for: "${frameChunk}"`);
         throw new InvalidSelectorError(`Could not find frame for selector "${selector}"`);
       }
+
+      console.log(`✅ Frame chunk resolved to handle: ${handleId}`);
 
       const handle = new ElementHandle(context, handleId);
 
       const childFrame = await handle.contentFrame();
       if (!childFrame) {
+        console.error(`❌ Handle did not resolve to iframe for selector: "${frameChunk}"`);
         throw new InvalidSelectorError(`Selector "${selector}" did not resolve to an iframe`);
       }
+
+      console.log(`✅ Found child frame: ${childFrame.frameId}`);
       frame = childFrame;
     }
     if (frame !== this._frame) scope = undefined;
@@ -140,15 +156,28 @@ export class FrameSelectors {
   private _jumpToAriaRefFrameIfNeeded(selector: string, info: SelectorInfo, frame: Frame): Frame {
     if (info.parsed.parts[0].name !== 'aria-ref') return frame;
     const body = info.parsed.parts[0].body as string;
-    const match = body.match(/^f(\d+)e\d+$/);
-    if (!match) return frame;
-    const frameIndex = +match[1];
-    const page = this._frame.frameManager.page;
-    const frameId = page.lastSnapshotFrameIds[frameIndex - 1];
-    const jumptToFrame = frameId ? page.frameManager.frame(frameId) : null;
-    if (!jumptToFrame)
-      throw new InvalidSelectorError(`Invalid frame in aria-ref selector "${selector}"`);
-    return jumptToFrame;
+
+    // Check for sub-frame reference pattern: f{frameIndex}e{elementIndex}
+    const subFrameMatch = body.match(/^f(\d+)e\d+$/);
+    if (subFrameMatch) {
+      const frameIndex = +subFrameMatch[1];
+      const page = this._frame.frameManager.page;
+      const frameId = page.lastSnapshotFrameIds[frameIndex - 1];
+      const jumptToFrame = frameId ? page.frameManager.frame(frameId) : null;
+      if (!jumptToFrame)
+        throw new InvalidSelectorError(`Invalid frame in aria-ref selector "${selector}"`);
+      return jumptToFrame;
+    }
+
+    // Check for main frame reference pattern: e{elementIndex}
+    const mainFrameMatch = body.match(/^e\d+$/);
+    if (mainFrameMatch) {
+      // Main frame reference, stay in current frame context
+      return frame;
+    }
+
+    // If neither pattern matches, stay in current frame
+    return frame;
   }
 
   async queryCount(selector: string): Promise<number> {

@@ -282,11 +282,25 @@ export async function snapshotFrameForAI(
     const { ref } = iframeInfo;
     const { frameBodySelector } = generateFrameSelectors(ref);
 
-    const child = await progress.race(
-      frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
-    );
+    console.log(`🔍 Attempting to resolve iframe reference: ${ref} -> ${frameBodySelector}`);
+
+    let child;
+    try {
+      child = await progress.race(
+        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
+      );
+    } catch (error) {
+      console.warn(
+        `⚠️  Failed to resolve iframe reference ${ref}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      console.warn(`   Skipping iframe expansion and keeping original line`);
+      result.push(line);
+      continue;
+    }
 
     if (!child) {
+      console.warn(`⚠️  No child frame found for reference ${ref}, keeping original line`);
       result.push(line);
       continue;
     }
