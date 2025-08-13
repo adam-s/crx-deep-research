@@ -28,6 +28,7 @@ import {
   testTextContentFunctionality,
   testTypeFunctionality,
   testWaitForFunctionality,
+  testWaitForEventFunctionality,
   testBrowserContextNetworkStability,
   testNavigationAutoWait,
   testNavigationGoBack,
@@ -169,6 +170,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test waitFor() functionality
       progress.log('Testing waitFor() method for element state waiting');
       await testWaitForFunctionality(page, progress, this.context);
+
+      // Test waitForEvent() functionality
+      progress.log('Testing waitForEvent() method for page event waiting');
+      await testWaitForEventFunctionality(page, progress, this.context);
 
       // Test highlight() functionality
       progress.log('Testing highlight() and hideHighlight() methods');

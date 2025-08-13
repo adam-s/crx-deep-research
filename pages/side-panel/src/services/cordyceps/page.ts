@@ -19,6 +19,7 @@ import type {
   ResponseInfo,
   PageFrameEvent,
   NavigationResponse,
+  WaitForEventOptions,
 } from './utilities/types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
@@ -887,6 +888,156 @@ export class Page extends Disposable {
     } = {},
   ): Promise<void> {
     return NetworkListenerManager.waitForNetworkStability(this._networkEvents, progress, options);
+  }
+
+  /**
+   * Wait for a specific event on this page.
+   * Chrome extension compatible implementation of Playwright's waitForEvent.
+   *
+   * @param event The event name to wait for
+   * @param optionsOrPredicate Either options object or predicate function
+   * @returns Promise that resolves with the event data
+   */
+  async waitForEvent(
+    event: string,
+    optionsOrPredicate: WaitForEventOptions | ((eventArg: unknown) => boolean) = {},
+  ): Promise<unknown> {
+    const timeout = 30000; // Default timeout
+    const options =
+      typeof optionsOrPredicate === 'function'
+        ? { predicate: optionsOrPredicate, timeout }
+        : { timeout, ...optionsOrPredicate };
+
+    return new Promise((resolve, reject) => {
+      let disposable: { dispose(): void } | null = null;
+      let timeoutHandle: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (disposable) disposable.dispose();
+      };
+
+      // Set up timeout
+      timeoutHandle = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(`Timeout ${options.timeout}ms exceeded while waiting for event "${event}"`),
+        );
+      }, options.timeout);
+
+      // Map event names to VS Code events
+      let vsCodeEvent: Event<unknown> | null = null;
+
+      switch (event) {
+        case 'frameattached':
+          vsCodeEvent = this.onFrameAttached;
+          break;
+        case 'framedetached':
+          vsCodeEvent = this.onFrameDetached;
+          break;
+        case 'framenavigated':
+          vsCodeEvent = this.onInternalFrameNavigatedToNewDocument;
+          break;
+        case 'domcontentloaded':
+          vsCodeEvent = this.onDomContentLoaded;
+          break;
+        case 'load':
+          vsCodeEvent = this.onLoad;
+          break;
+        case 'request':
+          vsCodeEvent = this.onRequest;
+          break;
+        case 'response':
+          vsCodeEvent = this.onResponse;
+          break;
+        case 'close':
+          // Page close handling would need to be implemented
+          reject(new Error(`Event "${event}" is not yet supported`));
+          return;
+        case 'crash':
+          // Page crash handling would need to be implemented
+          reject(new Error(`Event "${event}" is not yet supported`));
+          return;
+        default:
+          reject(new Error(`Unknown event "${event}"`));
+          return;
+      }
+
+      if (!vsCodeEvent) {
+        reject(new Error(`Failed to map event "${event}" to VS Code event`));
+        return;
+      }
+
+      // Listen for the event
+      disposable = vsCodeEvent((eventArg: unknown) => {
+        try {
+          if (options.predicate && !options.predicate(eventArg)) {
+            return; // Continue waiting
+          }
+          cleanup();
+          resolve(eventArg);
+        } catch (e) {
+          cleanup();
+          reject(e);
+        }
+      });
+    });
+  }
+
+  /**
+   * Internal waitForEvent with progress support.
+   * Provides the ability to handle cancellation and timeout via Progress.
+   *
+   * @param event The event name to wait for
+   * @param optionsOrPredicate Either options object or predicate function
+   * @param progress Progress controller for abort handling
+   * @returns Promise that resolves with the event data
+   */
+  async _waitForEvent(
+    event: string,
+    optionsOrPredicate: WaitForEventOptions | ((eventArg: unknown) => boolean),
+    progress: Progress,
+  ): Promise<unknown> {
+    const options =
+      typeof optionsOrPredicate === 'function'
+        ? { predicate: optionsOrPredicate, timeout: 30000 }
+        : { timeout: 30000, ...optionsOrPredicate };
+
+    // Map event names to VS Code events
+    let vsCodeEvent: Event<unknown> | null = null;
+
+    switch (event) {
+      case 'frameattached':
+        vsCodeEvent = this.onFrameAttached;
+        break;
+      case 'framedetached':
+        vsCodeEvent = this.onFrameDetached;
+        break;
+      case 'framenavigated':
+        vsCodeEvent = this.onInternalFrameNavigatedToNewDocument;
+        break;
+      case 'domcontentloaded':
+        vsCodeEvent = this.onDomContentLoaded;
+        break;
+      case 'load':
+        vsCodeEvent = this.onLoad;
+        break;
+      case 'request':
+        vsCodeEvent = this.onRequest;
+        break;
+      case 'response':
+        vsCodeEvent = this.onResponse;
+        break;
+      default:
+        throw new Error(`Unknown or unsupported event "${event}"`);
+    }
+
+    if (!vsCodeEvent) {
+      throw new Error(`Failed to map event "${event}" to VS Code event`);
+    }
+
+    // Use Frame's static waitForEvent method which handles progress properly
+    return Frame.waitForEvent(progress, vsCodeEvent, options.predicate, options.timeout);
   }
 
   /**

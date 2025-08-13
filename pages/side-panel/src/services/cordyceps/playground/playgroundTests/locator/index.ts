@@ -26,6 +26,7 @@ export { testTapFunctionality } from './tapFunctionality';
 export { testTextContentFunctionality } from './textContentFunctionality';
 export { testTypeFunctionality } from './typeFunctionality';
 export { testWaitForFunctionality } from './waitForFunctionality';
+export { testWaitForEventFunctionality } from './waitForEventFunctionality';
 export { testNetworkEventFunctionality } from './networkEventFunctionality';
 export {
   testBrowserContextNetworkStability,

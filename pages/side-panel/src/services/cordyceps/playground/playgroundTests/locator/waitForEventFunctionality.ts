@@ -1,0 +1,232 @@
+import { Severity } from '@src/utils/types';
+import { Progress } from '../../../core/progress';
+import { Page } from '../../../page';
+import { TestContext } from '../api';
+
+/**
+ * Test Page.waitForEvent() functionality with various events.
+ * Tests both the public API and internal _waitForEvent with progress.
+ */
+export async function testWaitForEventFunctionality(
+  page: Page,
+  progress: Progress,
+  context: TestContext,
+): Promise<void> {
+  progress.log('🧪 Testing Page.waitForEvent() functionality');
+
+  // Test 1: Wait for a load event
+  progress.log('Test 1: Testing waitForEvent with load event');
+  try {
+    // Navigate to trigger a load event
+    const origin = await page.evaluate(() => window.location.origin);
+
+    // Start waiting for load event before navigation
+    const loadEventPromise = page.waitForEvent('load', { timeout: 5000 });
+
+    // Navigate to trigger the event
+    await page.goto(`${origin}/`, { waitUntil: 'load' });
+
+    // Wait for the event
+    const loadEvent = await loadEventPromise;
+
+    progress.log('✅ Load event received successfully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'waitForEvent with load event test passed',
+      details: { eventReceived: !!loadEvent },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ Load event test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'waitForEvent with load event test failed',
+      details: { error: errorMessage },
+    });
+  }
+
+  // Test 2: Wait for a request event
+  progress.log('Test 2: Testing waitForEvent with request event');
+  try {
+    // Start waiting for request event
+    const requestEventPromise = page.waitForEvent('request', {
+      timeout: 5000,
+      predicate: (eventArg: unknown) => {
+        // Type guard to check if eventArg has expected request properties
+        return (
+          typeof eventArg === 'object' &&
+          eventArg !== null &&
+          'url' in eventArg &&
+          typeof (eventArg as { url: unknown }).url === 'string'
+        );
+      },
+    });
+
+    // Trigger a request by navigating or interacting with the page
+    await page.evaluate(() => {
+      // Create a simple fetch request to trigger the request event
+      fetch('/favicon.ico').catch(() => {
+        // Ignore errors, we just want to trigger a request
+      });
+    });
+
+    // Wait for the event
+    const requestEvent = await requestEventPromise;
+
+    progress.log('✅ Request event received successfully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'waitForEvent with request event test passed',
+      details: { eventReceived: !!requestEvent },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ Request event test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'waitForEvent with request event test failed',
+      details: { error: errorMessage },
+    });
+  }
+
+  // Test 3: Test with predicate function (functional style)
+  progress.log('Test 3: Testing waitForEvent with predicate function');
+  try {
+    // Use functional style with predicate
+    const domContentLoadedPromise = page.waitForEvent('domcontentloaded', (eventArg: unknown) => {
+      // Simple predicate that always returns true for testing
+      return typeof eventArg === 'object' && eventArg !== null;
+    });
+
+    // Navigate to trigger domcontentloaded
+    const origin = await page.evaluate(() => window.location.origin);
+    await page.goto(`${origin}/`, { waitUntil: 'domcontentloaded' });
+
+    const domEvent = await domContentLoadedPromise;
+
+    progress.log('✅ DOMContentLoaded event with predicate received successfully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'waitForEvent with predicate function test passed',
+      details: { eventReceived: !!domEvent },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ DOMContentLoaded with predicate test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'waitForEvent with predicate function test failed',
+      details: { error: errorMessage },
+    });
+  }
+
+  // Test 4: Test internal _waitForEvent with progress
+  progress.log('Test 4: Testing internal _waitForEvent with progress');
+  try {
+    // Test internal API with progress controller
+    const frameAttachedPromise = page._waitForEvent('frameattached', { timeout: 3000 }, progress);
+
+    // Create an iframe to trigger frameattached event
+    await page.evaluate(() => {
+      const iframe = document.createElement('iframe');
+      iframe.src = 'about:blank';
+      iframe.style.width = '100px';
+      iframe.style.height = '100px';
+      document.body.appendChild(iframe);
+    });
+
+    const frameEvent = await frameAttachedPromise;
+
+    progress.log('✅ Frame attached event with progress received successfully');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: '_waitForEvent with progress test passed',
+      details: { eventReceived: !!frameEvent },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ Frame attached with progress test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: '_waitForEvent with progress test failed',
+      details: { error: errorMessage },
+    });
+  }
+
+  // Test 5: Test timeout behavior
+  progress.log('Test 5: Testing waitForEvent timeout behavior');
+  try {
+    // This should timeout since we're waiting for an event that won't occur
+    await page.waitForEvent('framedetached', { timeout: 1000 });
+
+    // If we reach here, the test failed because it should have timed out
+    progress.log('❌ Timeout test failed - event unexpectedly resolved');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'waitForEvent timeout test failed - should have timed out',
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Timeout') && errorMessage.includes('exceeded')) {
+      progress.log('✅ Timeout behavior working correctly');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'waitForEvent timeout test passed',
+        details: { expectedTimeout: true },
+      });
+    } else {
+      progress.log(`❌ Timeout test failed with unexpected error: ${errorMessage}`);
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'waitForEvent timeout test failed with unexpected error',
+        details: { error: errorMessage },
+      });
+    }
+  }
+
+  // Test 6: Test unknown event error handling
+  progress.log('Test 6: Testing waitForEvent with unknown event');
+  try {
+    await page.waitForEvent('unknownevent', { timeout: 1000 });
+
+    // If we reach here, the test failed
+    progress.log('❌ Unknown event test failed - should have thrown error');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'waitForEvent unknown event test failed - should have thrown error',
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Unknown event')) {
+      progress.log('✅ Unknown event error handling working correctly');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'waitForEvent unknown event test passed',
+        details: { expectedError: true },
+      });
+    } else {
+      progress.log(`❌ Unknown event test failed with unexpected error: ${errorMessage}`);
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'waitForEvent unknown event test failed with unexpected error',
+        details: { error: errorMessage },
+      });
+    }
+  }
+
+  progress.log('🎯 Page.waitForEvent() functionality tests completed');
+}

@@ -164,6 +164,11 @@ export interface PageFrameEvent {
 
 export type TimeoutOptions = { timeout?: number };
 
+export type WaitForEventOptions = {
+  timeout?: number;
+  predicate?: (eventArg: unknown) => boolean;
+};
+
 export type StrictOptions = {
   strict?: boolean;
 };
