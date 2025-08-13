@@ -961,7 +961,6 @@ export class BrowserContext {
         title = await Promise.race([titlePromise, timeoutPromise]);
         console.log(`[BrowserContext._getTabsInfo] ############ Got title for page ${i}: ${title}`);
       } catch (error) {
-        debugger;
         console.log(
           `[BrowserContext._getTabsInfo] ############ Failed to get title for page ${i}, using fallback:`,
           error,

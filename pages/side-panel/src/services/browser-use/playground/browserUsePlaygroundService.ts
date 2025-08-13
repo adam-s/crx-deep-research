@@ -50,6 +50,10 @@ export interface IBrowserUsePlaygroundService {
   runGetTabsInfoTest: () => Promise<void>;
   /** Run quick _getTabsInfo test */
   runQuickGetTabsInfoTest: () => Promise<boolean>;
+  /** Run _getScrollInfo functionality tests */
+  runGetScrollInfoTests: () => Promise<void>;
+  /** Run quick _getScrollInfo test */
+  runQuickGetScrollInfoTest: () => Promise<boolean>;
 }
 
 export class BrowserUsePlaygroundService
@@ -98,6 +102,9 @@ export class BrowserUsePlaygroundService
 
       // Run takeScreenshot functionality test
       await this.runTakeScreenshotTest();
+
+      // Run _getScrollInfo functionality tests
+      await this.runGetScrollInfoTests();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -769,6 +776,85 @@ export class BrowserUsePlaygroundService
         timestamp: Date.now(),
         severity: Severity.Error,
         message: 'Quick _getTabsInfo() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  public async runGetScrollInfoTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting _getScrollInfo() functionality tests',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runAllGetScrollInfoTests } = await import('./tests/getScrollInfoTest');
+
+      // Create test context compatible with the test requirements
+      const testContext = {
+        events: this.events,
+        browserUseService: this,
+      };
+
+      // Run the comprehensive _getScrollInfo tests
+      await runAllGetScrollInfoTests(testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 All _getScrollInfo tests passed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '_getScrollInfo tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickGetScrollInfoTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Running quick _getScrollInfo() test',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { quickGetScrollInfoTest } = await import('./tests/getScrollInfoTest');
+
+      // Get browser instance
+      const browserWindow = await this.browserUseService.getBrowser();
+
+      // Run the quick scroll info test
+      const result = await quickGetScrollInfoTest(browserWindow);
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick _getScrollInfo() test passed',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick _getScrollInfo() test failed',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick _getScrollInfo() test encountered an error',
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;
