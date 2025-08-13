@@ -1,8 +1,19 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED } from '@shared/utils/message';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { NavigationLifecycle } from './navigation/lifecycle';
 
 export class Session extends Disposable {
+  /**
+   * Session is the adapter for Chrome APIs related to:
+   * - content script handshake (runtime messages)
+   * - tab lifecycle (tabs.onCreated/onRemoved)
+   * - navigation lifecycle (webNavigation.*)
+   *
+   * Network observation (chrome.webRequest.*) is intentionally NOT handled here.
+   * Use NetworkListenerManager for all request/response tracking to avoid double listeners
+   * and to keep concerns separated.
+   */
   private readonly _onContentScriptLoaded = this._register(
     new Emitter<chrome.runtime.MessageSender>(),
   );
@@ -64,20 +75,9 @@ export class Session extends Disposable {
   readonly onErrorOccurred: Event<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails> =
     this._onErrorOccurred.event;
 
-  // MV3-compatible request events
-  private readonly _onBeforeRequest = this._register(
-    new Emitter<chrome.webRequest.WebRequestDetails>(),
-  );
-  readonly onBeforeRequest: Event<chrome.webRequest.WebRequestDetails> =
-    this._onBeforeRequest.event;
-
-  private readonly _onResponseStarted = this._register(
-    new Emitter<chrome.webRequest.WebResponseHeadersDetails>(),
-  );
-  readonly onResponseStarted: Event<chrome.webRequest.WebResponseHeadersDetails> =
-    this._onResponseStarted.event;
-
   readonly windowId: number;
+  // Centralized navigation lifecycles per-tab for consistent wiring
+  private readonly _navByTab = new Map<number, NavigationLifecycle>();
 
   constructor(windowId: number) {
     super();
@@ -152,10 +152,20 @@ export class Session extends Disposable {
   private _setupTabListeners(): void {
     const tabCreatedListener = (tab: chrome.tabs.Tab) => {
       this._onTabCreated.fire(tab);
+      if (tab.windowId !== this.windowId) return;
+      if (typeof tab.id === 'number') {
+        // Lazily create a lifecycle instance so consumers can subscribe immediately
+        this._ensureNavLifecycle(tab.id);
+      }
     };
 
     const tabRemovedListener = (tabId: number, removeInfo: chrome.tabs.TabRemoveInfo) => {
       this._onTabRemoved.fire({ tabId, removeInfo });
+      const nav = this._navByTab.get(tabId);
+      if (nav) {
+        nav.dispose();
+        this._navByTab.delete(tabId);
+      }
     };
 
     chrome.tabs.onCreated.addListener(tabCreatedListener);
@@ -170,68 +180,69 @@ export class Session extends Disposable {
   }
 
   /**
-   * Setup MV3-compatible request observation.
-   * Uses webRequest API for observation only (no blocking).
-   */
-  private _setupRequestObservation(): void {
-    const onBeforeRequest = (details: chrome.webRequest.WebRequestDetails) => {
-      this._onBeforeRequest.fire(details);
-    };
-
-    const onResponseStarted = (details: chrome.webRequest.WebResponseHeadersDetails) => {
-      this._onResponseStarted.fire(details);
-    };
-
-    // MV3: webRequest for observation only (no "blocking" permission)
-    chrome.webRequest.onBeforeRequest.addListener(onBeforeRequest, { urls: ['<all_urls>'] });
-
-    chrome.webRequest.onResponseStarted.addListener(onResponseStarted, { urls: ['<all_urls>'] }, [
-      'responseHeaders',
-    ]);
-
-    this._register({
-      dispose: () => {
-        chrome.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
-        chrome.webRequest.onResponseStarted.removeListener(onResponseStarted);
-      },
-    });
-
-    console.log(`🔧 Request observation setup completed for window ${this.windowId}`);
-  }
-
-  /**
    * Setup declarativeNetRequest rules for a specific tab.
    * MV3-compatible alternative to webRequestBlocking.
    */
-  async setupDeclarativeRulesForTab(tabId: number): Promise<void> {
+  async setupDeclarativeRulesForTab(
+    tabId: number,
+    extraHeaders?: Readonly<Record<string, string>>,
+  ): Promise<void> {
     try {
       const baseRuleId = tabId * 1000; // Unique rule ID base per tab
 
+      // Build request headers array in a single rule to simplify cleanup.
+      const requestHeaders: chrome.declarativeNetRequest.ModifyHeaderInfo[] = [
+        {
+          header: 'X-Cordyceps-Tab',
+          operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+          value: tabId.toString(),
+        },
+      ];
+
+      if (extraHeaders) {
+        for (const [name, value] of Object.entries(extraHeaders)) {
+          // Skip invalid header names or undefined values
+          if (!name || typeof value !== 'string') continue;
+          requestHeaders.push({
+            header: name,
+            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+            value,
+          });
+        }
+      }
+
       const rules: chrome.declarativeNetRequest.Rule[] = [
-        // Add custom header to identify Cordyceps requests
+        // Add/override headers for requests within this tab
         {
           id: baseRuleId + 1,
           priority: 1,
           action: {
             type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
-            requestHeaders: [
-              {
-                header: 'X-Cordyceps-Tab',
-                operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-                value: tabId.toString(),
-              },
-            ],
+            requestHeaders,
           },
           condition: {
             tabIds: [tabId],
-            resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+            // Apply to common resource types. This can be extended if needed.
+            resourceTypes: [
+              chrome.declarativeNetRequest.ResourceType.MAIN_FRAME,
+              chrome.declarativeNetRequest.ResourceType.SUB_FRAME,
+              chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+              chrome.declarativeNetRequest.ResourceType.SCRIPT,
+              chrome.declarativeNetRequest.ResourceType.STYLESHEET,
+              chrome.declarativeNetRequest.ResourceType.IMAGE,
+              chrome.declarativeNetRequest.ResourceType.FONT,
+              chrome.declarativeNetRequest.ResourceType.PING,
+              chrome.declarativeNetRequest.ResourceType.MEDIA,
+              chrome.declarativeNetRequest.ResourceType.WEBSOCKET,
+              chrome.declarativeNetRequest.ResourceType.OTHER,
+            ],
           },
         },
       ];
 
       await chrome.declarativeNetRequest.updateDynamicRules({
         addRules: rules,
-        removeRuleIds: [baseRuleId + 1], // Remove existing rule first
+        removeRuleIds: [baseRuleId + 1], // Replace existing rule for this tab
       });
 
       console.log(`🔧 Declarative rules setup completed for tab ${tabId}`);
@@ -293,5 +304,22 @@ export class Session extends Disposable {
     disposables?: DisposableStore,
   ): Event<T> {
     return Event.filter(event, (e: T) => e.frameId === frameId, disposables);
+  }
+
+  /**
+   * Get or create NavigationLifecycle for a tab. Callers can subscribe to
+   * nav events without duplicating chrome.webNavigation listeners.
+   */
+  public getNavigationLifecycle(tabId: number): NavigationLifecycle {
+    return this._ensureNavLifecycle(tabId);
+  }
+
+  private _ensureNavLifecycle(tabId: number): NavigationLifecycle {
+    const existing = this._navByTab.get(tabId);
+    if (existing) return existing;
+    const nav = this._register(new NavigationLifecycle(tabId));
+    nav.attach();
+    this._navByTab.set(tabId, nav);
+    return nav;
   }
 }

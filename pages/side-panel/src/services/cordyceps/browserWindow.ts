@@ -61,6 +61,8 @@ export class BrowserWindow extends Disposable {
         if (!page) return;
         const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
         frame._onLifecycleEvent('load');
+        // Relay page-level load for consumers
+        page._fireLoad(frame);
       }),
     );
     this._register(
@@ -69,22 +71,25 @@ export class BrowserWindow extends Disposable {
         if (!page) return;
         const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
         frame._onLifecycleEvent('domcontentloaded');
+        // Relay page-level domcontentloaded for consumers
+        page._fireDomContentLoaded(frame);
       }),
     );
     // Commit handling is performed inside _handleMainFrameNavigation/_handleSubframeNavigation after frames are ensured
     this._register(
       this.session.onBeforeNavigate(d => {
-        // Could be used to reset state if needed per frame
-        void d; // no-op to avoid ts unused in minimal wiring
+        // Signal that a navigation was requested. This helps barriers/waiters kick in early.
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        page.frameManager.frameRequestedNavigation(d.frameId, undefined);
       }),
     );
     this._register(
       this.session.onErrorOccurred(d => {
         const page = this._pages.get(d.tabId);
         if (!page) return;
-        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
-        // Consider aborting pending navigation
-        frame._onLifecycleEvent('commit');
+        // Abort pending navigation for this frame if any.
+        page.frameManager.frameAbortedNavigation(d.frameId, d.error);
       }),
     );
 
@@ -176,6 +181,8 @@ export class BrowserWindow extends Disposable {
             undefined,
             true,
           );
+          // Invalidate previous execution context; new one will be created when content script loads
+          main._onNewDocumentCommitted('Main frame committed new document');
           page.frameNavigatedToNewDocument(main);
         }
       } else {
@@ -193,6 +200,8 @@ export class BrowserWindow extends Disposable {
               undefined,
               true,
             );
+            // Invalidate subframe execution context on commit as well
+            frame._onNewDocumentCommitted('Subframe committed new document');
             page.frameNavigatedToNewDocument(frame);
           }
         }

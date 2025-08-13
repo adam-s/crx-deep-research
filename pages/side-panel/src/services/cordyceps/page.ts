@@ -43,11 +43,15 @@ export class Page extends Disposable {
   private readonly _onInternalFrameNavigatedToNewDocument = this._register(
     new Emitter<PageFrameEvent>(),
   );
+  private readonly _onDomContentLoaded = this._register(new Emitter<PageFrameEvent>());
+  private readonly _onLoad = this._register(new Emitter<PageFrameEvent>());
 
   public readonly onFrameAttached: Event<PageFrameEvent> = this._onFrameAttached.event;
   public readonly onFrameDetached: Event<PageFrameEvent> = this._onFrameDetached.event;
   public readonly onInternalFrameNavigatedToNewDocument: Event<PageFrameEvent> =
     this._onInternalFrameNavigatedToNewDocument.event;
+  public readonly onDomContentLoaded: Event<PageFrameEvent> = this._onDomContentLoaded.event;
+  public readonly onLoad: Event<PageFrameEvent> = this._onLoad.event;
 
   private _ownedContext?: object;
   readonly frameManager: FrameManager;
@@ -58,6 +62,8 @@ export class Page extends Disposable {
   private readonly _navigationDelegate: NavigationDelegate;
   readonly openScope = new LongStandingScope();
   private _closedState: 'open' | 'closing' | 'closed' = 'open';
+  // MV3-safe extra headers applied via declarativeNetRequest per tab
+  private _extraHTTPHeaders: Readonly<Record<string, string>> | undefined;
 
   // Network events using centralized manager to prevent memory leaks
   private readonly _networkEvents!: ReturnType<typeof NetworkListenerManager.prototype.registerTab>;
@@ -168,6 +174,15 @@ export class Page extends Disposable {
     this._onInternalFrameNavigatedToNewDocument.fire({ frame });
   }
 
+  // Page-level lifecycle relays for consumers that don't want to subscribe per frame
+  _fireDomContentLoaded(frame: Frame): void {
+    this._onDomContentLoaded.fire({ frame });
+  }
+
+  _fireLoad(frame: Frame): void {
+    this._onLoad.fire({ frame });
+  }
+
   frameNavigatedToNewDocument(frame: Frame) {
     this._fireInternalFrameNavigatedToNewDocument(frame);
     const origin = frame.origin();
@@ -232,12 +247,23 @@ export class Page extends Disposable {
   private async _updateRequestInterception(): Promise<void> {
     try {
       // Use Session's declarativeNetRequest setup for this tab
-      await this.session.setupDeclarativeRulesForTab(this.tabId);
+      await this.session.setupDeclarativeRulesForTab(this.tabId, this._extraHTTPHeaders);
 
       console.log(`🔧 Request interception delegated to Session for tab ${this.tabId}`);
     } catch (error) {
       console.warn(`Failed to setup request interception for tab ${this.tabId}:`, error);
     }
+  }
+
+  /**
+   * Set extra HTTP headers for all requests from this page (tab).
+   * MV3-compatible via declarativeNetRequest header modification.
+   * Calling this replaces previous extra headers for the tab.
+   */
+  async setExtraHTTPHeaders(headers: Readonly<Record<string, string>>): Promise<void> {
+    // Validate header keys/values lightly; ignore invalid entries inside Session
+    this._extraHTTPHeaders = { ...headers };
+    await this._updateRequestInterception();
   }
 
   /**

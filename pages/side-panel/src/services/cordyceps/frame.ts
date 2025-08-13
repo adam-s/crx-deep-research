@@ -290,6 +290,23 @@ export class Frame extends Disposable {
     this._onLifecycleEvent('commit');
   }
 
+  /**
+   * Called when the frame commits a navigation to a new document.
+   * Invalidate and dispose the previous execution context so future evaluations
+   * happen in a fresh context that will be re-created once the content script loads.
+   */
+  _onNewDocumentCommitted(reason: string = 'Navigated to new document'): void {
+    const ctx = this._context;
+    if (ctx) {
+      try {
+        ctx.contextDestroyed(reason);
+      } catch {
+        // Ignore teardown errors; the frame is transitioning to a new document.
+      }
+      this._context = undefined;
+    }
+  }
+
   _startNetworkIdleTimer() {
     assert(!this._networkIdleTimer);
     // We should not start a timer and report networkidle in detached frames.
@@ -348,18 +365,9 @@ export class Frame extends Disposable {
   }
 
   _onLifecycleEvent(event: RegularLifecycleEvent) {
-    console.log(
-      `[Frame._onLifecycleEvent] Received lifecycle event for frame ${this.frameId}: "${event}"`,
-    );
     if (this._firedLifecycleEvents.has(event)) {
-      console.log(
-        `[Frame._onLifecycleEvent] Lifecycle event "${event}" already fired for frame ${this.frameId}, ignoring`,
-      );
       return;
     }
-    console.log(
-      `[Frame._onLifecycleEvent] Adding and firing lifecycle event "${event}" for frame ${this.frameId}`,
-    );
     this._firedLifecycleEvents.add(event);
     this._fireAddLifecycle(event);
     if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
@@ -387,10 +395,6 @@ export class Frame extends Disposable {
       error,
       isPublic,
     };
-    console.log(
-      `[Frame._fireInternalNavigation] Firing navigation event for frame ${this.frameId}, event:`,
-      navigationEvent,
-    );
     this._onInternalNavigation.fire(navigationEvent);
   }
 
@@ -398,9 +402,6 @@ export class Frame extends Disposable {
    * Fire add lifecycle event
    */
   private _fireAddLifecycle(lifecycle: LifecycleEvent): void {
-    console.log(
-      `[Frame._fireAddLifecycle] Firing add lifecycle event for frame ${this.frameId}: "${lifecycle}"`,
-    );
     this._onAddLifecycle.fire(lifecycle);
   }
 
@@ -408,9 +409,6 @@ export class Frame extends Disposable {
    * Fire remove lifecycle event
    */
   private _fireRemoveLifecycle(lifecycle: LifecycleEvent): void {
-    console.log(
-      `[Frame._fireRemoveLifecycle] Firing remove lifecycle event for frame ${this.frameId}: "${lifecycle}"`,
-    );
     this._onRemoveLifecycle.fire(lifecycle);
   }
 
@@ -510,23 +508,12 @@ export class Frame extends Disposable {
       progress,
       this.onInternalNavigation,
       (event: NavigationEvent) => {
-        console.log(
-          `[Frame._waitForNavigation] Navigation event received for frame ${this.frameId}, event:`,
-          event,
-        );
         // Any failed navigation results in a rejection
         if (event.error) {
-          console.log(
-            `[Frame._waitForNavigation] Navigation event has error for frame ${this.frameId}:`,
-            event.error,
-          );
           return true;
         }
         // Check if we require a new document (for reload vs pushState distinction)
         if (requiresNewDocument && !event.newDocument) {
-          console.log(
-            `[Frame._waitForNavigation] Requires new document but no newDocument in event for frame ${this.frameId}`,
-          );
           return false;
         }
 
@@ -535,9 +522,6 @@ export class Frame extends Disposable {
           progress.log(`  navigated to "${this._url}"`);
         }
 
-        console.log(
-          `[Frame._waitForNavigation] Navigation event matches criteria for frame ${this.frameId}`,
-        );
         return true;
       },
       options.timeout || 30000,
