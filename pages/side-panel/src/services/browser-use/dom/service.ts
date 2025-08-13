@@ -185,17 +185,13 @@ export class DOMService {
     };
 
     try {
-      // Call the window.__cordyceps_buildDomTree function that was loaded by browserUse.js
-      // in the content script's ISOLATED world
+      // Call window.__cordyceps_buildDomTree using Page.evaluate which runs in the ISOLATED world.
       const domTreeResult = await this._page.evaluate((buildArgs: BuildDomTreeArgs) => {
-        // Check if the buildDomTree function is available
         if (typeof window.__cordyceps_buildDomTree !== 'function') {
           throw new Error(
             'window.__cordyceps_buildDomTree function not found. Make sure browserUse.js is loaded in the content script.',
           );
         }
-
-        // Call the function with our arguments
         return window.__cordyceps_buildDomTree(buildArgs);
       }, args);
 

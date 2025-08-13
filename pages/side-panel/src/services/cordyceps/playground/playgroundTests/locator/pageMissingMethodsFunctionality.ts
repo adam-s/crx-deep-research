@@ -304,6 +304,35 @@ export async function testPageMissingMethodsFunctionality(
       throw new Error(`Test 12 failed: Expected 'Page', got: ${pressedValue}`);
     }
 
+    // Test Page bringToFront method (basic invocation)
+    progress.log('Test 13: Testing Page bringToFront method (basic)');
+    try {
+      await page.bringToFront();
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 13 passed: Page bringToFront invoked without errors',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Test 13 failed: bringToFront threw: ${errorMessage}`);
+    }
+
+    // Test Page bringToFront method after interaction
+    progress.log('Test 14: Testing Page bringToFront after interaction');
+    try {
+      await page.click('#action-button');
+      await page.bringToFront();
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 14 passed: bringToFront works after prior interactions',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Test 14 failed: bringToFront after interaction threw: ${errorMessage}`);
+    }
+
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,

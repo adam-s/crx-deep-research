@@ -2,7 +2,7 @@
  * Extended browser context interfaces for TypeScript implementation
  */
 import { SelectorMap, DOMElementNode } from '../dom/views';
-import { BrowserContext, BrowserSession } from './contex';
+import { BrowserContext, BrowserSession } from './context';
 
 /**
  * Extended interface for BrowserContext with additional methods

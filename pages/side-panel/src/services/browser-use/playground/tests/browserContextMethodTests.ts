@@ -4,14 +4,16 @@
  * Focused tests for specific BrowserContext methods:
  * - getCurrentPage()
  * - close()
+ * - getState()
  *
  * This file provides targeted testing for browser context lifecycle methods
  * to ensure proper state management and resource cleanup.
  */
 
-import { BrowserContext, BrowserContextState } from '../browser/contex';
+import { BrowserContext, BrowserContextState } from '../../browser/context';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import { BrowserState } from '../../browser/views';
 
 /**
  * Simple progress tracker for testing
@@ -520,6 +522,100 @@ export async function testStopLoadingMethod(
 }
 
 /**
+ * Test getState() method functionality
+ */
+export async function testGetStateMethod(
+  progress: TestProgress,
+  context: BrowserUsePlaygroundService,
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.getState() method...');
+
+  try {
+    // Create mock BrowserWindow for testing with real window ID (to satisfy APIs used inside)
+    let currentWindowId: number;
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      currentWindowId = currentWindow.id!;
+    } catch (error) {
+      // Skip if chrome APIs are not available
+      progress.log('⚠️ Skipping getState() tests - Chrome APIs not available');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'getState() tests skipped - Chrome APIs not available',
+        details: { reason: 'Cannot access chrome.windows API in test environment' },
+      });
+      return;
+    }
+
+    // Minimal mock page: url, title, evaluate, etc. are required by _updateState path
+    const mockPage = {
+      tabId: 1,
+      url: () => 'https://example.com',
+      title: async () => 'Example Title',
+      evaluate: async <R>(fn: () => R) => fn(),
+      // Used by DOMService and screenshot in _updateState
+      // These will be exercised indirectly; we rely on the function to handle extension context
+    } as unknown as import('@src/services/cordyceps/page').Page;
+
+    const mockBrowserWindow = {
+      windowId: currentWindowId,
+      pages: () => [mockPage],
+      getCurrentPage: async () => mockPage,
+    } as unknown as import('@src/services/cordyceps/browserWindow').BrowserWindow;
+
+    const browserContext = new BrowserContext(mockBrowserWindow);
+
+    // Ensure the context is usable
+    await browserContext.enter();
+
+    // Invoke getState()
+    const state = await browserContext.getState();
+
+    // Basic structural checks on returned BrowserState
+    if (!(state instanceof BrowserState)) {
+      throw new Error('getState() did not return a BrowserState instance');
+    }
+
+    // The session.cachedState must be updated to the returned value
+    if (browserContext.session.cachedState !== state) {
+      throw new Error('session.cachedState was not updated by getState()');
+    }
+
+    // Validate some key fields exist
+    if (typeof state.url !== 'string' || typeof state.title !== 'string') {
+      throw new Error('BrowserState url/title are not strings');
+    }
+
+    if (!Array.isArray(state.tabs)) {
+      throw new Error('BrowserState tabs is not an array');
+    }
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'getState() returned a valid BrowserState and updated session.cachedState',
+      details: {
+        url: state.url,
+        title: state.title,
+        tabsCount: state.tabs.length,
+        screenshotPresent: typeof state.screenshot === 'string' || state.screenshot === undefined,
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`getState() method test failed: ${errorMessage}`);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'getState() method tests failed',
+      details: { error: errorMessage },
+    });
+    throw error;
+  }
+}
+
+/**
  * Test method interaction patterns
  */
 export async function testMethodInteractions(
@@ -712,6 +808,7 @@ export async function runBrowserContextMethodTests(
     await testCloseMethod(progress, context);
     await testStopLoadingMethod(progress, context);
     await testMethodInteractions(progress, context);
+    await testGetStateMethod(progress, context);
 
     progress.log('✅ All browser context method tests completed successfully!');
 
@@ -720,12 +817,13 @@ export async function runBrowserContextMethodTests(
       severity: Severity.Success,
       message: 'All browser context method tests completed successfully',
       details: {
-        totalTestSuites: 4,
+        totalTestSuites: 5,
         testSuites: [
           'getCurrentPage() Method Tests',
           'close() Method Tests',
           'stopLoading() Method Tests',
           'Method Interaction Tests',
+          'getState() Method Tests',
         ],
       },
     });

@@ -14,7 +14,7 @@ import {
   ConversationType,
   MessageRole,
 } from '@shared/features/conversation';
-import { quickUrlAllowedTest } from './urlAllowedTest';
+import { quickUrlAllowedTest } from './tests/urlAllowedTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
   'browserUsePlaygroundService',
@@ -442,9 +442,9 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the context test functions dynamically
-      const { runBrowserUseContextTests } = await import('./browserUseContextTests');
+      const { runBrowserUseContextTests } = await import('./tests/browserUseContextTests');
       const { runBrowserContextMethodTests, TestProgress } = await import(
-        './browserContextMethodTests'
+        './tests/browserContextMethodTests'
       );
 
       // Run the comprehensive context tests
@@ -479,7 +479,7 @@ export class BrowserUsePlaygroundService
       });
 
       // Import the quick test function dynamically
-      const { quickBrowserUseContextTest } = await import('./browserUseContextTests');
+      const { quickBrowserUseContextTest } = await import('./tests/browserUseContextTests');
 
       // Run the quick context test
       const result = await quickBrowserUseContextTest();
@@ -519,7 +519,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllWaitForStableNetworkTests } = await import('./waitForStableNetworkTest');
+      const { runAllWaitForStableNetworkTests } = await import('./tests/waitForStableNetworkTest');
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -555,7 +555,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllUrlAllowedTests } = await import('./urlAllowedTest');
+      const { runAllUrlAllowedTests } = await import('./tests/urlAllowedTest');
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -636,7 +636,7 @@ export class BrowserUsePlaygroundService
 
     try {
       const { testWaitForPageAndFramesLoadComprehensive, TestProgress } = await import(
-        './urlAllowedTest'
+        './tests/urlAllowedTest'
       );
 
       // Get browser instance
@@ -677,7 +677,7 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testTakeScreenshot, TestProgress } = await import('./urlAllowedTest');
+      const { testTakeScreenshot, TestProgress } = await import('./tests/urlAllowedTest');
 
       // Get browser instance
       const browserWindow = await this.browserUseService.getBrowser();
@@ -715,7 +715,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runGetTabsInfoTest, TestProgress } = await import('./getTabsInfoTest');
+      const { runGetTabsInfoTest, TestProgress } = await import('./tests/getTabsInfoTest');
 
       const progress = new TestProgress('GetTabsInfo Tests');
 
@@ -745,7 +745,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runQuickGetTabsInfoTest } = await import('./getTabsInfoTest');
+      const { runQuickGetTabsInfoTest } = await import('./tests/getTabsInfoTest');
 
       const result = await runQuickGetTabsInfoTest();
 

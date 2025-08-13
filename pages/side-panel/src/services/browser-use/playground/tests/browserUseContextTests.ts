@@ -5,9 +5,9 @@
  * from the browser-use service, designed to run within the Chrome extension side panel playground.
  */
 
-import { BrowserContext, BrowserSession, BrowserContextState } from '../browser/contex';
+import { BrowserContext, BrowserSession, BrowserContextState } from '../../browser/context';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
 
 /**
  * Simple progress tracker for testing

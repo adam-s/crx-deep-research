@@ -5,9 +5,9 @@
  * to ensure proper tab information collection and async title handling.
  */
 
-import { BrowserContext } from '../browser/contex';
+import { BrowserContext } from '../../browser/context';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
 
 /**
  * Simple progress tracker for testing

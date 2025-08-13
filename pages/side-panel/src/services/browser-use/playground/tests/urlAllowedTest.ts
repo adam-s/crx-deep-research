@@ -5,10 +5,10 @@
  * designed to run within the Chrome extension side panel playground.
  */
 
-import { BrowserContext } from '../browser/contex';
+import { BrowserContext } from '../../browser/context';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
 
 /**
  * Simple progress tracker for testing

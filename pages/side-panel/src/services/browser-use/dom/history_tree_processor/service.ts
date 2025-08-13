@@ -11,7 +11,7 @@ import {
   CoordinateSet,
 } from './view';
 import { DOMElementNode } from '../views';
-import { BrowserContext } from '../../browser/contex';
+import { BrowserContext } from '../../browser/context';
 
 /**
  * Operations on the DOM elements

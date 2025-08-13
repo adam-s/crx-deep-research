@@ -1,5 +1,5 @@
 import { Progress } from '@src/services/cordyceps/core/progress';
-import { BrowserContext } from '@src/services/browser-use/browser/contex';
+import { BrowserContext } from '@src/services/browser-use/browser/context';
 import { Page } from '@src/services/cordyceps/page';
 import { Severity } from '@src/utils/types';
 import type { TestContext } from '../api';

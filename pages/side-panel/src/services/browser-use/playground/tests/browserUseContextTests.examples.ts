@@ -5,7 +5,7 @@
  */
 
 import { runBrowserUseContextTests, quickBrowserUseContextTest } from './browserUseContextTests';
-import type { BrowserUsePlaygroundService } from './browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
 
 /**
  * Run context tests from the browser console or UI

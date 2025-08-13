@@ -222,6 +222,27 @@ export class Page extends Disposable {
   }
 
   /**
+   * Activate this page's tab and focus its window.
+   * Chrome extension equivalent of Playwright's bringToFront.
+   */
+  public async bringToFront(): Promise<void> {
+    // Ensure the window is focused first (if available), then activate the tab
+    const tab = await chrome.tabs.get(this.tabId);
+    if (typeof tab.windowId === 'number') {
+      try {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      } catch (e) {
+        console.debug('bringToFront: failed to focus window', e);
+      }
+    }
+    try {
+      await chrome.tabs.update(this.tabId, { active: true });
+    } catch (e) {
+      console.debug('bringToFront: failed to activate tab', e);
+    }
+  }
+
+  /**
    * Explicitly close this page and clean up all resources.
    * This provides a clear API for ownership and helps in testing.
    */

@@ -11,6 +11,7 @@ import type {
   NavigationResponse,
 } from '@src/services/cordyceps/utilities/types';
 import { executeWithProgress } from '@src/services/cordyceps/core/progress';
+import { DOMService } from '../dom/service';
 
 // Interface for element objects used in CSS selector generation
 interface ElementForSelector {
@@ -25,6 +26,10 @@ interface BrowserContextConfig {
   maximumWaitPageLoadTime?: number; // seconds
   waitForNetworkIdlePageLoadTime?: number; // seconds
   allowedDomains?: string[]; // Optional list of allowed domains for URL filtering
+  // Whether to draw highlight overlays for detected clickable elements
+  highlightElements?: boolean;
+  // Pixels to expand viewport bounds when collecting elements (-1 for no limit)
+  viewportExpansion?: number;
 }
 
 /**
@@ -276,6 +281,8 @@ export class BrowserContext {
     this.config = {
       maximumWaitPageLoadTime: 5, // 5 seconds default
       waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds default
+      highlightElements: true,
+      viewportExpansion: 500,
       ...config,
     };
   }
@@ -796,4 +803,153 @@ export class BrowserContext {
     }
     return tabs;
   }
+
+  /**
+   * Get the state of the browser
+   * This is an exact implementation that matches the original Python code
+   */
+  async getState(): Promise<BrowserState> {
+    // Wait for page and frames to load
+    await this._waitForPageAndFramesLoad();
+
+    // Update state and store it in the session's cachedState
+    const state = await this._updateState();
+
+    // Update the session's cachedState to match the current state
+    // This follows the Python implementation pattern where session.cached_state = await self._update_state()
+    const session = await this.getSession();
+    session.cachedState = state;
+
+    // Return the state
+    return state;
+  }
+
+  /**
+   * Update and return state
+   * This matches the original Python implementation
+   */
+  async _updateState(focusElement: number = -1): Promise<BrowserState> {
+    try {
+      // Get the current page
+      const page = await this.getCurrentPage();
+
+      // Test if page is still accessible
+      await page.evaluate(() => {
+        '1';
+      });
+
+      // Remove highlights
+      await this.removeHighlights();
+
+      // Get clickable elements
+      const domService = new DOMService(page);
+      const content = await domService.getClickableElements(
+        this.config.highlightElements,
+        focusElement,
+        this.config.viewportExpansion,
+      );
+
+      // Take screenshot
+      const screenshot = await this.takeScreenshot();
+
+      // Get scroll info
+      const [pixelsAbove, pixelsBelow] = await this._getScrollInfo(page);
+
+      // Get tabs info
+      const tabs = await this._getTabsInfo();
+
+      // Create and return the browser state
+      const state = new BrowserState(
+        page.url(),
+        await page.title(),
+        tabs,
+        screenshot,
+        pixelsAbove,
+        pixelsBelow,
+        [], // browserErrors
+        content.elementTree,
+        content.rootElement,
+        content.selectorMap,
+      );
+
+      // Store the current state for future reference
+      this.currentState = state;
+
+      // Explicitly update the session's cachedState here (this is critical for selector map access)
+      const session = await this.getSession();
+      session.cachedState = state;
+
+      return state;
+    } catch (error) {
+      console.error('Failed to update state:', error);
+      // Return last known good state if available
+      if (this.currentState) {
+        return this.currentState;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get the current session information
+   * In Python this returns the actual session object, not a serialized dictionary
+   */
+  async getSession(): Promise<BrowserSession> {
+    return this.session;
+  }
+
+  /**
+   * Removes all highlight overlays and labels created by the highlightElement function
+   * Exact match to Python implementation's remove_highlights method
+   */
+  async removeHighlights(): Promise<void> {
+    try {
+      const page = await this.getCurrentPage();
+      await page.evaluate(() => {
+        try {
+          // Remove the highlight container and all its contents
+          const container = document.getElementById('playwright-highlight-container');
+          if (container) {
+            container.remove();
+          }
+
+          // Remove highlight attributes from elements
+          const highlightedElements = document.querySelectorAll(
+            '[browser-user-highlight-id^="playwright-highlight-"]',
+          );
+          highlightedElements.forEach(el => {
+            el.removeAttribute('browser-user-highlight-id');
+          });
+        } catch (e) {
+          console.error('Failed to remove highlights:', e);
+        }
+      });
+    } catch (error) {
+      // Don't raise the error since this is not critical functionality
+    }
+  }
+
+  /**
+   * Internal method for getting scroll info
+   * @private
+   */
+  async _getScrollInfo(page: Page): Promise<[number, number]> {
+    try {
+      const scrollInfo = await page.evaluate(() => {
+        return {
+          pixelsAbove: window.scrollY,
+          pixelsBelow: document.documentElement.scrollHeight - window.scrollY - window.innerHeight,
+        };
+      });
+      return [scrollInfo.pixelsAbove, scrollInfo.pixelsBelow];
+    } catch (error) {
+      console.error('Error getting scroll info:', error);
+      return [0, 0];
+    }
+  }
+
+  /**
+   * Property to store the current state
+   */
+  private currentState?: BrowserState;
 }

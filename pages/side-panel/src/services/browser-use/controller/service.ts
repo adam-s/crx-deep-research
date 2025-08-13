@@ -41,7 +41,7 @@ import {
   //   GetDropdownOptionsAction,
 } from './views';
 import { ExtendedBrowserContext } from '../browser/interfaces';
-import { BrowserContext } from '../browser/contex';
+import { BrowserContext } from '../browser/context';
 
 /**
  * Controller class for managing browser actions
