@@ -96,9 +96,15 @@ export class Page extends Disposable {
     // Wire request lifecycle into frames for accurate networkidle
     this._register(
       this.onRequest(ri => {
+        console.log(
+          `[Page.onRequest] ############ Page ${this.tabId} received request: ${ri.url} (${ri.resourceType}) - ID: ${ri.id}, frameId: ${ri.frameId}`,
+        );
         const frame = this.frameManager.frame(ri.frameId) ?? this.frameManager.mainFrame();
         const req = frame._addInflightRequest(ri);
         this._reqById.set(ri.id, { frame, req });
+        console.log(
+          `[Page.onRequest] ############ Page ${this.tabId} request added to tracking, total tracked: ${this._reqById.size}`,
+        );
         if (
           typeof (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted ===
           'function'
@@ -110,12 +116,23 @@ export class Page extends Disposable {
 
     this._register(
       this._networkEvents.onCompleted(res => {
+        console.log(
+          `[Page.onCompleted] ############ Page ${this.tabId} received response completion: ${res.request.url} - ID: ${res.id}`,
+        );
         const rec = this._reqById.get(res.id);
-        if (!rec) return;
+        if (!rec) {
+          console.log(
+            `[Page.onCompleted] ############ Page ${this.tabId} no record found for request ID: ${res.id}`,
+          );
+          return;
+        }
         // Set response on our Network.Request wrapper
         (rec.req as unknown as { _setResponse?: (r: ResponseInfo) => void })._setResponse?.(res);
         // Remove before finishing so size-based checks are accurate
         rec.frame._removeInflightRequest(rec.req as never);
+        console.log(
+          `[Page.onCompleted] ############ Page ${this.tabId} request completed and removed from tracking, remaining: ${this._reqById.size}`,
+        );
         if (
           typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
             ._onRequestFinished === 'function'
@@ -128,10 +145,21 @@ export class Page extends Disposable {
 
     this._register(
       this._networkEvents.onError(err => {
+        console.log(
+          `[Page.onError] ############ Page ${this.tabId} received request error: ${err.url} - ID: ${err.id}, error: ${err.error}`,
+        );
         const rec = this._reqById.get(err.id);
-        if (!rec) return;
+        if (!rec) {
+          console.log(
+            `[Page.onError] ############ Page ${this.tabId} no record found for error ID: ${err.id}`,
+          );
+          return;
+        }
         // Remove before finishing so size-based checks are accurate
         rec.frame._removeInflightRequest(rec.req as never);
+        console.log(
+          `[Page.onError] ############ Page ${this.tabId} error request removed from tracking, remaining: ${this._reqById.size}`,
+        );
         if (
           typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
             ._onRequestFinished === 'function'

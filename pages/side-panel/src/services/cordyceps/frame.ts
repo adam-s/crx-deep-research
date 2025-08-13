@@ -300,14 +300,27 @@ export class Frame extends Disposable {
    * happen in a fresh context that will be re-created once the content script loads.
    */
   _onNewDocumentCommitted(reason: string = 'Navigated to new document'): void {
+    console.log(
+      `[Frame._onNewDocumentCommitted] ############ New document committed for frame ${this.frameId}, reason: ${reason}, context available: ${!!this._context}`,
+    );
     const ctx = this._context;
     if (ctx) {
+      console.log(
+        `[Frame._onNewDocumentCommitted] ############ Destroying existing context for frame ${this.frameId}`,
+      );
       try {
         ctx.contextDestroyed(reason);
       } catch {
         // Ignore teardown errors; the frame is transitioning to a new document.
       }
       this._context = undefined;
+      console.log(
+        `[Frame._onNewDocumentCommitted] ############ Context cleared for frame ${this.frameId}`,
+      );
+    } else {
+      console.log(
+        `[Frame._onNewDocumentCommitted] ############ No existing context to destroy for frame ${this.frameId}`,
+      );
     }
   }
 
@@ -894,11 +907,20 @@ export class Frame extends Disposable {
   }
 
   _setContext(context: FrameExecutionContext): void {
+    console.log(
+      `[Frame._setContext] ############ Setting context for frame ${this.frameId}, context: ${context ? 'available' : 'null'}`,
+    );
     this._context = context;
   }
 
   get context(): FrameExecutionContext {
+    console.log(
+      `[Frame.context] ############ Getting context for frame ${this.frameId}, context available: ${!!this._context}`,
+    );
     if (!this._context) {
+      console.log(
+        `[Frame.context] ############ No execution context for frame ${this.frameId}, throwing error`,
+      );
       throw new Error(`Frame ${this.frameId} has no execution context`);
     }
     return this._context;
@@ -939,7 +961,47 @@ export class Frame extends Disposable {
   }
 
   title(): Promise<string> {
+    // For Chrome extension pages and other system pages that don't allow content script injection,
+    // we should get the title from the tab metadata instead of trying to evaluate document.title
+    const url = this._url;
+    if (
+      url &&
+      (url.startsWith('chrome://') ||
+        url.startsWith('chrome-extension://') ||
+        url.startsWith('edge://') ||
+        url.startsWith('about:'))
+    ) {
+      // For system pages, get title from chrome.tabs API instead of script injection
+      return this._getTitleFromTabMetadata();
+    }
+
+    // For regular pages, use the standard evaluate method
     return this.evaluate(() => document.title);
+  }
+
+  /**
+   * Get page title from Chrome tabs API for system pages that don't allow script injection
+   */
+  private async _getTitleFromTabMetadata(): Promise<string> {
+    try {
+      const tab = await chrome.tabs.get(this.tabId);
+      return tab.title || 'Unknown';
+    } catch (error) {
+      console.log(
+        `[Frame._getTitleFromTabMetadata] Failed to get tab title for tab ${this.tabId}:`,
+        error,
+      );
+      // Fallback to URL hostname or default
+      const url = this._url;
+      if (url) {
+        try {
+          return new URL(url).hostname;
+        } catch {
+          return 'Unknown';
+        }
+      }
+      return 'Unknown';
+    }
   }
 
   url(): string | undefined {
@@ -1435,34 +1497,80 @@ export class Frame extends Disposable {
     arg?: Arg,
     options?: { timeout?: number },
   ): Promise<R> {
+    console.log(
+      `[Frame.evaluate] ############ Starting evaluate for frame ${this.frameId}, func: ${pageFunction.name || 'anonymous'}, timeout: ${options?.timeout || 30000}ms`,
+    );
+
     return await executeWithProgress(
       async p => {
+        console.log(
+          `[Frame.evaluate] ############ Checking execution context for frame ${this.frameId}`,
+        );
+
         // Ensure execution context is available. During history navigations
         // (e.g. goBack/goForward), the content script may not yet be reloaded
         // for the new document, causing this._context to be undefined briefly.
         // Wait a short period for the context to be re-created instead of
         // throwing synchronously.
         if (!this._context) {
+          console.log(
+            `[Frame.evaluate] ############ No context found for frame ${this.frameId}, starting retry logic`,
+          );
           try {
             await this._retryWithProgressAndTimeouts(
               p,
               [50, 100, 200, 400, 800, 1200, 2000],
-              async continuePolling => (this._context ? true : continuePolling),
+              async continuePolling => {
+                console.log(
+                  `[Frame.evaluate] ############ Retry attempt for frame ${this.frameId}, context available: ${!!this._context}`,
+                );
+                return this._context ? true : continuePolling;
+              },
+            );
+            console.log(
+              `[Frame.evaluate] ############ Retry completed for frame ${this.frameId}, context available: ${!!this._context}`,
             );
           } catch {
+            console.log(`[Frame.evaluate] ############ Retry failed for frame ${this.frameId}`);
             // fall through to error check below
           }
+        } else {
+          console.log(
+            `[Frame.evaluate] ############ Context already available for frame ${this.frameId}`,
+          );
         }
 
-        if (!this._context) throw new Error(`Frame ${this.frameId} has no execution context`);
+        if (!this._context) {
+          console.log(
+            `[Frame.evaluate] ############ No execution context available for frame ${this.frameId}, throwing error`,
+          );
+          throw new Error(`Frame ${this.frameId} has no execution context`);
+        }
+
+        console.log(
+          `[Frame.evaluate] ############ About to call context.executeScript for frame ${this.frameId}, world: ISOLATED`,
+        );
+
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
+          console.log(
+            `[Frame.evaluate] ############ Calling executeScript with argument for frame ${this.frameId}`,
+          );
           const result = await this.context.executeScript(pageFunction, 'ISOLATED', arg);
+          console.log(
+            `[Frame.evaluate] ############ executeScript with argument completed for frame ${this.frameId}, result type: ${typeof result}, result value: ${JSON.stringify(result)}`,
+          );
           return result as R;
         } else {
+          console.log(
+            `[Frame.evaluate] ############ Calling executeScript without argument for frame ${this.frameId}`,
+          );
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
           const result = await this.context.executeScript(noArgFunction, 'ISOLATED');
+          console.log(
+            `[Frame.evaluate] ############ executeScript without argument completed for frame ${this.frameId}, result type: ${typeof result}, result value: ${JSON.stringify(result)}`,
+          );
           return result as R;
         }
       },
@@ -1475,15 +1583,37 @@ export class Frame extends Disposable {
     arg?: Arg,
     options?: { timeout?: number },
   ): Promise<ElementHandle | null> {
+    console.log(
+      `[Frame.evaluateHandle] ############ Starting evaluateHandle for frame ${this.frameId}, func: ${pageFunction.name || 'anonymous'}, timeout: ${options?.timeout || 30000}ms`,
+    );
+
     return await executeWithProgress(
       async () => {
+        console.log(
+          `[Frame.evaluateHandle] ############ About to call context.evaluateHandle for frame ${this.frameId}, context available: ${!!this._context}`,
+        );
+
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
-          return await this.context.evaluateHandle(pageFunction, 'ISOLATED', arg);
+          console.log(
+            `[Frame.evaluateHandle] ############ Calling evaluateHandle with argument for frame ${this.frameId}`,
+          );
+          const result = await this.context.evaluateHandle(pageFunction, 'ISOLATED', arg);
+          console.log(
+            `[Frame.evaluateHandle] ############ evaluateHandle with argument completed for frame ${this.frameId}, result: ${result ? 'ElementHandle' : 'null'}`,
+          );
+          return result;
         } else {
+          console.log(
+            `[Frame.evaluateHandle] ############ Calling evaluateHandle without argument for frame ${this.frameId}`,
+          );
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
-          return await this.context.evaluateHandle(noArgFunction, 'ISOLATED');
+          const result = await this.context.evaluateHandle(noArgFunction, 'ISOLATED');
+          console.log(
+            `[Frame.evaluateHandle] ############ evaluateHandle without argument completed for frame ${this.frameId}, result: ${result ? 'ElementHandle' : 'null'}`,
+          );
+          return result;
         }
       },
       { timeout: options?.timeout || 30000 },

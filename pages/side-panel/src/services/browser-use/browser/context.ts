@@ -330,19 +330,33 @@ export class BrowserContext {
    * Get the current page from the browser window
    */
   async getCurrentPage(): Promise<Page> {
+    console.log(`[BrowserContext.getCurrentPage] ############ Starting getCurrentPage()`);
+
     // Ensure we're in an active state
     if (this.session.state !== BrowserContextState.ACTIVE) {
+      console.log(
+        `[BrowserContext.getCurrentPage] ############ Session not active, calling enter()`,
+      );
       await this.enter();
+      console.log(`[BrowserContext.getCurrentPage] ############ enter() completed`);
     }
 
     // Get the current active page from the browser window
+    console.log(
+      `[BrowserContext.getCurrentPage] ############ Getting current page from browser window`,
+    );
     const currentPage = await this.browserWindow.getCurrentPage();
+    console.log(
+      `[BrowserContext.getCurrentPage] ############ Got current page: ${currentPage.tabId}`,
+    );
 
     // Update our pages array to reflect the current state
     if (!this.pages.includes(currentPage)) {
+      console.log(`[BrowserContext.getCurrentPage] ############ Updating pages array`);
       this.pages = [currentPage];
     }
 
+    console.log(`[BrowserContext.getCurrentPage] ############ getCurrentPage completed`);
     return currentPage;
   }
 
@@ -408,11 +422,18 @@ export class BrowserContext {
     fullPage: boolean = false,
     throwOnError: boolean = false,
   ): Promise<string | undefined> {
+    console.log(
+      `[BrowserContext.takeScreenshot] ############ Starting takeScreenshot(fullPage=${fullPage}, throwOnError=${throwOnError})`,
+    );
+
     try {
       return await executeWithProgress(async progress => {
+        console.log(`[BrowserContext.takeScreenshot] ############ About to get current page`);
         const page = await this.getCurrentPage();
+        console.log(`[BrowserContext.takeScreenshot] ############ Got current page: ${page.tabId}`);
 
         progress.log('Taking screenshot');
+        console.log(`[BrowserContext.takeScreenshot] ############ Progress: Taking screenshot`);
 
         const screenshotOptions: ScreenshotOptions = {
           fullPage,
@@ -420,16 +441,30 @@ export class BrowserContext {
           type: 'png',
         };
 
+        console.log(
+          `[BrowserContext.takeScreenshot] ############ About to call page.screenshot with options:`,
+          screenshotOptions,
+        );
         const screenshot = await page.screenshot(progress, screenshotOptions);
+        console.log(
+          `[BrowserContext.takeScreenshot] ############ Screenshot taken, size: ${screenshot.length} bytes`,
+        );
+
         const screenshotB64 = screenshot.toString('base64');
+        console.log(
+          `[BrowserContext.takeScreenshot] ############ Screenshot converted to base64, length: ${screenshotB64.length}`,
+        );
 
         // await this.removeHighlights();
         // Note: This line is commented out in the Python implementation
 
+        console.log(
+          `[BrowserContext.takeScreenshot] ############ takeScreenshot completed successfully`,
+        );
         return screenshotB64;
       });
     } catch (error) {
-      console.error('Error taking screenshot:', error);
+      console.error(`[BrowserContext.takeScreenshot] ############ Error taking screenshot:`, error);
 
       if (throwOnError) {
         throw error;
@@ -474,7 +509,14 @@ export class BrowserContext {
    * This matches the Python implementation's _wait_for_stable_network method
    */
   async _waitForStableNetwork(): Promise<void> {
+    console.log(
+      `[BrowserContext._waitForStableNetwork] ############ Starting _waitForStableNetwork()`,
+    );
+
     const page = await this.browserWindow.getCurrentPage();
+    console.log(
+      `[BrowserContext._waitForStableNetwork] ############ Got current page: ${page.tabId}`,
+    );
 
     // Define relevant resource types and content types for filtering
     const RELEVANT_RESOURCE_TYPES = new Set([
@@ -541,10 +583,21 @@ export class BrowserContext {
     let lastActivity = Date.now();
     const startTime = Date.now();
 
+    console.log(
+      `[BrowserContext._waitForStableNetwork] ############ Setting up request/response listeners`,
+    );
+
     // Set up listener for new requests
     const onRequest = (request: RequestInfo) => {
+      console.log(
+        `[BrowserContext._waitForStableNetwork] ############ Request: ${request.url} (${request.resourceType})`,
+      );
+
       // Filter by resource type
       if (!RELEVANT_RESOURCE_TYPES.has(request.resourceType)) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out by resource type: ${request.resourceType}`,
+        );
         return;
       }
 
@@ -552,17 +605,26 @@ export class BrowserContext {
       if (
         ['websocket', 'media', 'eventsource', 'manifest', 'other'].includes(request.resourceType)
       ) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out by specific resource type: ${request.resourceType}`,
+        );
         return;
       }
 
       // Filter out by URL patterns
       const url = request.url.toLowerCase();
       if (IGNORED_URL_PATTERNS.some(pattern => url.includes(pattern))) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out by URL pattern: ${url}`,
+        );
         return;
       }
 
       // Filter out data URLs and blob URLs
       if (url.startsWith('data:') || url.startsWith('blob:')) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out data/blob URL: ${url}`,
+        );
         return;
       }
 
@@ -573,17 +635,30 @@ export class BrowserContext {
         headers['sec-fetch-dest'] === 'video' ||
         headers['sec-fetch-dest'] === 'audio'
       ) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out by headers: ${JSON.stringify(headers)}`,
+        );
         return;
       }
 
       pendingRequests.add(request);
       lastActivity = Date.now();
+      console.log(
+        `[BrowserContext._waitForStableNetwork] ############ Added request, pending count: ${pendingRequests.size}`,
+      );
     };
 
     // Set up listener for responses
     const onResponse = (response: ResponseInfo) => {
       const request = response.request;
+      console.log(
+        `[BrowserContext._waitForStableNetwork] ############ Response for: ${request.url}`,
+      );
+
       if (!pendingRequests.has(request)) {
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Response for unknown request: ${request.url}`,
+        );
         return;
       }
 
@@ -604,12 +679,18 @@ export class BrowserContext {
         ].some(t => contentType.includes(t))
       ) {
         pendingRequests.delete(request);
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out response by streaming content type: ${contentType}`,
+        );
         return;
       }
 
       // Only process relevant content types
       if (!RELEVANT_CONTENT_TYPES.some(ct => contentType.includes(ct))) {
         pendingRequests.delete(request);
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out response by irrelevant content type: ${contentType}`,
+        );
         return;
       }
 
@@ -618,37 +699,58 @@ export class BrowserContext {
       if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
         // 5MB
         pendingRequests.delete(request);
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Filtered out response by large size: ${contentLength}`,
+        );
         return;
       }
 
       pendingRequests.delete(request);
       lastActivity = Date.now();
+      console.log(
+        `[BrowserContext._waitForStableNetwork] ############ Removed request, pending count: ${pendingRequests.size}`,
+      );
     };
 
     // Add event listeners using Cordyceps Page events
+    console.log(`[BrowserContext._waitForStableNetwork] ############ Adding event listeners`);
     const requestDisposable = page.onRequest(onRequest);
     const responseDisposable = page.onResponse(onResponse);
+    console.log(`[BrowserContext._waitForStableNetwork] ############ Event listeners added`);
 
     try {
       // Wait for network to stabilize
       const maxWaitTime = (this.config.maximumWaitPageLoadTime || 5) * 1000; // In milliseconds
       const networkIdleTime = (this.config.waitForNetworkIdlePageLoadTime || 0.5) * 1000; // In milliseconds
 
+      console.log(
+        `[BrowserContext._waitForStableNetwork] ############ Starting network stabilization wait - maxWaitTime: ${maxWaitTime}ms, networkIdleTime: ${networkIdleTime}ms`,
+      );
+
       return new Promise<void>(resolve => {
         const checkNetworkIdle = () => {
           const now = Date.now();
+          const elapsedSinceLastActivity = now - lastActivity;
+          const totalElapsed = now - startTime;
+
+          console.log(
+            `[BrowserContext._waitForStableNetwork] ############ Check: pendingRequests=${pendingRequests.size}, elapsedSinceLastActivity=${elapsedSinceLastActivity}ms, totalElapsed=${totalElapsed}ms`,
+          );
 
           // Wait for network idle
-          if (pendingRequests.size === 0 && now - lastActivity >= networkIdleTime) {
+          if (pendingRequests.size === 0 && elapsedSinceLastActivity >= networkIdleTime) {
+            console.log(
+              `[BrowserContext._waitForStableNetwork] ############ Network is stable, resolving`,
+            );
             cleanup();
             resolve();
             return;
           }
 
           // Time out if waiting too long
-          if (now - startTime > maxWaitTime) {
+          if (totalElapsed > maxWaitTime) {
             console.log(
-              `Network timeout after ${maxWaitTime}ms with ${pendingRequests.size} pending requests`,
+              `[BrowserContext._waitForStableNetwork] ############ Network wait timed out after ${maxWaitTime}ms with ${pendingRequests.size} pending requests, resolving anyway`,
             );
             cleanup();
             resolve(); // Resolve anyway to continue
@@ -660,15 +762,24 @@ export class BrowserContext {
         };
 
         const cleanup = () => {
+          console.log(
+            `[BrowserContext._waitForStableNetwork] ############ Cleaning up event listeners`,
+          );
           requestDisposable.dispose();
           responseDisposable.dispose();
         };
 
         // Start checking
+        console.log(
+          `[BrowserContext._waitForStableNetwork] ############ Starting periodic network check`,
+        );
         checkNetworkIdle();
       });
     } catch (e: unknown) {
-      console.error('Error while waiting for stable network:', e);
+      console.error(
+        `[BrowserContext._waitForStableNetwork] ############ Error while waiting for stable network:`,
+        e,
+      );
       requestDisposable.dispose();
       responseDisposable.dispose();
       throw e;
@@ -753,25 +864,50 @@ export class BrowserContext {
    * @param timeoutOverwrite Optional timeout override in seconds
    */
   async _waitForPageAndFramesLoad(options?: { timeoutOverwrite?: number }): Promise<void> {
+    console.log(
+      `[BrowserContext._waitForPageAndFramesLoad] ############ Starting _waitForPageAndFramesLoad()`,
+    );
+
     // Start timing
     const startTime = Date.now();
 
     try {
       // Wait for network to stabilize with smart filtering
+      console.log(
+        `[BrowserContext._waitForPageAndFramesLoad] ############ About to call _waitForStableNetwork()`,
+      );
       await this._waitForStableNetwork();
+      console.log(
+        `[BrowserContext._waitForPageAndFramesLoad] ############ _waitForStableNetwork() completed`,
+      );
 
       // Check if the loaded URL is allowed
+      console.log(
+        `[BrowserContext._waitForPageAndFramesLoad] ############ About to get current page for URL check`,
+      );
       const page = await this.getCurrentPage();
       const url = page.url();
+      console.log(`[BrowserContext._waitForPageAndFramesLoad] ############ Current URL: ${url}`);
 
       if (!this._isUrlAllowed(url)) {
+        console.log(
+          `[BrowserContext._waitForPageAndFramesLoad] ############ URL not allowed, handling disallowed navigation`,
+        );
         await this._handleDisallowedNavigation(url);
+      } else {
+        console.log(`[BrowserContext._waitForPageAndFramesLoad] ############ URL is allowed`);
       }
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('URL not allowed:')) {
+        console.log(
+          `[BrowserContext._waitForPageAndFramesLoad] ############ Re-throwing URL not allowed error`,
+        );
         throw error; // Re-throw URL not allowed errors
       }
-      console.warn('Page load failed, continuing...');
+      console.warn(
+        `[BrowserContext._waitForPageAndFramesLoad] ############ Page load failed, continuing...`,
+        error,
+      );
     }
 
     // Use timeout override if provided (match Python implementation's default value)
@@ -782,25 +918,70 @@ export class BrowserContext {
     const elapsed = (Date.now() - startTime) / 1000; // Convert to seconds
     const remaining = Math.max(minimumWait - elapsed, 0);
 
+    console.log(
+      `[BrowserContext._waitForPageAndFramesLoad] ############ Minimum wait: ${minimumWait}s, elapsed: ${elapsed}s, remaining: ${remaining}s`,
+    );
+
     // Sleep remaining time if needed
     if (remaining > 0) {
+      console.log(
+        `[BrowserContext._waitForPageAndFramesLoad] ############ Waiting additional ${remaining}s`,
+      );
       await new Promise(resolve => setTimeout(resolve, remaining * 1000));
     }
+
+    console.log(
+      `[BrowserContext._waitForPageAndFramesLoad] ############ _waitForPageAndFramesLoad() completed`,
+    );
   }
 
   /**
    * Get tabs info
    */
   async _getTabsInfo(): Promise<TabInfo[]> {
+    console.log(`[BrowserContext._getTabsInfo] ############ Starting _getTabsInfo()`);
     const tabs: TabInfo[] = [];
     const pages = this.browserWindow.pages();
+    console.log(`[BrowserContext._getTabsInfo] ############ Got ${pages.length} pages`);
+
     for (let i = 0; i < pages.length; i++) {
+      console.log(`[BrowserContext._getTabsInfo] ############ Processing page ${i}`);
+
+      let title = 'Unknown';
+      try {
+        // Try to get the title with a short timeout to avoid hanging on chrome:// pages
+        console.log(`[BrowserContext._getTabsInfo] ############ About to get title for page ${i}`);
+
+        // Use a promise race to timeout quickly for problematic pages (like chrome://)
+        const titlePromise = pages[i].title();
+        const timeoutPromise = new Promise<string>((_, reject) => {
+          setTimeout(() => reject(new Error('Title retrieval timeout')), 2000); // 2 second timeout
+        });
+
+        title = await Promise.race([titlePromise, timeoutPromise]);
+        console.log(`[BrowserContext._getTabsInfo] ############ Got title for page ${i}: ${title}`);
+      } catch (error) {
+        debugger;
+        console.log(
+          `[BrowserContext._getTabsInfo] ############ Failed to get title for page ${i}, using fallback:`,
+          error,
+        );
+        // Fallback: use URL as title or default
+        const url = pages[i].url();
+        title = url ? new URL(url).hostname : 'Unknown';
+      }
+
       tabs.push({
         pageId: i,
         url: pages[i].url(),
-        title: await pages[i].title(),
+        title: title,
       });
+      console.log(`[BrowserContext._getTabsInfo] ############ Added tab ${i}: ${tabs[i].url}`);
     }
+
+    console.log(
+      `[BrowserContext._getTabsInfo] ############ _getTabsInfo completed with ${tabs.length} tabs`,
+    );
     return tabs;
   }
 
@@ -809,19 +990,37 @@ export class BrowserContext {
    * This is an exact implementation that matches the original Python code
    */
   async getState(): Promise<BrowserState> {
-    // Wait for page and frames to load
-    await this._waitForPageAndFramesLoad();
+    console.log(`[BrowserContext.getState] ############ Starting getState()`);
 
-    // Update state and store it in the session's cachedState
-    const state = await this._updateState();
+    try {
+      // Wait for page and frames to load
+      console.log(
+        `[BrowserContext.getState] ############ About to call _waitForPageAndFramesLoad()`,
+      );
+      await this._waitForPageAndFramesLoad();
+      console.log(`[BrowserContext.getState] ############ _waitForPageAndFramesLoad() completed`);
 
-    // Update the session's cachedState to match the current state
-    // This follows the Python implementation pattern where session.cached_state = await self._update_state()
-    const session = await this.getSession();
-    session.cachedState = state;
+      // Update state and store it in the session's cachedState
+      console.log(`[BrowserContext.getState] ############ About to call _updateState()`);
+      const state = await this._updateState();
+      console.log(`[BrowserContext.getState] ############ _updateState() completed`);
 
-    // Return the state
-    return state;
+      // Update the session's cachedState to match the current state
+      // This follows the Python implementation pattern where session.cached_state = await self._update_state()
+      console.log(`[BrowserContext.getState] ############ About to call getSession()`);
+      const session = await this.getSession();
+      session.cachedState = state;
+      console.log(
+        `[BrowserContext.getState] ############ getSession() completed, cached state updated`,
+      );
+
+      // Return the state
+      console.log(`[BrowserContext.getState] ############ getState() completed successfully`);
+      return state;
+    } catch (error) {
+      console.error(`[BrowserContext.getState] ############ Error in getState():`, error);
+      throw error;
+    }
   }
 
   /**
@@ -829,36 +1028,68 @@ export class BrowserContext {
    * This matches the original Python implementation
    */
   async _updateState(focusElement: number = -1): Promise<BrowserState> {
+    console.log(
+      `[BrowserContext._updateState] ############ Starting _updateState(focusElement=${focusElement})`,
+    );
+
     try {
       // Get the current page
+      console.log(`[BrowserContext._updateState] ############ About to get current page`);
       const page = await this.getCurrentPage();
+      console.log(`[BrowserContext._updateState] ############ Got current page: ${page.tabId}`);
 
       // Test if page is still accessible
-      await page.evaluate(() => {
-        '1';
-      });
+      console.log(`[BrowserContext._updateState] ############ Testing page accessibility`);
+      try {
+        const evalResult = await page.evaluate(() => {
+          return 1;
+        });
+        console.log(
+          `[BrowserContext._updateState] ############ Page accessibility test completed, result: ${JSON.stringify(evalResult)}, type: ${typeof evalResult}`,
+        );
+        console.log(`[BrowserContext._updateState] ############ Page is accessible`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log(
+          `[BrowserContext._updateState] ############ Page accessibility test failed, continuing anyway: ${errorMessage}`,
+        );
+        // Continue without failing - page might still be usable for screenshots/other operations
+      }
 
       // Remove highlights
+      console.log(`[BrowserContext._updateState] ############ About to remove highlights`);
       await this.removeHighlights();
+      console.log(`[BrowserContext._updateState] ############ Highlights removed`);
 
       // Get clickable elements
+      console.log(`[BrowserContext._updateState] ############ About to get clickable elements`);
       const domService = new DOMService(page);
       const content = await domService.getClickableElements(
         this.config.highlightElements,
         focusElement,
         this.config.viewportExpansion,
       );
+      console.log(`[BrowserContext._updateState] ############ Got clickable elements`);
 
       // Take screenshot
+      console.log(`[BrowserContext._updateState] ############ About to take screenshot`);
       const screenshot = await this.takeScreenshot();
+      console.log(`[BrowserContext._updateState] ############ Screenshot taken`);
 
       // Get scroll info
+      console.log(`[BrowserContext._updateState] ############ About to get scroll info`);
       const [pixelsAbove, pixelsBelow] = await this._getScrollInfo(page);
+      console.log(
+        `[BrowserContext._updateState] ############ Got scroll info: above=${pixelsAbove}, below=${pixelsBelow}`,
+      );
 
       // Get tabs info
+      console.log(`[BrowserContext._updateState] ############ About to get tabs info`);
       const tabs = await this._getTabsInfo();
+      console.log(`[BrowserContext._updateState] ############ Got tabs info: ${tabs.length} tabs`);
 
       // Create and return the browser state
+      console.log(`[BrowserContext._updateState] ############ About to create BrowserState`);
       const state = new BrowserState(
         page.url(),
         await page.title(),
@@ -871,6 +1102,7 @@ export class BrowserContext {
         content.rootElement,
         content.selectorMap,
       );
+      console.log(`[BrowserContext._updateState] ############ BrowserState created`);
 
       // Store the current state for future reference
       this.currentState = state;
@@ -879,11 +1111,13 @@ export class BrowserContext {
       const session = await this.getSession();
       session.cachedState = state;
 
+      console.log(`[BrowserContext._updateState] ############ _updateState completed successfully`);
       return state;
     } catch (error) {
-      console.error('Failed to update state:', error);
+      console.error(`[BrowserContext._updateState] ############ Failed to update state:`, error);
       // Return last known good state if available
       if (this.currentState) {
+        console.log(`[BrowserContext._updateState] ############ Returning last known good state`);
         return this.currentState;
       }
       throw error;
@@ -895,6 +1129,7 @@ export class BrowserContext {
    * In Python this returns the actual session object, not a serialized dictionary
    */
   async getSession(): Promise<BrowserSession> {
+    console.log(`[BrowserContext.getSession] ############ Getting session: ${this.session.id}`);
     return this.session;
   }
 
@@ -903,8 +1138,15 @@ export class BrowserContext {
    * Exact match to Python implementation's remove_highlights method
    */
   async removeHighlights(): Promise<void> {
+    console.log(`[BrowserContext.removeHighlights] ############ Starting removeHighlights()`);
     try {
+      console.log(`[BrowserContext.removeHighlights] ############ About to get current page`);
       const page = await this.getCurrentPage();
+      console.log(`[BrowserContext.removeHighlights] ############ Got current page: ${page.tabId}`);
+
+      console.log(
+        `[BrowserContext.removeHighlights] ############ About to evaluate highlight removal`,
+      );
       await page.evaluate(() => {
         try {
           // Remove the highlight container and all its contents
@@ -924,9 +1166,18 @@ export class BrowserContext {
           console.error('Failed to remove highlights:', e);
         }
       });
+      console.log(
+        `[BrowserContext.removeHighlights] ############ Highlight removal evaluation completed`,
+      );
     } catch (error) {
+      console.log(
+        `[BrowserContext.removeHighlights] ############ Error in removeHighlights (non-critical):`,
+        error,
+      );
       // Don't raise the error since this is not critical functionality
     }
+
+    console.log(`[BrowserContext.removeHighlights] ############ removeHighlights completed`);
   }
 
   /**

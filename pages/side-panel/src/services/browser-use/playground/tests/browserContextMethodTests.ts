@@ -11,6 +11,7 @@
  */
 
 import { BrowserContext, BrowserContextState } from '../../browser/context';
+import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
 import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
 import { BrowserState } from '../../browser/views';
@@ -531,11 +532,10 @@ export async function testGetStateMethod(
   progress.log('🧪 Testing BrowserContext.getState() method...');
 
   try {
-    // Create mock BrowserWindow for testing with real window ID (to satisfy APIs used inside)
-    let currentWindowId: number;
+    // Use the real BrowserWindow so we get a real Page with full API
+    let browserWindow: BrowserWindow;
     try {
-      const currentWindow = await chrome.windows.getCurrent();
-      currentWindowId = currentWindow.id!;
+      browserWindow = await BrowserWindow.create();
     } catch (error) {
       // Skip if chrome APIs are not available
       progress.log('⚠️ Skipping getState() tests - Chrome APIs not available');
@@ -543,31 +543,20 @@ export async function testGetStateMethod(
         timestamp: Date.now(),
         severity: Severity.Info,
         message: 'getState() tests skipped - Chrome APIs not available',
-        details: { reason: 'Cannot access chrome.windows API in test environment' },
+        details: { reason: 'Cannot initialize BrowserWindow in test environment' },
       });
       return;
     }
 
-    // Minimal mock page: url, title, evaluate, etc. are required by _updateState path
-    const mockPage = {
-      tabId: 1,
-      url: () => 'https://example.com',
-      title: async () => 'Example Title',
-      evaluate: async <R>(fn: () => R) => fn(),
-      // Used by DOMService and screenshot in _updateState
-      // These will be exercised indirectly; we rely on the function to handle extension context
-    } as unknown as import('@src/services/cordyceps/page').Page;
-
-    const mockBrowserWindow = {
-      windowId: currentWindowId,
-      pages: () => [mockPage],
-      getCurrentPage: async () => mockPage,
-    } as unknown as import('@src/services/cordyceps/browserWindow').BrowserWindow;
-
-    const browserContext = new BrowserContext(mockBrowserWindow);
+    const browserContext = new BrowserContext(browserWindow);
 
     // Ensure the context is usable
     await browserContext.enter();
+
+    // Navigate to localhost:3005 before running the test
+    progress.log('🌐 Navigating to http://localhost:3005/ before getState() test...');
+    await browserContext.safeGoto('http://localhost:3005/');
+    progress.log('✅ Navigation to localhost:3005 completed');
 
     // Invoke getState()
     const state = await browserContext.getState();

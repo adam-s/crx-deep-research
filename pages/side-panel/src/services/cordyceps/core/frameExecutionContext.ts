@@ -106,12 +106,17 @@ export class FrameExecutionContext extends Disposable {
 
   public constructor(frame: Frame) {
     super();
-    console.log('Creating FrameExecutionContext for frame:', frame.frameId);
+    console.log(
+      `[FrameExecutionContext.constructor] ############ Creating FrameExecutionContext for frame: ${frame.frameId}`,
+    );
     this.frame = frame;
     this.session = frame.session;
   }
 
   contextDestroyed(reason: string) {
+    console.log(
+      `[FrameExecutionContext.contextDestroyed] ############ Context destroyed for frame ${this.frame.frameId}, reason: ${reason}`,
+    );
     this._contextDestroyedScope.close(new Error(reason));
   }
 
@@ -124,7 +129,14 @@ export class FrameExecutionContext extends Disposable {
     world: chrome.scripting.ExecutionWorld,
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
+    console.log(
+      `[FrameExecutionContext.executeScript] ############ Starting executeScript for frame ${this.frame.frameId}, world: ${world}, func: ${func.name || 'anonymous'}`,
+    );
+
     try {
+      console.log(
+        `[FrameExecutionContext.executeScript] ############ About to call chrome.scripting.executeScript for frame ${this.frame.frameId}`,
+      );
       const results = (await chrome.scripting.executeScript({
         target: {
           tabId: this.frame.tabId,
@@ -135,17 +147,34 @@ export class FrameExecutionContext extends Disposable {
         args,
       })) as ScriptInjectionResult<T>[];
 
+      console.log(
+        `[FrameExecutionContext.executeScript] ############ chrome.scripting.executeScript completed for frame ${this.frame.frameId}, results length: ${results?.length || 0}`,
+      );
+
       if (chrome.runtime.lastError) {
+        console.log(
+          `[FrameExecutionContext.executeScript] ############ Chrome runtime error for frame ${this.frame.frameId}: ${chrome.runtime.lastError.message}`,
+        );
         throw new Error(chrome.runtime.lastError.message);
       }
 
       const mainResult = results?.[0];
       if (mainResult?.error) {
+        console.log(
+          `[FrameExecutionContext.executeScript] ############ Script execution error for frame ${this.frame.frameId}: ${mainResult.error.message}`,
+        );
         throw new Error(mainResult.error.message);
       }
+
+      console.log(
+        `[FrameExecutionContext.executeScript] ############ executeScript successful for frame ${this.frame.frameId}, result type: ${typeof mainResult?.result}, result value: ${JSON.stringify(mainResult?.result)}, mainResult: ${JSON.stringify(mainResult)}`,
+      );
       return mainResult?.result;
     } catch (e) {
       const method = func.name || 'executeScript';
+      console.log(
+        `[FrameExecutionContext.executeScript] ############ executeScript failed for frame ${this.frame.frameId}, method: ${method}, error: ${e instanceof Error ? e.message : String(e)}`,
+      );
       throw ProtocolError.from(e, method);
     }
   }
@@ -158,7 +187,14 @@ export class FrameExecutionContext extends Disposable {
     world: chrome.scripting.ExecutionWorld,
     ...args: Args
   ): Promise<ElementHandle | null> {
+    console.log(
+      `[FrameExecutionContext.evaluateHandle] ############ Starting evaluateHandle for frame ${this.frame.frameId}, world: ${world}, func: ${func.name || 'anonymous'}`,
+    );
+
     try {
+      console.log(
+        `[FrameExecutionContext.evaluateHandle] ############ About to call chrome.scripting.executeScript for frame ${this.frame.frameId}`,
+      );
       const results = (await chrome.scripting.executeScript({
         target: { tabId: this.frame.tabId, frameIds: [this.frame.frameId] },
         world,
@@ -166,23 +202,42 @@ export class FrameExecutionContext extends Disposable {
         args,
       })) as ScriptInjectionResult<T>[];
 
+      console.log(
+        `[FrameExecutionContext.evaluateHandle] ############ chrome.scripting.executeScript completed for frame ${this.frame.frameId}, results length: ${results?.length || 0}`,
+      );
+
       if (chrome.runtime.lastError) {
+        console.log(
+          `[FrameExecutionContext.evaluateHandle] ############ Chrome runtime error for frame ${this.frame.frameId}: ${chrome.runtime.lastError.message}`,
+        );
         throw new Error(chrome.runtime.lastError.message);
       }
 
       const main = results[0];
       if (main?.error) {
+        console.log(
+          `[FrameExecutionContext.evaluateHandle] ############ Script execution error for frame ${this.frame.frameId}: ${main.error.message}`,
+        );
         throw new Error(main.error.message);
       }
 
       const handleId = main.result as unknown as string | null;
       if (!handleId) {
+        console.log(
+          `[FrameExecutionContext.evaluateHandle] ############ No handle returned for frame ${this.frame.frameId}`,
+        );
         return null;
       }
 
+      console.log(
+        `[FrameExecutionContext.evaluateHandle] ############ evaluateHandle successful for frame ${this.frame.frameId}, handleId: ${handleId}`,
+      );
       return new ElementHandle(this, handleId);
     } catch (e) {
       const method = func.name || 'evaluateHandle';
+      console.log(
+        `[FrameExecutionContext.evaluateHandle] ############ evaluateHandle failed for frame ${this.frame.frameId}, method: ${method}, error: ${e instanceof Error ? e.message : String(e)}`,
+      );
       throw ProtocolError.from(e, method);
     }
   }
