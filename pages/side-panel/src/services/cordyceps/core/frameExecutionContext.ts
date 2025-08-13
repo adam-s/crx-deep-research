@@ -3,6 +3,7 @@ import { ProtocolError } from './protocolError';
 import { ElementHandle } from '../elementHandle';
 import type { Frame } from '../frame';
 import type { Session } from '../session';
+import { LongStandingScope } from '@injected/isomorphic/manualPromise';
 
 type ScriptInjectionResult<T> = chrome.scripting.InjectionResult<Awaited<T>> & {
   error?: { message: string };
@@ -101,12 +102,21 @@ interface CordycepsInjectedScript {
 export class FrameExecutionContext extends Disposable {
   public readonly frame: Frame;
   public readonly session: Session;
+  private _contextDestroyedScope = new LongStandingScope();
 
   public constructor(frame: Frame) {
     super();
     console.log('Creating FrameExecutionContext for frame:', frame.frameId);
     this.frame = frame;
     this.session = frame.session;
+  }
+
+  contextDestroyed(reason: string) {
+    this._contextDestroyedScope.close(new Error(reason));
+  }
+
+  async _raceAgainstContextDestroyed<T>(promise: Promise<T>): Promise<T> {
+    return this._contextDestroyedScope.race(promise);
   }
 
   async executeScript<T, Args extends unknown[]>(

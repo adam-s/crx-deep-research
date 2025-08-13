@@ -8,6 +8,7 @@ const windowId = () =>
 
 export class BrowserWindow extends Disposable {
   private _pages = new Map<number, Page>();
+  private _processedCommittedDocuments: Set<string> = new Set();
   readonly windowId: number;
   readonly session: Session;
 
@@ -23,7 +24,8 @@ export class BrowserWindow extends Disposable {
     console.log(
       `🗑️ BrowserWindow disposing ${this._pages.size} pages: [${Array.from(this._pages.keys()).join(', ')}]`,
     );
-
+    for (const p of this._pages.values()) p.dispose();
+    this._pages.clear();
     super.dispose();
     console.log(`✅ BrowserWindow for window ${this.windowId} disposed successfully`);
   }
@@ -52,6 +54,40 @@ export class BrowserWindow extends Disposable {
       }),
     );
 
+    // Translate lifecycle events to frames
+    this._register(
+      this.session.onCompleted(d => {
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+        frame._onLifecycleEvent('load');
+      }),
+    );
+    this._register(
+      this.session.onDOMContentLoaded(d => {
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+        frame._onLifecycleEvent('domcontentloaded');
+      }),
+    );
+    // Commit handling is performed inside _handleMainFrameNavigation/_handleSubframeNavigation after frames are ensured
+    this._register(
+      this.session.onBeforeNavigate(d => {
+        // Could be used to reset state if needed per frame
+        void d; // no-op to avoid ts unused in minimal wiring
+      }),
+    );
+    this._register(
+      this.session.onErrorOccurred(d => {
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+        // Consider aborting pending navigation
+        frame._onLifecycleEvent('commit');
+      }),
+    );
+
     this._register(
       this.session.onTabRemoved(({ tabId }) => {
         console.log(`🗑️ Tab ${tabId} removed - starting cleanup`);
@@ -66,6 +102,11 @@ export class BrowserWindow extends Disposable {
         } else {
           console.log(`⚠️ No Page found for removed tab ${tabId}`);
         }
+        // Clean up dedupe keys for this tab to prevent memory growth
+        const prefix = `${tabId}:`;
+        for (const key of this._processedCommittedDocuments) {
+          if (key.startsWith(prefix)) this._processedCommittedDocuments.delete(key);
+        }
         console.log(`📊 BrowserWindow now has ${this._pages.size} pages remaining`);
       }),
     );
@@ -77,6 +118,26 @@ export class BrowserWindow extends Disposable {
           this._createPage(tab.id);
           // New tabs start with just a main frame, let navigation events handle the rest
         }
+      }),
+    );
+
+    // Same-document navigations should trigger internal navigation
+    this._register(
+      this.session.onHistoryStateUpdated(d => {
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+        frame.setUrl(d.url);
+        frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
+      }),
+    );
+    this._register(
+      this.session.onReferenceFragmentUpdated(d => {
+        const page = this._pages.get(d.tabId);
+        if (!page) return;
+        const frame = page.frameManager.frame(d.frameId) ?? page.frameManager.mainFrame();
+        frame.setUrl(d.url);
+        frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
       }),
     );
   }
@@ -91,12 +152,50 @@ export class BrowserWindow extends Disposable {
         return;
       }
 
+      // De-duplication guard: when documentId is available, only handle a commit once per (tab, frame, document)
+      if (details.documentId) {
+        const key = `${details.tabId}:${details.frameId}:${details.documentId}`;
+        if (this._processedCommittedDocuments.has(key)) {
+          return;
+        }
+        this._processedCommittedDocuments.add(key);
+      }
+
       if (details.frameId === 0) {
         // Main frame navigation - create or update page
-        this._handleMainFrameNavigation(details.tabId);
+        await this._handleMainFrameNavigation(details.tabId);
+        const page = this._pages.get(details.tabId);
+        if (page) {
+          const main = page.frameManager.mainFrame();
+          const newDoc = details.documentId ? { documentId: details.documentId } : undefined;
+          // Emit internal navigation to unblock waiters
+          main._fireInternalNavigation(
+            details.url,
+            '',
+            newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
+            undefined,
+            true,
+          );
+          page.frameNavigatedToNewDocument(main);
+        }
       } else {
         // Subframe navigation - handle frame attachment for existing page
         await this._handleSubframeNavigation(details.tabId, details.frameId, details.url);
+        const page = this._pages.get(details.tabId);
+        if (page) {
+          const frame = page.frameManager.frame(details.frameId);
+          if (frame) {
+            const newDoc = details.documentId ? { documentId: details.documentId } : undefined;
+            frame._fireInternalNavigation(
+              details.url,
+              '',
+              newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
+              undefined,
+              true,
+            );
+            page.frameNavigatedToNewDocument(frame);
+          }
+        }
       }
     } catch (error) {
       // Tab may not exist anymore, ignore
@@ -130,6 +229,17 @@ export class BrowserWindow extends Disposable {
     page.frameManager.clearFrames();
     // Re-fetch all frames for the tab.
     await this._fetchAllFramesForTab(page);
+    const main = page.frameManager.mainFrame();
+    if (main) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url) main.setUrl(tab.url);
+      } catch {
+        // ignore
+      }
+      // Reset lifecycle and notify page about new document
+      main._onClearLifecycle();
+    }
   }
 
   private async _handleSubframeNavigation(
@@ -152,6 +262,12 @@ export class BrowserWindow extends Disposable {
       if (frameDetails) {
         const parentFrameId = frameDetails.parentFrameId === -1 ? null : frameDetails.parentFrameId;
         page.frameManager.frameAttached(frameId, parentFrameId, url);
+        const frame = page.frameManager.frame(frameId);
+        if (frame) {
+          frame.setUrl(url);
+          frame._onClearLifecycle();
+          // page.frameNavigatedToNewDocument(frame); // This line is removed to avoid duplication
+        }
         console.log(`After attachment, page has ${page.frameManager.frames().length} frames`);
       }
     } catch (error) {

@@ -1,5 +1,5 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Progress, executeWithProgress } from './core/progress';
+import { Progress, ProgressController, executeWithProgress } from './core/progress';
 import type { FrameManager } from './frameManager';
 import type { FrameExecutionContext } from './core/frameExecutionContext';
 import type {
@@ -10,7 +10,17 @@ import type {
   SelectOptionOptions,
   FrameDragAndDropOptions,
   ScreenshotOptions,
+  NavigationEvent,
+  LifecycleEvent,
+  RegularLifecycleEvent,
+  DocumentInfo,
+  NavigationResponse,
+  CallMetadata,
+  NavigationRequest,
+  ResponseInfo,
+  RequestInfo,
 } from './utilities/types';
+import { verifyLifecycle } from './utilities/types';
 import { FrameSelectors } from './operations/frameSelectors';
 import {
   getByTestIdSelector,
@@ -41,11 +51,119 @@ import {
   createFrameEnterSelector,
   createFrameNthSelector,
 } from './utilities/frameUtils';
+import { parseURL } from './utilities/utils';
 import { FileTransferPortController } from './file-transfer/fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
 import { withAutoWait } from './navigation/autoWait';
 import { getNavigationTracker } from './navigation/navigationTracker';
-// #region Helper Functions
+import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
+import { Event, Emitter } from 'vs/base/common/event';
+import { assert } from '@injected/isomorphic/assert';
+
+export type World = 'main' | 'utility';
+
+export function serverSideCallMetadata(): CallMetadata {
+  return {
+    id: '',
+    startTime: 0,
+    endTime: 0,
+    type: 'Internal',
+    method: '',
+    params: {},
+    log: [],
+    isServerSide: true,
+  };
+}
+
+type ContextData = {
+  contextPromise: ManualPromise<FrameExecutionContext | { destroyedReason: string }>;
+  context: FrameExecutionContext | null;
+};
+
+export class NavigationAbortedError extends Error {
+  readonly documentId?: string;
+  constructor(documentId: string | undefined, message: string) {
+    super(message);
+    this.documentId = documentId;
+  }
+}
+
+/**
+ * Network classes for handling Chrome extension webRequest integration
+ * Provides Playwright-compatible interfaces over Chrome's webRequest API
+ */
+class Network {
+  /**
+   * Request class implementing NavigationRequest interface
+   * Maps Chrome webRequest details to Playwright-style request handling
+   */
+  static Request = class NetworkRequest implements NavigationRequest {
+    id: string;
+    url: string;
+    method: string;
+    resourceType: string;
+    headers: Record<string, string>;
+    timestamp: number;
+    _documentId?: string;
+    private _response: ResponseInfo | null = null;
+
+    constructor(requestInfo: RequestInfo, documentId?: string) {
+      this.id = requestInfo.id;
+      this.url = requestInfo.url;
+      this.method = requestInfo.method;
+      this.resourceType = requestInfo.resourceType;
+      this.headers = requestInfo.headers;
+      this.timestamp = requestInfo.timestamp;
+      this._documentId = documentId;
+    }
+
+    /**
+     * Returns the response for this request
+     * Implements NavigationRequest interface requirement
+     */
+    async response(): Promise<ResponseInfo | null> {
+      return this._response;
+    }
+
+    /**
+     * Sets the response for this request
+     * Called when response is received from Chrome webRequest API
+     */
+    _setResponse(responseInfo: ResponseInfo): void {
+      this._response = responseInfo;
+    }
+
+    /**
+     * Returns the final request in a redirect chain
+     * For Chrome extension compatibility - returns self since we don't track redirects at this level
+     */
+    _finalRequest(): NavigationRequest {
+      return this;
+    }
+  };
+
+  /**
+   * Response class for handling Chrome webRequest response data
+   * Provides structured access to response information
+   */
+  static ResponseData = class NetworkResponseData {
+    id: string;
+    url: string;
+    status: number;
+    headers: Record<string, string>;
+    timestamp: number;
+    request: RequestInfo;
+
+    constructor(responseInfo: ResponseInfo) {
+      this.id = responseInfo.id;
+      this.url = responseInfo.url;
+      this.status = responseInfo.status;
+      this.headers = responseInfo.headers;
+      this.timestamp = responseInfo.timestamp;
+      this.request = responseInfo.request;
+    }
+  };
+}
 
 /**
  * Frame class for managing frame interactions in Chrome extensions.
@@ -55,15 +173,40 @@ import { getNavigationTracker } from './navigation/navigationTracker';
  * Navigation is handled through the NavigationTracker for better reliability.
  */
 export class Frame extends Disposable {
+  // Event emitters for frame lifecycle events based on Playwright's Frame events
+  private readonly _onInternalNavigation = this._register(new Emitter<NavigationEvent>());
+  private readonly _onAddLifecycle = this._register(new Emitter<LifecycleEvent>());
+  private readonly _onRemoveLifecycle = this._register(new Emitter<LifecycleEvent>());
+
+  // Public event interfaces matching Playwright's Frame event system
+  public readonly onInternalNavigation: Event<NavigationEvent> = this._onInternalNavigation.event;
+  public readonly onAddLifecycle: Event<LifecycleEvent> = this._onAddLifecycle.event;
+  public readonly onRemoveLifecycle: Event<LifecycleEvent> = this._onRemoveLifecycle.event;
+
+  _currentDocument: DocumentInfo;
+  private _pendingDocument: DocumentInfo | undefined;
+  private _raceAgainstEvaluationStallingEventsPromises = new Set<ManualPromise<unknown>>();
+  _inflightRequests = new Set<InstanceType<typeof Network.Request>>();
+
   private _parentFrame: Frame | null;
   private _childFrames = new Set<Frame>();
   public frameId: number;
   public readonly frameManager: FrameManager;
   public readonly tabId: number;
   private _url?: string;
+  private _name: string = '';
   private _context?: FrameExecutionContext;
   readonly selectors: FrameSelectors;
   readonly fileTransferPortController: FileTransferPortController;
+  readonly _detachedScope = new LongStandingScope();
+  _firedLifecycleEvents = new Set<LifecycleEvent>();
+  private _firedNetworkIdleSelf = false;
+  private _networkIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  private _contextData = new Map<World, ContextData>();
+  readonly _redirectedNavigations = new Map<
+    string,
+    { url: string; gotoPromise: Promise<NavigationResponse | null> }
+  >(); // documentId -> data
 
   constructor(
     frameId: number,
@@ -77,6 +220,7 @@ export class Frame extends Disposable {
     this.tabId = this.frameManager.tabId;
     this._parentFrame = parentFrame;
     this._url = url;
+    this._currentDocument = { documentId: undefined, request: undefined };
     this.selectors = new FrameSelectors(this);
     this.fileTransferPortController = this._register(new FileTransferPortController());
 
@@ -99,6 +243,631 @@ export class Frame extends Disposable {
     console.log(
       `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${parentFrame?.frameId ?? 'none'} - URL: ${url ?? 'no url'}`,
     );
+  }
+
+  // #region START nav
+
+  setPendingDocument(documentInfo: DocumentInfo | undefined) {
+    this._pendingDocument = documentInfo;
+    if (documentInfo)
+      this._invalidateNonStallingEvaluations('Navigation interrupted the evaluation');
+  }
+
+  pendingDocument(): DocumentInfo | undefined {
+    return this._pendingDocument;
+  }
+
+  _invalidateNonStallingEvaluations(message: string) {
+    if (!this._raceAgainstEvaluationStallingEventsPromises.size) return;
+    const error = new Error(message);
+    for (const promise of this._raceAgainstEvaluationStallingEventsPromises) promise.reject(error);
+  }
+
+  async raceAgainstEvaluationStallingEvents<T>(cb: () => Promise<T>): Promise<T> {
+    if (this._pendingDocument) throw new Error('Frame is currently attempting a navigation');
+
+    const promise = new ManualPromise<T>();
+    this._raceAgainstEvaluationStallingEventsPromises.add(promise as ManualPromise<unknown>);
+    try {
+      return await Promise.race([cb(), promise]);
+    } finally {
+      this._raceAgainstEvaluationStallingEventsPromises.delete(promise as ManualPromise<unknown>);
+    }
+  }
+
+  _onClearLifecycle() {
+    for (const event of this._firedLifecycleEvents) this._fireRemoveLifecycle(event);
+    this._firedLifecycleEvents.clear();
+    // Keep the current navigation request if any.
+    this._inflightRequests = new Set(
+      Array.from(this._inflightRequests).filter(
+        request => request === this._currentDocument.request,
+      ),
+    );
+    this._stopNetworkIdleTimer();
+    if (this._inflightRequests.size === 0) this._startNetworkIdleTimer();
+    this.frameManager.page.mainFrame()._recalculateNetworkIdle(this);
+    this._onLifecycleEvent('commit');
+  }
+
+  _startNetworkIdleTimer() {
+    assert(!this._networkIdleTimer);
+    // We should not start a timer and report networkidle in detached frames.
+    // This happens at least in Firefox for child frames, where we may get requestFinished
+    // after the frame was detached - probably a race in the Firefox itself.
+    if (this._firedLifecycleEvents.has('networkidle') || this._detachedScope.isClosed()) return;
+    this._networkIdleTimer = setTimeout(() => {
+      this._firedNetworkIdleSelf = true;
+      this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+    }, 500);
+  }
+
+  _stopNetworkIdleTimer() {
+    if (this._networkIdleTimer) clearTimeout(this._networkIdleTimer);
+    this._networkIdleTimer = undefined;
+    this._firedNetworkIdleSelf = false;
+  }
+
+  // Helpers to integrate with per-frame inflight tracking
+  _onRequestStarted() {
+    this._stopNetworkIdleTimer();
+  }
+  _onRequestFinished() {
+    if (this._inflightRequests.size === 0) {
+      // Only start the timer if it's not already running. In MV3, we can miss
+      // some request start events (e.g., listener attached late), so completion
+      // can arrive while the idle timer is already active from commit.
+      if (!this._networkIdleTimer) this._startNetworkIdleTimer();
+    }
+    this.frameManager.page.mainFrame()._recalculateNetworkIdle();
+  }
+
+  _recalculateNetworkIdle(frameThatAllowsRemovingNetworkIdle?: Frame) {
+    let isNetworkIdle = this._firedNetworkIdleSelf;
+    for (const child of this._childFrames) {
+      child._recalculateNetworkIdle(frameThatAllowsRemovingNetworkIdle);
+      // We require networkidle event to be fired in the whole frame subtree, and then consider it done.
+      if (!child._firedLifecycleEvents.has('networkidle')) isNetworkIdle = false;
+    }
+    if (isNetworkIdle && !this._firedLifecycleEvents.has('networkidle')) {
+      this._firedLifecycleEvents.add('networkidle');
+      this._fireAddLifecycle('networkidle');
+      if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
+        console.log('api', `  "networkidle" event fired`);
+    }
+    if (
+      frameThatAllowsRemovingNetworkIdle !== this &&
+      this._firedLifecycleEvents.has('networkidle') &&
+      !isNetworkIdle
+    ) {
+      // Usually, networkidle is fired once and not removed after that.
+      // However, when we clear them right before a new commit, this is allowed for a particular frame.
+      this._firedLifecycleEvents.delete('networkidle');
+      this._fireRemoveLifecycle('networkidle');
+    }
+  }
+
+  _onLifecycleEvent(event: RegularLifecycleEvent) {
+    console.log(
+      `[Frame._onLifecycleEvent] Received lifecycle event for frame ${this.frameId}: "${event}"`,
+    );
+    if (this._firedLifecycleEvents.has(event)) {
+      console.log(
+        `[Frame._onLifecycleEvent] Lifecycle event "${event}" already fired for frame ${this.frameId}, ignoring`,
+      );
+      return;
+    }
+    console.log(
+      `[Frame._onLifecycleEvent] Adding and firing lifecycle event "${event}" for frame ${this.frameId}`,
+    );
+    this._firedLifecycleEvents.add(event);
+    this._fireAddLifecycle(event);
+    if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
+      console.log('api', `  "${event}" event fired`);
+    this.frameManager.mainFrame()._recalculateNetworkIdle();
+  }
+
+  // #endregion END nav
+
+  /**
+   * Fire internal navigation event matching Playwright's NavigationEvent structure
+   * This method can be called by FrameManager during navigation lifecycle
+   */
+  _fireInternalNavigation(
+    url: string,
+    name: string = '',
+    newDocument?: DocumentInfo,
+    error?: Error,
+    isPublic: boolean = true,
+  ): void {
+    const navigationEvent: NavigationEvent = {
+      url,
+      name,
+      newDocument,
+      error,
+      isPublic,
+    };
+    console.log(
+      `[Frame._fireInternalNavigation] Firing navigation event for frame ${this.frameId}, event:`,
+      navigationEvent,
+    );
+    this._onInternalNavigation.fire(navigationEvent);
+  }
+
+  /**
+   * Fire add lifecycle event
+   */
+  private _fireAddLifecycle(lifecycle: LifecycleEvent): void {
+    console.log(
+      `[Frame._fireAddLifecycle] Firing add lifecycle event for frame ${this.frameId}: "${lifecycle}"`,
+    );
+    this._onAddLifecycle.fire(lifecycle);
+  }
+
+  /**
+   * Fire remove lifecycle event
+   */
+  private _fireRemoveLifecycle(lifecycle: LifecycleEvent): void {
+    console.log(
+      `[Frame._fireRemoveLifecycle] Firing remove lifecycle event for frame ${this.frameId}: "${lifecycle}"`,
+    );
+    this._onRemoveLifecycle.fire(lifecycle);
+  }
+
+  /**
+   * Wait for navigation using VS Code Event system
+   * Chrome extension-compatible version of Playwright's waitForNavigation
+   */
+  async waitForNavigation(
+    progress: Progress,
+    options: { waitUntil?: LifecycleEvent; timeout?: number } = {},
+  ): Promise<NavigationResponse | null> {
+    const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
+    const timeout = options.timeout || 30000;
+
+    return new Promise<NavigationResponse | null>((resolve, reject) => {
+      const disposables: { dispose(): void }[] = [];
+      let navigationReceived = false;
+      let lifecycleReceived = false;
+      let pendingNavigation: NavigationEvent | null = null;
+
+      // Set up timeout
+      const timeoutHandle = setTimeout(() => {
+        disposables.forEach(d => d.dispose());
+        reject(new Error(`Navigation timeout of ${timeout}ms exceeded`));
+      }, timeout);
+
+      const cleanup = () => {
+        clearTimeout(timeoutHandle);
+        disposables.forEach(d => d.dispose());
+      };
+
+      const checkCompletion = () => {
+        if (navigationReceived && lifecycleReceived && pendingNavigation) {
+          cleanup();
+          // Return null for now - response plumbing can be added later
+          resolve(null);
+        }
+      };
+
+      // Listen for navigation events
+      const navigationDisposable = this.onInternalNavigation((navEvent: NavigationEvent) => {
+        if (navEvent.error) {
+          cleanup();
+          reject(navEvent.error);
+          return;
+        }
+        navigationReceived = true;
+        pendingNavigation = navEvent;
+        checkCompletion();
+      });
+      disposables.push(navigationDisposable);
+
+      // Listen for lifecycle events
+      const lifecycleDisposable = this.onAddLifecycle((lifecycle: LifecycleEvent) => {
+        if (lifecycle === waitUntil) {
+          lifecycleReceived = true;
+          checkCompletion();
+        }
+      });
+      disposables.push(lifecycleDisposable);
+
+      // Clean up when progress is aborted
+      progress.cleanupWhenAborted(cleanup);
+    });
+  }
+
+  /**
+   * Internal navigation waiting method with Playwright-compatible signature
+   * Used by reload() and other navigation methods that need requiresNewDocument flag
+   */
+  async _waitForNavigation(
+    progress: Progress,
+    requiresNewDocument: boolean,
+    options: { waitUntil?: LifecycleEvent; timeout?: number } = {},
+  ): Promise<NavigationResponse | null> {
+    const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
+    console.log(
+      `[Frame._waitForNavigation] Starting frame ${this.frameId}, tab ${this.tabId}, requiresNewDocument: ${requiresNewDocument}, waitUntil: "${waitUntil}", options:`,
+      options,
+    );
+
+    // Safe progress logging - check if progress.log exists
+    if (progress && typeof progress.log === 'function') {
+      progress.log(`waiting for navigation until "${waitUntil}"`);
+    } else {
+      console.log(
+        `[Frame._waitForNavigation] Progress object missing log method, progress:`,
+        progress,
+      );
+    }
+
+    // Wait for navigation event using our VS Code Event system
+    console.log(
+      `[Frame._waitForNavigation] Calling Frame.waitForEvent for onInternalNavigation, frame ${this.frameId}`,
+    );
+    const navigationEvent = await Frame.waitForEvent(
+      progress,
+      this.onInternalNavigation,
+      (event: NavigationEvent) => {
+        console.log(
+          `[Frame._waitForNavigation] Navigation event received for frame ${this.frameId}, event:`,
+          event,
+        );
+        // Any failed navigation results in a rejection
+        if (event.error) {
+          console.log(
+            `[Frame._waitForNavigation] Navigation event has error for frame ${this.frameId}:`,
+            event.error,
+          );
+          return true;
+        }
+        // Check if we require a new document (for reload vs pushState distinction)
+        if (requiresNewDocument && !event.newDocument) {
+          console.log(
+            `[Frame._waitForNavigation] Requires new document but no newDocument in event for frame ${this.frameId}`,
+          );
+          return false;
+        }
+
+        // Safe progress logging
+        if (progress && typeof progress.log === 'function') {
+          progress.log(`  navigated to "${this._url}"`);
+        }
+
+        console.log(
+          `[Frame._waitForNavigation] Navigation event matches criteria for frame ${this.frameId}`,
+        );
+        return true;
+      },
+      options.timeout || 30000,
+    );
+
+    console.log(
+      `[Frame._waitForNavigation] Frame.waitForEvent completed for frame ${this.frameId}, navigationEvent:`,
+      navigationEvent,
+    );
+
+    // Check for navigation error
+    if (navigationEvent.error) {
+      console.log(
+        `[Frame._waitForNavigation] Throwing navigation error for frame ${this.frameId}:`,
+        navigationEvent.error,
+      );
+      throw navigationEvent.error;
+    }
+
+    // Decide whether to wait for a lifecycle event.
+    // For same-document navigations (no newDocument), Chrome won't fire 'domcontentloaded'/'load'.
+    // In that case, treat the navigation as complete after the internal navigation signal.
+    console.log(
+      `[Frame._waitForNavigation] Checking lifecycle events for frame ${this.frameId}, firedEvents:`,
+      Array.from(this._firedLifecycleEvents),
+      `waitUntil: "${waitUntil}"`,
+    );
+    const isSameDocument = !navigationEvent.newDocument;
+    const shouldSkipLifecycleWait = isSameDocument && waitUntil !== 'commit';
+    if (!shouldSkipLifecycleWait && !this._firedLifecycleEvents.has(waitUntil)) {
+      console.log(
+        `[Frame._waitForNavigation] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`,
+      );
+      await Frame.waitForEvent(
+        progress,
+        this.onAddLifecycle,
+        (e: LifecycleEvent) => {
+          console.log(
+            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
+          );
+          return e === waitUntil;
+        },
+        options.timeout || 30000,
+      );
+      console.log(
+        `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`,
+      );
+    } else {
+      console.log(
+        shouldSkipLifecycleWait
+          ? `[Frame._waitForNavigation] Same-document navigation detected; skipping lifecycle wait for "${waitUntil}"`
+          : `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`,
+      );
+    }
+
+    // Extract request and return response (or null)
+    const request = navigationEvent.newDocument ? navigationEvent.newDocument.request : undefined;
+    console.log(
+      `[Frame._waitForNavigation] Extracting request for frame ${this.frameId}, request:`,
+      request,
+    );
+    if (request) {
+      // TODO: Implement proper ResponseInfo to NavigationResponse conversion
+      // const responseInfo = await progress.race(request._finalRequest().response());
+      // For now, return null since response mapping is not fully implemented
+      console.log(
+        `[Frame._waitForNavigation] Returning null for frame ${this.frameId} (response mapping not implemented)`,
+      );
+      return null;
+    }
+    console.log(`[Frame._waitForNavigation] Returning null for frame ${this.frameId} (no request)`);
+    return null;
+  }
+
+  /**
+   * Wait for a specific lifecycle state to be reached
+   * Chrome extension-compatible version of Playwright's _waitForLoadState
+   */
+  async _waitForLoadState(progress: Progress, state: LifecycleEvent): Promise<void> {
+    const waitUntil = verifyLifecycle('state', state);
+    console.log(
+      `[Frame._waitForLoadState] Starting for frame ${this.frameId}, state: "${state}", waitUntil: "${waitUntil}"`,
+    );
+    console.log(
+      `[Frame._waitForLoadState] Current fired lifecycle events for frame ${this.frameId}:`,
+      Array.from(this._firedLifecycleEvents),
+    );
+    if (!this._firedLifecycleEvents.has(waitUntil)) {
+      console.log(
+        `[Frame._waitForLoadState] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`,
+      );
+      await Frame.waitForEvent(
+        progress,
+        this.onAddLifecycle,
+        (e: LifecycleEvent) => {
+          console.log(
+            `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
+          );
+          return e === waitUntil;
+        },
+        30000,
+      );
+      console.log(
+        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`,
+      );
+    } else {
+      console.log(
+        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`,
+      );
+    }
+  }
+
+  /**
+   * Helper method to wait for specific events using VS Code Event system
+   * Chrome extension-compatible replacement for Playwright's helper.waitForEvent
+   */
+  static waitForEvent<T>(
+    progress: Progress,
+    event: Event<T>,
+    predicate?: (eventArg: T) => boolean,
+    timeout: number = 30000,
+  ): Promise<T> {
+    console.log(
+      `[Frame.waitForEvent] Starting waitForEvent with timeout ${timeout}ms, predicate:`,
+      !!predicate,
+    );
+    return new Promise<T>((resolve, reject) => {
+      let disposable: { dispose(): void } | null = null;
+
+      // Set up timeout
+      const timeoutHandle = setTimeout(() => {
+        console.log(`[Frame.waitForEvent] Timeout exceeded (${timeout}ms)`);
+        if (disposable) disposable.dispose();
+        reject(new Error(`Event timeout of ${timeout}ms exceeded`));
+      }, timeout);
+
+      const cleanup = () => {
+        console.log(`[Frame.waitForEvent] Cleaning up event listener`);
+        clearTimeout(timeoutHandle);
+        if (disposable) disposable.dispose();
+      };
+
+      // Listen for the event
+      console.log(`[Frame.waitForEvent] Setting up event listener`);
+      disposable = event((eventArg: T) => {
+        try {
+          console.log(`[Frame.waitForEvent] Event received, evaluating predicate...`);
+          if (predicate && !predicate(eventArg)) {
+            console.log(`[Frame.waitForEvent] Predicate returned false, continuing to wait`);
+            return; // Continue waiting
+          }
+          console.log(
+            `[Frame.waitForEvent] Event matches criteria, resolving with eventArg:`,
+            eventArg,
+          );
+          cleanup();
+          resolve(eventArg);
+        } catch (e) {
+          console.log(`[Frame.waitForEvent] Exception in event handler:`, e);
+          cleanup();
+          reject(e);
+        }
+      });
+
+      // Clean up when progress is aborted
+      console.log(`[Frame.waitForEvent] Registering cleanup for progress abort`);
+      // Safety check for progress.cleanupWhenAborted
+      if (progress && typeof progress.cleanupWhenAborted === 'function') {
+        progress.cleanupWhenAborted(cleanup);
+      } else {
+        console.log(
+          `[Frame.waitForEvent] Progress object missing cleanupWhenAborted method, progress:`,
+          progress,
+        );
+        // Still register cleanup in case we need it, but without progress support
+      }
+    });
+  }
+
+  public async _retryWithProgressAndTimeouts<R>(
+    progress: Progress,
+    timeouts: readonly number[] = DEFAULT_RETRY_TIMEOUTS,
+    action: (continuePolling: symbol) => Promise<R | symbol>,
+  ): Promise<R> {
+    const continuePolling = Symbol('continuePolling');
+    // Prepend zero to ensure immediate first attempt
+    const delays = [0, ...timeouts];
+    let idx = 0;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const delay = delays[Math.min(idx++, delays.length - 1)];
+      if (delay) {
+        // race a simple timeout against any page/frame abort signals
+        await progress.race(new Promise(f => setTimeout(f, delay)));
+      }
+      try {
+        const result = await action(continuePolling);
+        if (result !== continuePolling) {
+          return result as R;
+        }
+        // else loop and retry
+      } catch (e) {
+        // If it's a "hard" error, bubble up; otherwise retry
+        if ((e as Error).message.includes('not connected')) {
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
+  _onDetached() {
+    this._stopNetworkIdleTimer();
+    this._detachedScope.close(new Error('Frame was detached'));
+    for (const data of this._contextData.values()) {
+      if (data.context) data.context.contextDestroyed('Frame was detached');
+      data.contextPromise.resolve({ destroyedReason: 'Frame was detached' });
+    }
+    if (this._parentFrame) this._parentFrame._childFrames.delete(this);
+    this._parentFrame = null;
+  }
+
+  isDetached(): boolean {
+    return this._detachedScope.isClosed();
+  }
+
+  async raceNavigationAction(
+    progress: Progress,
+    action: () => Promise<NavigationResponse | null>,
+  ): Promise<NavigationResponse | null> {
+    return LongStandingScope.raceMultiple(
+      [this._detachedScope, this.frameManager.page.openScope],
+      action().catch(e => {
+        if (e instanceof NavigationAbortedError && e.documentId) {
+          const data = this._redirectedNavigations.get(e.documentId);
+          if (data) {
+            // Safe progress logging
+            if (progress && typeof progress.log === 'function') {
+              progress.log(`waiting for redirected navigation to "${data.url}"`);
+            }
+            return progress.race(data.gotoPromise);
+          }
+        }
+        throw e;
+      }),
+    );
+  }
+
+  redirectNavigation(url: string, documentId: string, referer: string | undefined) {
+    const controller = new ProgressController(30000); // 30 second timeout
+    const data = {
+      url,
+      gotoPromise: controller.run(() => this.goto(url, { referer, timeout: 30000 })),
+    };
+    this._redirectedNavigations.set(documentId, data);
+    data.gotoPromise.finally(() => this._redirectedNavigations.delete(documentId));
+  }
+
+  /**
+   * Navigate this frame using a Playwright-style algorithm backed by NavigationTracker.
+   * - Initiates navigation via chrome.tabs.update
+   * - Waits for 'commit', then for the requested lifecycle (default 'load')
+   * - Returns null (response plumbing can be added later)
+   */
+  async goto(
+    url: string,
+    options?: NavigateOptionsWithProgress,
+  ): Promise<NavigationResponse | null> {
+    if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
+
+    const waitUntil = options?.waitUntil ?? 'load';
+    const timeoutMs = options?.timeout ?? 30000;
+
+    return executeWithProgress(async p => {
+      const tracker = getNavigationTracker();
+
+      // Start listening for internal navigation events for this frame
+      const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
+      const disposable = tracker.onInternalNavigation(ev => {
+        if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
+          events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
+        }
+      });
+      p.cleanupWhenAborted(() => disposable.dispose());
+
+      // Initiate navigation directly via chrome.tabs.update
+      p.log(`Frame ${this.frameId} navigating to "${url}"`);
+      chrome.tabs.update(this.tabId, { url });
+
+      // Wait for navigation to complete with the requested lifecycle
+      const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
+        toUrl: url,
+        waitUntil,
+        timeoutMs,
+      });
+
+      // Update our URL to the committed one (could differ due to redirects)
+      this.setUrl(navEv.url);
+
+      // Fire internal navigation event
+      this._fireInternalNavigation(
+        navEv.url,
+        '', // frame name - not available from NavigationTracker currently
+        navEv.newDocument
+          ? {
+              documentId: navEv.newDocument.documentId,
+              request: undefined, // request not available from NavigationTracker
+            }
+          : undefined,
+      );
+
+      // Response mapping is not wired yet; return null for parity with same-document nav
+      return null;
+    }, options);
+  }
+
+  origin(): string | undefined {
+    if (!this._url || !this._url.startsWith('http')) {
+      return undefined;
+    }
+    return parseURL(this._url)?.origin;
+  }
+
+  name(): string {
+    return this._name;
+  }
+
+  setName(name: string): void {
+    this._name = name;
   }
 
   dispose(): void {
@@ -179,82 +948,6 @@ export class Frame extends Disposable {
 
   setUrl(url: string): void {
     this._url = url;
-  }
-
-  public async _retryWithProgressAndTimeouts<R>(
-    progress: Progress,
-    timeouts: readonly number[] = DEFAULT_RETRY_TIMEOUTS,
-    action: (continuePolling: symbol) => Promise<R | symbol>,
-  ): Promise<R> {
-    const continuePolling = Symbol('continuePolling');
-    // Prepend zero to ensure immediate first attempt
-    const delays = [0, ...timeouts];
-    let idx = 0;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const delay = delays[Math.min(idx++, delays.length - 1)];
-      if (delay) {
-        // race a simple timeout against any page/frame abort signals
-        await progress.race(new Promise(f => setTimeout(f, delay)));
-      }
-      try {
-        const result = await action(continuePolling);
-        if (result !== continuePolling) {
-          return result as R;
-        }
-        // else loop and retry
-      } catch (e) {
-        // If it's a "hard" error, bubble up; otherwise retry
-        if ((e as Error).message.includes('not connected')) {
-          continue;
-        }
-        throw e;
-      }
-    }
-  }
-
-  /**
-   * Navigate this frame using a Playwright-style algorithm backed by NavigationTracker.
-   * - Initiates navigation via chrome.tabs.update
-   * - Waits for 'commit', then for the requested lifecycle (default 'load')
-   * - Returns null (response plumbing can be added later)
-   */
-  async goto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
-    if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
-
-    const waitUntil = options?.waitUntil ?? 'load';
-    const timeoutMs = options?.timeout ?? 30000;
-
-    return executeWithProgress(async p => {
-      const tracker = getNavigationTracker();
-
-      // Start listening for internal navigation events for this frame
-      const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
-      const disposable = tracker.onInternalNavigation(ev => {
-        if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
-          events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
-        }
-      });
-      p.cleanupWhenAborted(() => disposable.dispose());
-
-      // Initiate navigation directly via chrome.tabs.update
-      p.log(`Frame ${this.frameId} navigating to "${url}"`);
-      chrome.tabs.update(this.tabId, { url });
-
-      // Wait for navigation to complete with the requested lifecycle
-      const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
-        toUrl: url,
-        waitUntil,
-        timeoutMs,
-      });
-
-      // Update our URL to the committed one (could differ due to redirects)
-      this.setUrl(navEv.url);
-
-      // Response mapping is not wired yet; return null for parity with same-document nav
-      return null;
-    }, options);
   }
 
   async waitForSelector(
@@ -1014,6 +1707,48 @@ export class Frame extends Disposable {
       selectors as unknown[],
       color,
     );
+  }
+
+  /**
+   * Network request management methods for tracking inflight requests
+   * These methods provide interface compatibility with browser-use context expectations
+   */
+
+  /**
+   * Add a network request to the inflight requests set
+   * Used when a new request is initiated from this frame
+   */
+  _addInflightRequest(
+    requestInfo: RequestInfo,
+    documentId?: string,
+  ): InstanceType<typeof Network.Request> {
+    const request = new Network.Request(requestInfo, documentId);
+    this._inflightRequests.add(request);
+    return request;
+  }
+
+  /**
+   * Remove a network request from the inflight requests set
+   * Used when a request completes or fails
+   */
+  _removeInflightRequest(request: InstanceType<typeof Network.Request>): void {
+    this._inflightRequests.delete(request);
+  }
+
+  /**
+   * Find an inflight request by document ID
+   * Used by frameManager to locate requests associated with document navigations
+   */
+  _findRequestByDocumentId(documentId: string): InstanceType<typeof Network.Request> | undefined {
+    return Array.from(this._inflightRequests).find(request => request._documentId === documentId);
+  }
+
+  /**
+   * Clear all inflight requests
+   * Used during frame disposal or context reset
+   */
+  _clearInflightRequests(): void {
+    this._inflightRequests.clear();
   }
 }
 

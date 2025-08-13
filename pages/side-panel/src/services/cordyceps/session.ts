@@ -39,6 +39,25 @@ export class Session extends Disposable {
   readonly onCompleted: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails> =
     this._onCompleted.event;
 
+  private readonly _onDOMContentLoaded = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>(),
+  );
+  readonly onDOMContentLoaded: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails> =
+    this._onDOMContentLoaded.event;
+
+  // Same-document navigations
+  private readonly _onHistoryStateUpdated = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+  );
+  readonly onHistoryStateUpdated: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
+    this._onHistoryStateUpdated.event;
+
+  private readonly _onReferenceFragmentUpdated = this._register(
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+  );
+  readonly onReferenceFragmentUpdated: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
+    this._onReferenceFragmentUpdated.event;
+
   private readonly _onErrorOccurred = this._register(
     new Emitter<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails>(),
   );
@@ -66,7 +85,6 @@ export class Session extends Disposable {
     this._setupMessageListener();
     this._setupTabListeners();
     this._setupWebNavigationListeners();
-    this._setupRequestObservation();
     console.log(`✅ Session created for window ${windowId}`);
   }
 
@@ -98,6 +116,14 @@ export class Session extends Disposable {
       this._onCommitted.fire(details);
     const onCompleted = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) =>
       this._onCompleted.fire(details);
+    const onDOMContentLoaded = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) =>
+      this._onDOMContentLoaded.fire(details);
+    const onHistoryStateUpdated = (
+      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+    ) => this._onHistoryStateUpdated.fire(details);
+    const onReferenceFragmentUpdated = (
+      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+    ) => this._onReferenceFragmentUpdated.fire(details);
     const onErrorOccurred = (
       details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails,
     ) => this._onErrorOccurred.fire(details);
@@ -105,6 +131,9 @@ export class Session extends Disposable {
     chrome.webNavigation.onBeforeNavigate.addListener(onBeforeNavigate);
     chrome.webNavigation.onCommitted.addListener(onCommitted);
     chrome.webNavigation.onCompleted.addListener(onCompleted);
+    chrome.webNavigation.onDOMContentLoaded.addListener(onDOMContentLoaded);
+    chrome.webNavigation.onHistoryStateUpdated.addListener(onHistoryStateUpdated);
+    chrome.webNavigation.onReferenceFragmentUpdated.addListener(onReferenceFragmentUpdated);
     chrome.webNavigation.onErrorOccurred.addListener(onErrorOccurred);
 
     this._register({
@@ -112,6 +141,9 @@ export class Session extends Disposable {
         chrome.webNavigation.onBeforeNavigate.removeListener(onBeforeNavigate);
         chrome.webNavigation.onCommitted.removeListener(onCommitted);
         chrome.webNavigation.onCompleted.removeListener(onCompleted);
+        chrome.webNavigation.onDOMContentLoaded.removeListener(onDOMContentLoaded);
+        chrome.webNavigation.onHistoryStateUpdated.removeListener(onHistoryStateUpdated);
+        chrome.webNavigation.onReferenceFragmentUpdated.removeListener(onReferenceFragmentUpdated);
         chrome.webNavigation.onErrorOccurred.removeListener(onErrorOccurred);
       },
     });

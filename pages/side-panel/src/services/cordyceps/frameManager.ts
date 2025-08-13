@@ -1,14 +1,67 @@
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Frame } from './frame';
+import { Frame, NavigationAbortedError } from './frame';
 import { Progress } from './core/progress';
 import { Page } from './page';
 import { assert } from '@injected/isomorphic/assert';
+import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
+import { DocumentInfo } from './utilities/types';
 
+class SignalBarrier {
+  private _progress: Progress;
+  private _protectCount = 0;
+  private _promise = new ManualPromise<void>();
+
+  constructor(progress: Progress) {
+    this._progress = progress;
+    this.retain();
+  }
+
+  waitFor(): PromiseLike<void> {
+    this.release();
+    return this._progress.race(this._promise);
+  }
+
+  addFrameNavigation(frame: Frame) {
+    // Auto-wait top-level navigations only.
+    if (frame.parentFrame()) return;
+    this.retain();
+
+    // Use the new event system instead of helper.waitForEvent
+    const disposable = frame.onInternalNavigation(ev => {
+      if (this._progress) {
+        this._progress.log(`  navigated to "${ev.url}"`);
+      }
+      disposable.dispose();
+      this.release();
+    });
+
+    // Ensure cleanup if frame gets detached or page gets closed
+    LongStandingScope.raceMultiple(
+      [frame.frameManager.page.openScope, frame._detachedScope],
+      Promise.resolve(), // Immediate resolution since we handle cleanup via event subscription
+    )
+      .catch(() => {})
+      .finally(() => {
+        disposable.dispose();
+        this.release();
+      });
+  }
+
+  retain() {
+    ++this._protectCount;
+  }
+
+  release() {
+    --this._protectCount;
+    if (!this._protectCount) this._promise.resolve();
+  }
+}
 export class FrameManager extends Disposable {
   private _frames = new Map<number, Frame>();
   private _mainFrame?: Frame;
   private _mainFrameResolve!: (frame: Frame) => void;
   private _mainFramePromise: Promise<Frame>;
+  readonly _signalBarriers = new Set<SignalBarrier>();
 
   constructor(public readonly page: Page) {
     super();
@@ -146,6 +199,140 @@ export class FrameManager extends Disposable {
 
     const frame = this._register(new Frame(frameId, this, parentFrame, url));
     this._frames.set(frameId, frame);
+
+    // Emit FrameAttached event similar to Playwright
+    this.page._fireFrameAttached(frame);
+
     return frame;
+  }
+
+  async waitForSignalsCreatedBy<T>(
+    progress: Progress,
+    waitAfter: boolean,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    if (!waitAfter) return action();
+    const barrier = new SignalBarrier(progress);
+    this._signalBarriers.add(barrier);
+    progress.cleanupWhenAborted(() => this._signalBarriers.delete(barrier));
+    const result = await action();
+    // await progress.race(this.page.delegate.inputActionEpilogue());
+    await barrier.waitFor();
+    this._signalBarriers.delete(barrier);
+    // Resolve in the next task, after all waitForNavigations.
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    return result;
+  }
+
+  frameWillPotentiallyRequestNavigation() {
+    for (const barrier of this._signalBarriers) barrier.retain();
+  }
+
+  frameDidPotentiallyRequestNavigation() {
+    for (const barrier of this._signalBarriers) barrier.release();
+  }
+
+  frameRequestedNavigation(frameId: number, documentId?: string) {
+    const frame = this._frames.get(frameId);
+    if (!frame) return;
+    for (const barrier of this._signalBarriers) barrier.addFrameNavigation(frame);
+    if (frame.pendingDocument() && frame.pendingDocument()!.documentId === documentId) {
+      // Do not override request with undefined.
+      return;
+    }
+
+    const request = documentId
+      ? Array.from(frame._inflightRequests).find(request => request._documentId === documentId)
+      : undefined;
+    frame.setPendingDocument({ documentId, request });
+  }
+
+  frameCommittedNewDocumentNavigation(
+    frameId: number,
+    url: string,
+    name: string,
+    documentId: string,
+    initial: boolean,
+  ) {
+    const frame = this._frames.get(frameId)!;
+    this.removeChildFramesRecursively(frame);
+    frame.setUrl(url);
+    frame.setName(name);
+
+    let keepPending: DocumentInfo | undefined;
+    const pendingDocument = frame.pendingDocument();
+    if (pendingDocument) {
+      if (pendingDocument.documentId === undefined) {
+        // Pending with unknown documentId - assume it is the one being committed.
+        pendingDocument.documentId = documentId;
+      }
+      if (pendingDocument.documentId === documentId) {
+        // Committing a pending document.
+        frame._currentDocument = pendingDocument;
+      } else {
+        // Sometimes, we already have a new pending when the old one commits.
+        // An example would be Chromium error page followed by a new navigation request,
+        // where the error page commit arrives after Network.requestWillBeSent for the
+        // new navigation.
+        // We commit, but keep the pending request since it's not done yet.
+        keepPending = pendingDocument;
+        frame._currentDocument = { documentId, request: undefined };
+      }
+      frame.setPendingDocument(undefined);
+    } else {
+      // No pending - just commit a new document.
+      frame._currentDocument = { documentId, request: undefined };
+    }
+
+    frame._onClearLifecycle();
+    frame._fireInternalNavigation(url, name, frame._currentDocument, undefined, true);
+    if (!initial) {
+      console.log('api', `  navigated to "${url}"`);
+      this.page.frameNavigatedToNewDocument(frame);
+    }
+    // Restore pending if any - see comments above about keepPending.
+    frame.setPendingDocument(keepPending);
+  }
+
+  removeChildFramesRecursively(frame: Frame) {
+    for (const child of frame.childFrames()) this._removeFramesRecursively(child);
+  }
+
+  private _removeFramesRecursively(frame: Frame) {
+    this.removeChildFramesRecursively(frame);
+    frame._onDetached();
+    this._frames.delete(frame.frameId);
+    if (!this.page.isClosed()) this.page._fireFrameDetached(frame);
+  }
+
+  frameCommittedSameDocumentNavigation(frameId: number, url: string) {
+    const frame = this._frames.get(frameId);
+    if (!frame) return;
+    const pending = frame.pendingDocument();
+    if (pending && pending.documentId === undefined && pending.request === undefined) {
+      // WebKit has notified about the same-document navigation being requested, so clear it.
+      frame.setPendingDocument(undefined);
+    }
+    frame.setUrl(url);
+    frame._fireInternalNavigation(url, frame.name(), undefined, undefined, true);
+    console.log('api', `  navigated to "${url}"`);
+  }
+
+  frameAbortedNavigation(frameId: number, errorText: string, documentId?: string) {
+    const frame = this._frames.get(frameId);
+    if (!frame || !frame.pendingDocument()) return;
+    if (documentId !== undefined && frame.pendingDocument()!.documentId !== documentId) return;
+
+    const error = new NavigationAbortedError(documentId, errorText);
+    const isPublic = !(documentId && frame._redirectedNavigations.has(documentId));
+
+    frame.setPendingDocument(undefined);
+    frame._fireInternalNavigation(
+      frame.url() || '',
+      frame.name(),
+      frame.pendingDocument(),
+      error,
+      isPublic,
+    );
   }
 }

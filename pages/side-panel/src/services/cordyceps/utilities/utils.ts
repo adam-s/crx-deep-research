@@ -382,3 +382,17 @@ export const STANDARD_TIMEOUT = 30000;
 export function createRetryConfig(timeouts: readonly number[] = DEFAULT_TIMEOUTS) {
   return { timeouts };
 }
+
+// #region URL Utilities
+
+/**
+ * Parse a URL string safely, returning null if invalid
+ * Used for extracting URL components like origin, pathname, etc.
+ */
+export function parseURL(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch (e) {
+    return null;
+  }
+}

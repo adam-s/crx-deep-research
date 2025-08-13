@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { FrameManager } from './frameManager';
 import { Frame, FrameLocator } from './frame';
 import { Progress, executeWithProgress } from './core/progress';
@@ -17,6 +17,8 @@ import type {
   ScreenshotOptions,
   RequestInfo,
   ResponseInfo,
+  PageFrameEvent,
+  NavigationResponse,
 } from './utilities/types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
@@ -30,24 +32,45 @@ import {
 import { convertBrowserBufferToNodeBuffer } from './utilities/bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './media/screenshotter';
-import { getNavigationTracker } from './navigation/navigationTracker';
 import { NetworkListenerManager } from './navigation/networkListenerManager';
 import { waitForCondition } from './navigation/autoWait';
+import { LongStandingScope } from '@injected/isomorphic/manualPromise';
 
 export class Page extends Disposable {
+  // Event emitters for page lifecycle events
+  private readonly _onFrameAttached = this._register(new Emitter<PageFrameEvent>());
+  private readonly _onFrameDetached = this._register(new Emitter<PageFrameEvent>());
+  private readonly _onInternalFrameNavigatedToNewDocument = this._register(
+    new Emitter<PageFrameEvent>(),
+  );
+
+  public readonly onFrameAttached: Event<PageFrameEvent> = this._onFrameAttached.event;
+  public readonly onFrameDetached: Event<PageFrameEvent> = this._onFrameDetached.event;
+  public readonly onInternalFrameNavigatedToNewDocument: Event<PageFrameEvent> =
+    this._onInternalFrameNavigatedToNewDocument.event;
+
   private _ownedContext?: object;
   readonly frameManager: FrameManager;
   readonly tabId: number;
   readonly session: Session;
   lastSnapshotFrameIds: number[] = [];
   readonly screenshotter: Screenshotter;
-  readonly navTracker = getNavigationTracker();
   private readonly _navigationDelegate: NavigationDelegate;
+  readonly openScope = new LongStandingScope();
+  private _closedState: 'open' | 'closing' | 'closed' = 'open';
 
   // Network events using centralized manager to prevent memory leaks
   private readonly _networkEvents!: ReturnType<typeof NetworkListenerManager.prototype.registerTab>;
   readonly onRequest!: Event<RequestInfo>;
   readonly onResponse!: Event<ResponseInfo>;
+  // Track requests by id to map to frames and complete inflight sets
+  private readonly _reqById = new Map<
+    string,
+    {
+      frame: Frame;
+      req: InstanceType<typeof Frame>['_inflightRequests'] extends Set<infer T> ? T : never;
+    }
+  >();
 
   constructor(tabId: number, session: Session) {
     super();
@@ -64,6 +87,55 @@ export class Page extends Disposable {
     this.onRequest = this._networkEvents.onRequest;
     this.onResponse = this._networkEvents.onResponse;
 
+    // Wire request lifecycle into frames for accurate networkidle
+    this._register(
+      this.onRequest(ri => {
+        const frame = this.frameManager.frame(ri.frameId) ?? this.frameManager.mainFrame();
+        const req = frame._addInflightRequest(ri);
+        this._reqById.set(ri.id, { frame, req });
+        if (
+          typeof (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted ===
+          'function'
+        ) {
+          (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted!();
+        }
+      }),
+    );
+
+    this._register(
+      this._networkEvents.onCompleted(res => {
+        const rec = this._reqById.get(res.id);
+        if (!rec) return;
+        // Set response on our Network.Request wrapper
+        (rec.req as unknown as { _setResponse?: (r: ResponseInfo) => void })._setResponse?.(res);
+        // Remove before finishing so size-based checks are accurate
+        rec.frame._removeInflightRequest(rec.req as never);
+        if (
+          typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
+            ._onRequestFinished === 'function'
+        ) {
+          (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
+        }
+        this._reqById.delete(res.id);
+      }),
+    );
+
+    this._register(
+      this._networkEvents.onError(err => {
+        const rec = this._reqById.get(err.id);
+        if (!rec) return;
+        // Remove before finishing so size-based checks are accurate
+        rec.frame._removeInflightRequest(rec.req as never);
+        if (
+          typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
+            ._onRequestFinished === 'function'
+        ) {
+          (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
+        }
+        this._reqById.delete(err.id);
+      }),
+    );
+
     // Setup content script listener immediately - this is needed for execution context creation
     this._setupContentScriptListener();
 
@@ -73,6 +145,70 @@ export class Page extends Disposable {
     });
 
     console.log(`✅ Page created for tab ${tabId}`);
+  }
+
+  /**
+   * Fire frame attached event
+   */
+  _fireFrameAttached(frame: Frame): void {
+    this._onFrameAttached.fire({ frame });
+  }
+
+  /**
+   * Fire frame detached event
+   */
+  _fireFrameDetached(frame: Frame): void {
+    this._onFrameDetached.fire({ frame });
+  }
+
+  /**
+   * Fire internal frame navigated to new document event
+   */
+  _fireInternalFrameNavigatedToNewDocument(frame: Frame): void {
+    this._onInternalFrameNavigatedToNewDocument.fire({ frame });
+  }
+
+  frameNavigatedToNewDocument(frame: Frame) {
+    this._fireInternalFrameNavigatedToNewDocument(frame);
+    const origin = frame.origin();
+    if (origin) {
+      // Track visited origin for browser-use context compatibility
+      this._addVisitedOrigin(origin);
+    }
+  }
+
+  /**
+   * Track visited origins for browser-use compatibility
+   * In Chrome extension context, this is mainly for analytics/debugging
+   */
+  private _visitedOrigins = new Set<string>();
+
+  private _addVisitedOrigin(origin: string): void {
+    this._visitedOrigins.add(origin);
+    console.debug(`📍 Added visited origin: ${origin} (total: ${this._visitedOrigins.size})`);
+  }
+
+  /**
+   * Get all visited origins for this page
+   * Useful for browser-use context integration and debugging
+   */
+  getVisitedOrigins(): string[] {
+    return Array.from(this._visitedOrigins);
+  }
+
+  /**
+   * Browser context compatibility object for browser-use integration
+   * Provides a minimal interface that browser-use expects
+   */
+  get browserContext() {
+    return {
+      addVisitedOrigin: (origin: string) => this._addVisitedOrigin(origin),
+      getVisitedOrigins: () => this.getVisitedOrigins(),
+    };
+  }
+
+  isClosed(): boolean {
+    return this._closedState === 'closed';
   }
 
   /**
@@ -116,6 +252,7 @@ export class Page extends Disposable {
   dispose(): void {
     console.log(`🗑️ Disposing Page for tab ${this.tabId}`);
     console.log(`🗑️ Page disposing FrameManager with ${this.frameManager.frames().length} frames`);
+    this._reqById.clear();
 
     // Clean up declarative rules for this tab
     this.session.cleanupDeclarativeRulesForTab(this.tabId).catch(error => {
@@ -197,105 +334,121 @@ export class Page extends Disposable {
     return this.mainFrame().title();
   }
 
-  public async goto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
+  public async goto(
+    url: string,
+    options?: NavigateOptionsWithProgress,
+  ): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
       p.log(`Page navigating to "${url}"`);
       return this.mainFrame().goto(url, { ...options, progress: p });
     }, options);
   }
 
-  public async goBack(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+  async reload(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      p.log('Page navigating back');
-
-      // Start waiting for navigation before triggering the action
-      const navigationPromise = this.navTracker.waitForNavigation(
-        this.tabId,
-        0, // main frame
-        {
-          waitUntil: options?.waitUntil ?? 'load',
-          timeoutMs: options?.timeout ?? 30000,
-        },
-      );
-
-      // Trigger the back navigation
-      const success = await this._navigationDelegate.goBack();
-      if (!success) {
-        p.log('No history available for back navigation');
-        return null;
-      }
-
-      // Wait for the navigation to complete
-      await navigationPromise;
-      p.log('Back navigation completed');
-
-      // Return null for same-document navigation (following Playwright pattern)
-      // TODO: Return actual Response for new-document navigation when network interception is available
-      return null;
+      console.log(`[Page.reload] Starting reload for tab ${this.tabId}, options:`, options);
+      return this.mainFrame().raceNavigationAction(p, async () => {
+        console.log(`[Page.reload] Inside raceNavigationAction for tab ${this.tabId}`);
+        // Note: waitForNavigation may fail before we get response to reload(),
+        // so we should await it immediately.
+        console.log(
+          `[Page.reload] Starting Promise.all with _waitForNavigation and chrome.tabs.reload for tab ${this.tabId}`,
+        );
+        const [response] = await Promise.all([
+          // Reload must be a new document, and should not be confused with a stray pushState.
+          this.mainFrame()._waitForNavigation(p, true /* requiresNewDocument */, options || {}),
+          // chrome.tabs.reload is synchronous, just wrap in Promise.resolve for consistency
+          Promise.resolve(chrome.tabs.reload(this.tabId)),
+        ]);
+        console.log(
+          `[Page.reload] Promise.all completed for tab ${this.tabId}, response:`,
+          response,
+        );
+        return response;
+      });
     }, options);
   }
 
-  public async goForward(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+  async goBack(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      p.log('Page navigating forward');
+      console.log(`[Page.goBack] Starting goBack for tab ${this.tabId}, options:`, options);
+      return this.mainFrame().raceNavigationAction(p, async () => {
+        console.log(`[Page.goBack] Inside raceNavigationAction for tab ${this.tabId}`);
+        // Note: waitForNavigation may fail before we get response to goBack,
+        // so we should catch it immediately.
+        let error: Error | undefined;
+        console.log(`[Page.goBack] Starting _waitForNavigation for tab ${this.tabId}`);
+        const waitPromise = this.mainFrame()
+          ._waitForNavigation(p, false /* requiresNewDocument */, options || {})
+          .catch(e => {
+            console.log(`[Page.goBack] _waitForNavigation caught error for tab ${this.tabId}:`, e);
+            error = e;
+            return null;
+          });
 
-      // Start waiting for navigation before triggering the action
-      const navigationPromise = this.navTracker.waitForNavigation(
-        this.tabId,
-        0, // main frame
-        {
-          waitUntil: options?.waitUntil ?? 'load',
-          timeoutMs: options?.timeout ?? 30000,
-        },
-      );
-
-      // Trigger the forward navigation
-      const success = await this._navigationDelegate.goForward();
-      if (!success) {
-        p.log('No forward history available');
-        return null;
-      }
-
-      // Wait for the navigation to complete
-      await navigationPromise;
-      p.log('Forward navigation completed');
-
-      // Return null for same-document navigation (following Playwright pattern)
-      // TODO: Return actual Response for new-document navigation when network interception is available
-      return null;
+        try {
+          // chrome.tabs.goBack is synchronous, just call it directly
+          console.log(`[Page.goBack] Calling chrome.tabs.goBack for tab ${this.tabId}`);
+          chrome.tabs.goBack(this.tabId);
+          console.log(
+            `[Page.goBack] chrome.tabs.goBack completed for tab ${this.tabId}, waiting for navigation...`,
+          );
+          const response = await waitPromise;
+          console.log(
+            `[Page.goBack] waitPromise resolved for tab ${this.tabId}, response:`,
+            response,
+          );
+          if (error) throw error;
+          return response;
+        } catch (e) {
+          console.log(`[Page.goBack] Exception in try block for tab ${this.tabId}:`, e);
+          waitPromise.catch(() => {}); // Avoid an unhandled rejection.
+          throw e;
+        }
+      });
     }, options);
   }
 
-  public async reload(options?: NavigateOptionsWithProgress): Promise<Response | null> {
+  async goForward(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      p.log('Page reloading');
+      console.log(`[Page.goForward] Starting goForward for tab ${this.tabId}, options:`, options);
+      return this.mainFrame().raceNavigationAction(p, async () => {
+        console.log(`[Page.goForward] Inside raceNavigationAction for tab ${this.tabId}`);
+        // Note: waitForNavigation may fail before we get response to goForward,
+        // so we should catch it immediately.
+        let error: Error | undefined;
+        console.log(`[Page.goForward] Starting _waitForNavigation for tab ${this.tabId}`);
+        const waitPromise = this.mainFrame()
+          ._waitForNavigation(p, false /* requiresNewDocument */, options || {})
+          .catch(e => {
+            console.log(
+              `[Page.goForward] _waitForNavigation caught error for tab ${this.tabId}:`,
+              e,
+            );
+            error = e;
+            return null;
+          });
 
-      // Start waiting for navigation before triggering the reload
-      const navigationPromise = this.navTracker.waitForNavigation(
-        this.tabId,
-        0, // main frame
-        {
-          waitUntil: options?.waitUntil ?? 'load',
-          timeoutMs: options?.timeout ?? 30000,
-        },
-      );
-
-      // Trigger the page reload using chrome.tabs.reload
-      try {
-        await chrome.tabs.reload(this.tabId);
-        p.log('Page reload initiated');
-      } catch (error) {
-        p.log(`Failed to reload tab: ${error}`);
-        throw new Error(`Page reload failed: ${error}`);
-      }
-
-      // Wait for the navigation to complete
-      await navigationPromise;
-      p.log('Page reload completed');
-
-      // Return null (following Playwright pattern)
-      // TODO: Return actual Response for new-document navigation when network interception is available
-      return null;
+        try {
+          // chrome.tabs.goForward is synchronous, just call it directly
+          console.log(`[Page.goForward] Calling chrome.tabs.goForward for tab ${this.tabId}`);
+          chrome.tabs.goForward(this.tabId);
+          console.log(
+            `[Page.goForward] chrome.tabs.goForward completed for tab ${this.tabId}, waiting for navigation...`,
+          );
+          const response = await waitPromise;
+          console.log(
+            `[Page.goForward] waitPromise resolved for tab ${this.tabId}, response:`,
+            response,
+          );
+          if (error) throw error;
+          return response;
+        } catch (e) {
+          console.log(`[Page.goForward] Exception in try block for tab ${this.tabId}:`, e);
+          waitPromise.catch(() => {}); // Avoid an unhandled rejection.
+          throw e;
+        }
+      });
     }, options);
   }
 

@@ -11,6 +11,7 @@ export interface RequestInfo {
   headers: Record<string, string>;
   timestamp: number;
   tabId: number;
+  frameId: number;
 }
 
 export interface ResponseInfo {
@@ -21,11 +22,16 @@ export interface ResponseInfo {
   timestamp: number;
   request: RequestInfo;
   tabId: number;
+  frameId: number;
 }
 
 export interface TabNetworkEvents {
   onRequest: Event<RequestInfo>;
+  // For backward-compatibility, onResponse fires on request completion.
   onResponse: Event<ResponseInfo>;
+  // New granular events:
+  onCompleted: Event<ResponseInfo>;
+  onError: Event<{ id: string; tabId: number; frameId: number; url: string; error: string }>;
 }
 
 /**
@@ -41,6 +47,14 @@ export class NetworkListenerManager extends Disposable {
     {
       requestEmitter: Emitter<RequestInfo>;
       responseEmitter: Emitter<ResponseInfo>;
+      completedEmitter: Emitter<ResponseInfo>;
+      errorEmitter: Emitter<{
+        id: string;
+        tabId: number;
+        frameId: number;
+        url: string;
+        error: string;
+      }>;
       pendingRequests: Map<string, RequestInfo>;
       // Temporary debug tracking for a single-run investigation
       debug: {
@@ -53,6 +67,8 @@ export class NetworkListenerManager extends Disposable {
       // Wrapped events that track listener counts
       requestEvent: Event<RequestInfo>;
       responseEvent: Event<ResponseInfo>;
+      completedEvent: Event<ResponseInfo>;
+      errorEvent: Event<{ id: string; tabId: number; frameId: number; url: string; error: string }>;
       refCount: number; // Track active registrations to prevent emitter disposal
     }
   >();
@@ -93,6 +109,14 @@ export class NetworkListenerManager extends Disposable {
   private _createTabData(tabId: number): {
     requestEmitter: Emitter<RequestInfo>;
     responseEmitter: Emitter<ResponseInfo>;
+    completedEmitter: Emitter<ResponseInfo>;
+    errorEmitter: Emitter<{
+      id: string;
+      tabId: number;
+      frameId: number;
+      url: string;
+      error: string;
+    }>;
     pendingRequests: Map<string, RequestInfo>;
     debug: {
       requestListeners: number;
@@ -103,10 +127,16 @@ export class NetworkListenerManager extends Disposable {
     };
     requestEvent: Event<RequestInfo>;
     responseEvent: Event<ResponseInfo>;
+    completedEvent: Event<ResponseInfo>;
+    errorEvent: Event<{ id: string; tabId: number; frameId: number; url: string; error: string }>;
     refCount: number;
   } {
     const requestEmitter = this._register(new Emitter<RequestInfo>());
     const responseEmitter = this._register(new Emitter<ResponseInfo>());
+    const completedEmitter = this._register(new Emitter<ResponseInfo>());
+    const errorEmitter = this._register(
+      new Emitter<{ id: string; tabId: number; frameId: number; url: string; error: string }>(),
+    );
     const pendingRequests = new Map<string, RequestInfo>();
 
     const emitterId = `tab-${tabId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -120,14 +150,20 @@ export class NetworkListenerManager extends Disposable {
 
     const requestEvent = this._wrapEventWithDebug(tabId, 'request', requestEmitter.event);
     const responseEvent = this._wrapEventWithDebug(tabId, 'response', responseEmitter.event);
+    const completedEvent = completedEmitter.event;
+    const errorEvent = errorEmitter.event;
 
     return {
       requestEmitter,
       responseEmitter,
+      completedEmitter,
+      errorEmitter,
       pendingRequests,
       debug,
       requestEvent,
       responseEvent,
+      completedEvent,
+      errorEvent,
       refCount: 0,
     };
   }
@@ -154,6 +190,14 @@ export class NetworkListenerManager extends Disposable {
     class TabNetworkEventHandler extends Disposable implements TabNetworkEvents {
       readonly onRequest: Event<RequestInfo>;
       readonly onResponse: Event<ResponseInfo>;
+      readonly onCompleted: Event<ResponseInfo>;
+      readonly onError: Event<{
+        id: string;
+        tabId: number;
+        frameId: number;
+        url: string;
+        error: string;
+      }>;
 
       constructor(
         private readonly manager: NetworkListenerManager,
@@ -165,6 +209,8 @@ export class NetworkListenerManager extends Disposable {
         const tabData = this.manager._tabEmitters.get(this.tabId)!;
         this.onRequest = tabData.requestEvent;
         this.onResponse = tabData.responseEvent;
+        this.onCompleted = tabData.completedEvent;
+        this.onError = tabData.errorEvent;
 
         this._register({
           dispose: () => {
@@ -206,6 +252,8 @@ export class NetworkListenerManager extends Disposable {
     class TabNetworkEventSubscriber extends Disposable implements TabNetworkEvents {
       readonly onRequest = tabData!.requestEvent;
       readonly onResponse = tabData!.responseEvent;
+      readonly onCompleted = tabData!.completedEvent;
+      readonly onError = tabData!.errorEvent;
     }
 
     return new TabNetworkEventSubscriber();
@@ -264,6 +312,7 @@ export class NetworkListenerManager extends Disposable {
         headers: {},
         timestamp: details.timeStamp,
         tabId: details.tabId,
+        frameId: (details as chrome.webRequest.WebRequestBodyDetails).frameId ?? 0,
       };
 
       tabData.pendingRequests.set(details.requestId, requestInfo);
@@ -328,13 +377,18 @@ export class NetworkListenerManager extends Disposable {
         timestamp: details.timeStamp,
         request: requestInfo,
         tabId: details.tabId,
+        frameId:
+          (details as chrome.webRequest.WebResponseCacheDetails).frameId ?? requestInfo.frameId,
       };
 
       tabData.pendingRequests.delete(details.requestId);
 
       // Debug: count emitted response events
       tabData.debug.responseEmits += 1;
+      // Backward-compatibility: treat onResponse as completion
       tabData.responseEmitter.fire(responseInfo);
+      // New: emit dedicated completed event
+      tabData.completedEmitter.fire(responseInfo);
     };
 
     const onHeadersReceived = (details: chrome.webRequest.WebResponseHeadersDetails) => {
@@ -378,6 +432,16 @@ export class NetworkListenerManager extends Disposable {
       const tabData = this._tabEmitters.get(details.tabId);
       if (tabData) {
         tabData.pendingRequests.delete(details.requestId);
+        // Emit error event with minimal info
+        const frameId = (details as chrome.webRequest.WebRequestBodyDetails).frameId ?? 0;
+        const error = (details as chrome.webRequest.WebResponseErrorDetails).error || 'unknown';
+        tabData.errorEmitter.fire({
+          id: details.requestId,
+          tabId: details.tabId,
+          frameId,
+          url: details.url,
+          error,
+        });
       }
     };
 
