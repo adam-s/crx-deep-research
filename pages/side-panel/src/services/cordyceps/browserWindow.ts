@@ -119,9 +119,21 @@ export class BrowserWindow extends Disposable {
     // Listen for new tab creation
     this._register(
       this.session.onTabCreated(tab => {
+        if (this._store.isDisposed) {
+          console.log(
+            `⚠️ Skipping tab creation event for tab ${tab.id} - BrowserWindow already disposed`,
+          );
+          return;
+        }
         if (tab.windowId === this.windowId && tab.id) {
-          this._createPage(tab.id);
-          // New tabs start with just a main frame, let navigation events handle the rest
+          try {
+            this._createPage(tab.id);
+            // New tabs start with just a main frame, let navigation events handle the rest
+          } catch (error) {
+            console.log(
+              `Failed to create page for new tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
       }),
     );
@@ -151,6 +163,14 @@ export class BrowserWindow extends Disposable {
     details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
   ): Promise<void> {
     try {
+      // Check if this BrowserWindow has been disposed
+      if (this._store.isDisposed) {
+        console.log(
+          `⚠️ Skipping navigation event for tab ${details.tabId} - BrowserWindow already disposed`,
+        );
+        return;
+      }
+
       // Check if the tab belongs to this window
       const tab = await chrome.tabs.get(details.tabId);
       if (tab.windowId !== this.windowId) {
@@ -220,10 +240,22 @@ export class BrowserWindow extends Disposable {
           `Fetching ${frames.length} frames for tab ${page.tabId}:`,
           frames.map(f => ({ frameId: f.frameId, parentFrameId: f.parentFrameId, url: f.url })),
         );
-        for (const frame of frames) {
-          // The parentFrameId for the main frame is -1.
-          const parentFrameId = frame.parentFrameId === -1 ? null : frame.parentFrameId;
-          page.frameManager.frameAttached(frame.frameId, parentFrameId, frame.url);
+
+        // Sort frames to ensure parents are attached before children
+        const sortedFrames = this._sortFramesByHierarchy(frames);
+
+        for (const frame of sortedFrames) {
+          try {
+            // The parentFrameId for the main frame is -1.
+            const parentFrameId = frame.parentFrameId === -1 ? null : frame.parentFrameId;
+            page.frameManager.frameAttached(frame.frameId, parentFrameId, frame.url);
+          } catch (frameError) {
+            console.warn(
+              `Failed to attach frame ${frame.frameId} with parent ${frame.parentFrameId}:`,
+              frameError,
+            );
+            // Continue processing other frames even if one fails
+          }
         }
         console.log(`After attachment, page has ${page.frameManager.frames().length} frames`);
       }
@@ -233,21 +265,27 @@ export class BrowserWindow extends Disposable {
   }
 
   private async _handleMainFrameNavigation(tabId: number): Promise<void> {
-    const page = this._createPage(tabId);
-    // Main frame navigation replaces all existing frames, so clear them.
-    page.frameManager.clearFrames();
-    // Re-fetch all frames for the tab.
-    await this._fetchAllFramesForTab(page);
-    const main = page.frameManager.mainFrame();
-    if (main) {
-      try {
-        const tab = await chrome.tabs.get(tabId);
-        if (tab.url) main.setUrl(tab.url);
-      } catch {
-        // ignore
+    try {
+      const page = this._createPage(tabId);
+      // Main frame navigation replaces all existing frames, so clear them.
+      page.frameManager.clearFrames();
+      // Re-fetch all frames for the tab.
+      await this._fetchAllFramesForTab(page);
+      const main = page.frameManager.mainFrame();
+      if (main) {
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          if (tab.url) main.setUrl(tab.url);
+        } catch {
+          // ignore
+        }
+        // Reset lifecycle and notify page about new document
+        main._onClearLifecycle();
       }
-      // Reset lifecycle and notify page about new document
-      main._onClearLifecycle();
+    } catch (error) {
+      console.log(
+        `Failed to handle main frame navigation for tab ${tabId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -289,6 +327,13 @@ export class BrowserWindow extends Disposable {
   }
 
   private _createPage(tabId: number): Page {
+    // Check if this BrowserWindow has been disposed to prevent memory leaks
+    if (this._store.isDisposed) {
+      console.log(`⚠️ Skipping page creation for tab ${tabId} - BrowserWindow already disposed`);
+      // Return a dummy page or throw an error based on your preference
+      throw new Error(`Cannot create page for tab ${tabId} - BrowserWindow has been disposed`);
+    }
+
     const existingPage = this._pages.get(tabId);
     if (existingPage) {
       return existingPage;
@@ -312,6 +357,11 @@ export class BrowserWindow extends Disposable {
    * Returns the page for the currently active tab in this window
    */
   async getCurrentPage(): Promise<Page> {
+    // Check if this BrowserWindow has been disposed
+    if (this._store.isDisposed) {
+      throw new Error('Cannot get current page - BrowserWindow has been disposed');
+    }
+
     // Get the active tab in this window
     const [activeTab] = await chrome.tabs.query({
       active: true,
@@ -333,6 +383,11 @@ export class BrowserWindow extends Disposable {
   }
 
   async newPage(options: { timeout?: number; progress?: Progress } = {}): Promise<Page> {
+    // Check if this BrowserWindow has been disposed
+    if (this._store.isDisposed) {
+      throw new Error('Cannot create new page - BrowserWindow has been disposed');
+    }
+
     const progressController = new ProgressController(options.timeout ?? 30000);
 
     return progressController.run(async p => {
@@ -351,5 +406,51 @@ export class BrowserWindow extends Disposable {
 
       return page;
     });
+  }
+
+  /**
+   * Sort frames by hierarchy to ensure parents are attached before children.
+   * Main frame (parentFrameId = -1) comes first, then children in order of dependency.
+   */
+  private _sortFramesByHierarchy(
+    frames: chrome.webNavigation.GetAllFrameResultDetails[],
+  ): chrome.webNavigation.GetAllFrameResultDetails[] {
+    const frameMap = new Map<number, chrome.webNavigation.GetAllFrameResultDetails>();
+    const sortedFrames: chrome.webNavigation.GetAllFrameResultDetails[] = [];
+    const processed = new Set<number>();
+
+    // Create a map for quick lookup
+    for (const frame of frames) {
+      frameMap.set(frame.frameId, frame);
+    }
+
+    // Helper function to recursively add frames in hierarchy order
+    const addFrame = (frameId: number): void => {
+      if (processed.has(frameId)) {
+        return;
+      }
+
+      const frame = frameMap.get(frameId);
+      if (!frame) {
+        return;
+      }
+
+      // If this frame has a parent, ensure parent is processed first
+      if (frame.parentFrameId !== -1) {
+        addFrame(frame.parentFrameId);
+      }
+
+      if (!processed.has(frameId)) {
+        sortedFrames.push(frame);
+        processed.add(frameId);
+      }
+    };
+
+    // Start with all frames, addFrame will handle dependencies
+    for (const frame of frames) {
+      addFrame(frame.frameId);
+    }
+
+    return sortedFrames;
   }
 }

@@ -43,7 +43,9 @@ interface UrlAllowedTestContext {
 export async function testUrlAllowedNoConfiguration(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -52,8 +54,7 @@ export async function testUrlAllowedNoConfiguration(
     });
 
     progress.log('Creating BrowserContext with no allowedDomains configuration...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    browserContext = new BrowserContext(browserWindow, {
       // No allowedDomains configured - should allow all URLs
     });
 
@@ -81,8 +82,6 @@ export async function testUrlAllowedNoConfiguration(
       }
     }
 
-    await browserContext.close();
-
     if (passedTests === totalTests) {
       context.events.emit({
         timestamp: Date.now(),
@@ -105,6 +104,11 @@ export async function testUrlAllowedNoConfiguration(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -114,7 +118,9 @@ export async function testUrlAllowedNoConfiguration(
 export async function testUrlAllowedWithAllowedDomains(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -123,8 +129,7 @@ export async function testUrlAllowedWithAllowedDomains(
     });
 
     progress.log('Creating BrowserContext with specific allowed domains...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost', '127.0.0.1', 'test-local.dev'],
     });
 
@@ -172,8 +177,6 @@ export async function testUrlAllowedWithAllowedDomains(
       }
     }
 
-    await browserContext.close();
-
     const totalAllowedTests = allowedUrls.length;
     const totalRejectedTests = rejectedUrls.length;
 
@@ -204,6 +207,11 @@ export async function testUrlAllowedWithAllowedDomains(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -213,7 +221,9 @@ export async function testUrlAllowedWithAllowedDomains(
 export async function testUrlAllowedEdgeCases(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -222,8 +232,7 @@ export async function testUrlAllowedEdgeCases(
     });
 
     progress.log('Creating BrowserContext for edge case testing...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost', 'test-local.dev'],
     });
 
@@ -308,8 +317,6 @@ export async function testUrlAllowedEdgeCases(
       }
     }
 
-    await browserContext.close();
-
     if (passedTests === totalTests) {
       context.events.emit({
         timestamp: Date.now(),
@@ -332,6 +339,11 @@ export async function testUrlAllowedEdgeCases(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -341,7 +353,9 @@ export async function testUrlAllowedEdgeCases(
 export async function testUrlAllowedEmptyArray(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -350,9 +364,8 @@ export async function testUrlAllowedEmptyArray(
     });
 
     progress.log('Creating BrowserContext with empty allowedDomains array...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
-      allowedDomains: [], // Empty array should allow all URLs
+    browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: [], // Empty array - should allow all URLs when array is empty
     });
 
     // Test various URLs - all should be allowed when array is empty
@@ -376,8 +389,6 @@ export async function testUrlAllowedEmptyArray(
       }
     }
 
-    await browserContext.close();
-
     if (passedTests === totalTests) {
       context.events.emit({
         timestamp: Date.now(),
@@ -400,6 +411,11 @@ export async function testUrlAllowedEmptyArray(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -409,7 +425,9 @@ export async function testUrlAllowedEmptyArray(
 export async function testHandleDisallowedNavigation(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -418,8 +436,7 @@ export async function testHandleDisallowedNavigation(
     });
 
     progress.log('Creating BrowserContext for disallowed navigation testing...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'], // Only allow localhost
     });
 
@@ -505,8 +522,6 @@ export async function testHandleDisallowedNavigation(
       );
     }
 
-    await browserContext.close();
-
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
@@ -529,6 +544,11 @@ export async function testHandleDisallowedNavigation(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -538,7 +558,9 @@ export async function testHandleDisallowedNavigation(
 export async function testHandleDisallowedNavigationMultiple(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -547,8 +569,7 @@ export async function testHandleDisallowedNavigationMultiple(
     });
 
     progress.log('Creating BrowserContext for multiple disallowed navigation testing...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'], // Only allow localhost
     });
 
@@ -582,8 +603,6 @@ export async function testHandleDisallowedNavigationMultiple(
       }
     }
 
-    await browserContext.close();
-
     if (successfulTests === totalTests) {
       context.events.emit({
         timestamp: Date.now(),
@@ -610,6 +629,11 @@ export async function testHandleDisallowedNavigationMultiple(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -619,7 +643,9 @@ export async function testHandleDisallowedNavigationMultiple(
 export async function testHandleDisallowedNavigationEdgeCases(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -628,8 +654,7 @@ export async function testHandleDisallowedNavigationEdgeCases(
     });
 
     progress.log('Creating BrowserContext for edge cases testing...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow);
+    browserContext = new BrowserContext(browserWindow);
 
     await browserContext.enter();
 
@@ -662,8 +687,6 @@ export async function testHandleDisallowedNavigationEdgeCases(
       }
     }
 
-    await browserContext.close();
-
     if (successfulTests === totalTests) {
       context.events.emit({
         timestamp: Date.now(),
@@ -690,6 +713,11 @@ export async function testHandleDisallowedNavigationEdgeCases(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -698,6 +726,7 @@ export async function testHandleDisallowedNavigationEdgeCases(
  */
 export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Promise<void> {
   const progress = new TestProgress('UrlAllowed');
+  let browserWindow: BrowserWindow | undefined;
 
   try {
     context.events.emit({
@@ -706,26 +735,29 @@ export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Pro
       message: 'Starting all _isUrlAllowed tests',
     });
 
+    // Create a shared BrowserWindow for all tests
+    browserWindow = await BrowserWindow.create();
+
     // Test 1: No configuration (allow all)
-    await testUrlAllowedNoConfiguration(progress, context);
+    await testUrlAllowedNoConfiguration(progress, context, browserWindow);
 
     // Test 2: Specific allowed domains
-    await testUrlAllowedWithAllowedDomains(progress, context);
+    await testUrlAllowedWithAllowedDomains(progress, context, browserWindow);
 
     // Test 3: Edge cases and special formats
-    await testUrlAllowedEdgeCases(progress, context);
+    await testUrlAllowedEdgeCases(progress, context, browserWindow);
 
     // Test 4: Empty allowed domains array
-    await testUrlAllowedEmptyArray(progress, context);
+    await testUrlAllowedEmptyArray(progress, context, browserWindow);
 
     // Test 5: Handle disallowed navigation
-    await testHandleDisallowedNavigation(progress, context);
+    await testHandleDisallowedNavigation(progress, context, browserWindow);
 
     // Test 6: Handle multiple disallowed navigations
-    await testHandleDisallowedNavigationMultiple(progress, context);
+    await testHandleDisallowedNavigationMultiple(progress, context, browserWindow);
 
     // Test 7: Handle disallowed navigation edge cases
-    await testHandleDisallowedNavigationEdgeCases(progress, context);
+    await testHandleDisallowedNavigationEdgeCases(progress, context, browserWindow);
 
     context.events.emit({
       timestamp: Date.now(),
@@ -753,6 +785,11 @@ export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Pro
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserWindow) {
+      browserWindow.dispose();
+    }
   }
 }
 
@@ -760,11 +797,9 @@ export async function runAllUrlAllowedTests(context: UrlAllowedTestContext): Pro
  * Quick test for _isUrlAllowed functionality
  * Runs a minimal set of tests to verify basic functionality
  */
-export async function quickUrlAllowedTest(): Promise<boolean> {
+export async function quickUrlAllowedTest(browserWindow: BrowserWindow): Promise<boolean> {
   try {
     console.log('Running quick _isUrlAllowed test...');
-
-    const browserWindow = await BrowserWindow.create();
 
     // Test 1: No configuration (should allow all)
     const contextNoConfig = new BrowserContext(browserWindow);
@@ -813,7 +848,9 @@ export async function quickUrlAllowedTest(): Promise<boolean> {
 export async function testWaitForPageAndFramesLoadTimeout(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let contextWithTimeout: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -824,8 +861,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
     progress.log('Creating BrowserContext for timeout test...');
 
     // Test with timeout override
-    const browserWindow = await BrowserWindow.create();
-    const contextWithTimeout = new BrowserContext(browserWindow, {
+    contextWithTimeout = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
 
@@ -881,6 +917,10 @@ export async function testWaitForPageAndFramesLoadTimeout(
     });
 
     progress.log(`Timeout override test FAILED: ${error}`);
+  } finally {
+    if (contextWithTimeout) {
+      await contextWithTimeout.close();
+    }
   }
 }
 
@@ -890,6 +930,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
 export async function testWaitForPageAndFramesLoadUrlValidation(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -900,7 +941,6 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
 
     progress.log('Creating BrowserContext with restricted domains...');
 
-    const browserWindow = await BrowserWindow.create();
     const contextRestricted = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
@@ -983,6 +1023,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
 export async function testWaitForPageAndFramesLoadMinimumWait(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -993,7 +1034,6 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
 
     progress.log('Creating BrowserContext for minimum wait test...');
 
-    const browserWindow = await BrowserWindow.create();
     const contextMinWait = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
@@ -1043,6 +1083,7 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
 export async function testWaitForPageAndFramesLoadNetworkStability(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1053,7 +1094,6 @@ export async function testWaitForPageAndFramesLoadNetworkStability(
 
     progress.log('Creating BrowserContext for network stability test...');
 
-    const browserWindow = await BrowserWindow.create();
     const contextNetwork = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
@@ -1109,6 +1149,7 @@ export async function testWaitForPageAndFramesLoadNetworkStability(
 export async function testWaitForPageAndFramesLoadErrorHandling(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1119,7 +1160,6 @@ export async function testWaitForPageAndFramesLoadErrorHandling(
 
     progress.log('Creating BrowserContext for error handling test...');
 
-    const browserWindow = await BrowserWindow.create();
     const contextError = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
@@ -1185,6 +1225,7 @@ export async function testWaitForPageAndFramesLoadErrorHandling(
 export async function testWaitForPageAndFramesLoadComprehensive(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1196,11 +1237,11 @@ export async function testWaitForPageAndFramesLoadComprehensive(
     progress.log('Running comprehensive _waitForPageAndFramesLoad tests...');
 
     // Run all individual tests
-    await testWaitForPageAndFramesLoadTimeout(progress, context);
-    await testWaitForPageAndFramesLoadUrlValidation(progress, context);
-    await testWaitForPageAndFramesLoadMinimumWait(progress, context);
-    await testWaitForPageAndFramesLoadNetworkStability(progress, context);
-    await testWaitForPageAndFramesLoadErrorHandling(progress, context);
+    await testWaitForPageAndFramesLoadTimeout(progress, context, browserWindow);
+    await testWaitForPageAndFramesLoadUrlValidation(progress, context, browserWindow);
+    await testWaitForPageAndFramesLoadMinimumWait(progress, context, browserWindow);
+    await testWaitForPageAndFramesLoadNetworkStability(progress, context, browserWindow);
+    await testWaitForPageAndFramesLoadErrorHandling(progress, context, browserWindow);
 
     context.events.emit({
       timestamp: Date.now(),
@@ -1227,6 +1268,7 @@ export async function testWaitForPageAndFramesLoadComprehensive(
 export async function testTakeScreenshot(
   progress: TestProgress,
   context: UrlAllowedTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1237,7 +1279,6 @@ export async function testTakeScreenshot(
 
     progress.log('Creating BrowserContext for screenshot test...');
 
-    const browserWindow = await BrowserWindow.create();
     const contextScreenshot = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });

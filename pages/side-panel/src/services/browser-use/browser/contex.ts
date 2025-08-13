@@ -6,7 +6,10 @@ import {
   ScreenshotOptions,
 } from '@src/services/cordyceps/utilities/types';
 import { BrowserState, TabInfo } from './views';
-import type { NavigateOptionsWithProgress } from '@src/services/cordyceps/utilities/types';
+import type {
+  NavigateOptionsWithProgress,
+  NavigationResponse,
+} from '@src/services/cordyceps/utilities/types';
 import { executeWithProgress } from '@src/services/cordyceps/core/progress';
 
 // Interface for element objects used in CSS selector generation
@@ -340,7 +343,10 @@ export class BrowserContext {
    * Safe navigation that validates URL before navigating
    * This method should be used instead of direct page.goto() to ensure URL validation
    */
-  async safeGoto(url: string, options?: NavigateOptionsWithProgress): Promise<Response | null> {
+  async safeGoto(
+    url: string,
+    options?: NavigateOptionsWithProgress,
+  ): Promise<NavigationResponse | null> {
     // Check if URL is allowed before navigation
     if (!this._isUrlAllowed(url)) {
       await this._handleDisallowedNavigation(url);
@@ -358,8 +364,27 @@ export class BrowserContext {
   async stopLoading(): Promise<void> {
     try {
       const page = await this.getCurrentPage();
-      await page.evaluate(() => window.stop());
-      console.info('Stopped page loading');
+
+      // Try using page.evaluate first
+      if (typeof page.evaluate === 'function') {
+        await page.evaluate(() => window.stop());
+        console.info('Stopped page loading via page.evaluate');
+      } else {
+        // Fallback: use Chrome tabs API to stop loading
+        console.info('Using fallback method to stop page loading');
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]?.id) {
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tabs[0].id },
+              func: () => window.stop(),
+            });
+            console.info('Stopped page loading via chrome.scripting');
+          } catch (scriptError) {
+            console.warn('Failed to execute stop script via chrome.scripting:', scriptError);
+          }
+        }
+      }
     } catch (e: unknown) {
       console.error('Error stopping page loading:', e);
     }
@@ -649,6 +674,10 @@ export class BrowserContext {
    * Check if a URL is allowed based on the allowed domains configuration
    * Matches the Python implementation's _is_url_allowed method
    */
+  /**
+   * Check if a URL is allowed based on the configured allowed domains.
+   * Matches the Python implementation's _is_url_allowed method
+   */
   _isUrlAllowed(url: string): boolean {
     if (!this.config.allowedDomains || this.config.allowedDomains.length === 0) {
       return true;
@@ -672,7 +701,8 @@ export class BrowserContext {
           domain.endsWith('.' + allowedDomain.toLowerCase()),
       );
     } catch (e: unknown) {
-      console.error('Error checking URL allowlist:', e);
+      // Normal behavior when testing malformed URLs
+      console.log('Invalid URL format tested:', url);
       return false;
     }
   }

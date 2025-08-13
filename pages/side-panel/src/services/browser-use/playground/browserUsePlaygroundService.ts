@@ -14,6 +14,7 @@ import {
   ConversationType,
   MessageRole,
 } from '@shared/features/conversation';
+import { quickUrlAllowedTest } from './urlAllowedTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
   'browserUsePlaygroundService',
@@ -590,10 +591,12 @@ export class BrowserUsePlaygroundService
       });
 
       // Import the quick test function dynamically
-      const { quickUrlAllowedTest } = await import('./urlAllowedTest');
+
+      // Get browser instance
+      const browserWindow = await this.browserUseService.getBrowser();
 
       // Run the quick URL allowed test
-      const result = await quickUrlAllowedTest();
+      const result = await quickUrlAllowedTest(browserWindow);
 
       if (result) {
         this.events.emit({
@@ -636,6 +639,9 @@ export class BrowserUsePlaygroundService
         './urlAllowedTest'
       );
 
+      // Get browser instance
+      const browserWindow = await this.browserUseService.getBrowser();
+
       const testContext = {
         events: this.events,
         browserUseService: this,
@@ -643,7 +649,7 @@ export class BrowserUsePlaygroundService
 
       const progress = new TestProgress('_waitForPageAndFramesLoad Tests');
 
-      await testWaitForPageAndFramesLoadComprehensive(progress, testContext);
+      await testWaitForPageAndFramesLoadComprehensive(progress, testContext, browserWindow);
 
       this.events.emit({
         timestamp: Date.now(),
@@ -673,6 +679,9 @@ export class BrowserUsePlaygroundService
     try {
       const { testTakeScreenshot, TestProgress } = await import('./urlAllowedTest');
 
+      // Get browser instance
+      const browserWindow = await this.browserUseService.getBrowser();
+
       const testContext = {
         events: this.events,
         browserUseService: this,
@@ -680,7 +689,7 @@ export class BrowserUsePlaygroundService
 
       const progress = new TestProgress('Screenshot Tests');
 
-      await testTakeScreenshot(progress, testContext);
+      await testTakeScreenshot(progress, testContext, browserWindow);
 
       this.events.emit({
         timestamp: Date.now(),

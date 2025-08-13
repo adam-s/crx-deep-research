@@ -186,8 +186,43 @@ export class FrameManager extends Disposable {
 
   private _attachChildFrame(frameId: number, parentFrameId: number, url?: string): Frame {
     const parentFrame = this._frames.get(parentFrameId);
-    assert(parentFrame !== undefined, `Parent frame with id ${parentFrameId} does not exist.`);
 
+    // If parent frame doesn't exist, this could be due to timing issues or API inconsistencies
+    if (parentFrame === undefined) {
+      console.warn(
+        `Parent frame with id ${parentFrameId} does not exist for child frame ${frameId}. Attaching as orphaned frame.`,
+      );
+
+      // Create an orphaned frame attached to main frame as fallback
+      // This prevents crashes while still maintaining frame hierarchy where possible
+      const mainFrame = this._mainFrame;
+      if (!mainFrame) {
+        throw new Error(`Cannot attach orphaned frame ${frameId} - no main frame exists`);
+      }
+
+      console.log(
+        `📍 Attaching orphaned frame ${frameId} to main frame ${mainFrame.frameId} for tab ${this.page.tabId}`,
+      );
+
+      // Double-check frame doesn't exist (should be caught by frameAttached, but defensive)
+      if (this._frames.has(frameId)) {
+        const existingFrame = this._frames.get(frameId)!;
+        if (url) {
+          existingFrame.setUrl(url);
+        }
+        return existingFrame;
+      }
+
+      const frame = this._register(new Frame(frameId, this, mainFrame, url));
+      this._frames.set(frameId, frame);
+
+      // Emit FrameAttached event similar to Playwright
+      this.page._fireFrameAttached(frame);
+
+      return frame;
+    }
+
+    // Normal case: parent frame exists
     // Double-check frame doesn't exist (should be caught by frameAttached, but defensive)
     if (this._frames.has(frameId)) {
       const existingFrame = this._frames.get(frameId)!;

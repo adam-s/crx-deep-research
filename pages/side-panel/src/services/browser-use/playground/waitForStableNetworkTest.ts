@@ -43,7 +43,9 @@ interface WaitForStableNetworkTestContext {
 export async function testWaitForStableNetworkImmediate(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -51,9 +53,8 @@ export async function testWaitForStableNetworkImmediate(
       message: 'Starting _waitForStableNetwork immediate stability test',
     });
 
-    progress.log('Creating BrowserWindow and BrowserContext...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    progress.log('Creating BrowserContext...');
+    browserContext = new BrowserContext(browserWindow, {
       maximumWaitPageLoadTime: 3, // 3 seconds for testing
       waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds for testing
     });
@@ -81,8 +82,6 @@ export async function testWaitForStableNetworkImmediate(
     } else {
       throw new Error(`Test 1 failed: Expected quick completion, took ${duration}ms`);
     }
-
-    await browserContext.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Test 1 failed: ${errorMessage}`);
@@ -93,6 +92,11 @@ export async function testWaitForStableNetworkImmediate(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -102,7 +106,9 @@ export async function testWaitForStableNetworkImmediate(
 export async function testWaitForStableNetworkWithActivity(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -110,9 +116,8 @@ export async function testWaitForStableNetworkWithActivity(
       message: 'Starting _waitForStableNetwork with network activity test',
     });
 
-    progress.log('Creating BrowserWindow and BrowserContext...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    progress.log('Creating BrowserContext...');
+    browserContext = new BrowserContext(browserWindow, {
       maximumWaitPageLoadTime: 10, // 10 seconds for testing
       waitForNetworkIdlePageLoadTime: 1, // 1 second for testing
     });
@@ -179,8 +184,6 @@ export async function testWaitForStableNetworkWithActivity(
     } else {
       throw new Error(`Test 2 failed: Expected 1-8 second completion, took ${duration}ms`);
     }
-
-    await browserContext.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Test 2 failed: ${errorMessage}`);
@@ -191,6 +194,11 @@ export async function testWaitForStableNetworkWithActivity(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -200,7 +208,9 @@ export async function testWaitForStableNetworkWithActivity(
 export async function testWaitForStableNetworkFiltering(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -208,9 +218,8 @@ export async function testWaitForStableNetworkFiltering(
       message: 'Starting _waitForStableNetwork filtering logic test',
     });
 
-    progress.log('Creating BrowserWindow and BrowserContext...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    progress.log('Creating BrowserContext...');
+    browserContext = new BrowserContext(browserWindow, {
       maximumWaitPageLoadTime: 5, // 5 seconds for testing
       waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds for testing
     });
@@ -273,8 +282,6 @@ export async function testWaitForStableNetworkFiltering(
         `Test 3 failed: Expected quick completion with filtering, took ${duration}ms`,
       );
     }
-
-    await browserContext.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Test 3 failed: ${errorMessage}`);
@@ -285,6 +292,11 @@ export async function testWaitForStableNetworkFiltering(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -294,7 +306,9 @@ export async function testWaitForStableNetworkFiltering(
 export async function testWaitForStableNetworkDelayedStabilization(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
+  browserWindow: BrowserWindow,
 ): Promise<void> {
+  let browserContext: BrowserContext | undefined;
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -302,9 +316,8 @@ export async function testWaitForStableNetworkDelayedStabilization(
       message: 'Starting _waitForStableNetwork timeout test',
     });
 
-    progress.log('Creating BrowserWindow and BrowserContext with short timeout...');
-    const browserWindow = await BrowserWindow.create();
-    const browserContext = new BrowserContext(browserWindow, {
+    progress.log('Creating BrowserContext with short timeout...');
+    browserContext = new BrowserContext(browserWindow, {
       maximumWaitPageLoadTime: 2, // 2 seconds timeout for testing
       waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds for testing
     });
@@ -393,8 +406,6 @@ export async function testWaitForStableNetworkDelayedStabilization(
       progress.log(`Debug: Captured ${requestCount} requests, ${responseCount} responses`);
       throw new Error(`Test 4 failed: Expected duration in range 400-3000ms, took ${duration}ms`);
     }
-
-    await browserContext.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Test 4 failed: ${errorMessage}`);
@@ -405,6 +416,11 @@ export async function testWaitForStableNetworkDelayedStabilization(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserContext) {
+      await browserContext.close();
+    }
   }
 }
 
@@ -415,6 +431,7 @@ export async function runAllWaitForStableNetworkTests(
   context: WaitForStableNetworkTestContext,
 ): Promise<void> {
   const progress = new TestProgress('WaitForStableNetwork');
+  let browserWindow: BrowserWindow | undefined;
 
   try {
     context.events.emit({
@@ -423,17 +440,20 @@ export async function runAllWaitForStableNetworkTests(
       message: 'Starting all _waitForStableNetwork tests',
     });
 
+    // Create a shared BrowserWindow for all tests
+    browserWindow = await BrowserWindow.create();
+
     // Test 1: Immediate stability
-    await testWaitForStableNetworkImmediate(progress, context);
+    await testWaitForStableNetworkImmediate(progress, context, browserWindow);
 
     // Test 2: Network activity
-    await testWaitForStableNetworkWithActivity(progress, context);
+    await testWaitForStableNetworkWithActivity(progress, context, browserWindow);
 
     // Test 3: Filtering logic
-    await testWaitForStableNetworkFiltering(progress, context);
+    await testWaitForStableNetworkFiltering(progress, context, browserWindow);
 
     // Test 4: Delayed stabilization behavior
-    await testWaitForStableNetworkDelayedStabilization(progress, context);
+    await testWaitForStableNetworkDelayedStabilization(progress, context, browserWindow);
 
     context.events.emit({
       timestamp: Date.now(),
@@ -458,5 +478,10 @@ export async function runAllWaitForStableNetworkTests(
       error: error instanceof Error ? error : new Error(errorMessage),
     });
     throw error;
+  } finally {
+    // Ensure proper cleanup
+    if (browserWindow) {
+      browserWindow.dispose();
+    }
   }
 }
