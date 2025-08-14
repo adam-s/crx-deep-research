@@ -376,14 +376,9 @@ export class Page extends Disposable {
     url: string,
     options?: NavigateOptionsWithProgress,
   ): Promise<NavigationResponse | null> {
-    console.log(`[Page.goto] ##### Starting page goto with URL: ${url}`);
-    console.log(`[Page.goto] ##### Page tabId: ${this.tabId}`);
-
     return executeWithProgress(async p => {
-      console.log(`[Page.goto] ##### Inside executeWithProgress, calling mainFrame().goto()`);
       p.log(`Page navigating to "${url}"`);
       const result = await this.mainFrame().goto(url, { ...options, progress: p });
-      console.log(`[Page.goto] ##### mainFrame().goto() returned:`, result);
       return result;
     }, options);
   }

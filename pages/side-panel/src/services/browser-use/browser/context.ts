@@ -397,25 +397,15 @@ export class BrowserContext {
    * Get the current page from the browser window
    */
   async getCurrentPage(): Promise<Page> {
-    console.log(`[BrowserContext.getCurrentPage] ##### Starting getCurrentPage()`);
-    console.log(
-      `[BrowserContext.getCurrentPage] ##### Current session state: ${this.session.state}`,
-    );
-
     // Ensure we're in an active state
     if (this.session.state !== BrowserContextState.ACTIVE) {
-      console.log(`[BrowserContext.getCurrentPage] ##### Session not active, calling enter()`);
       await this.enter();
     }
 
-    console.log(`[BrowserContext.getCurrentPage] ##### Calling browserWindow.getCurrentPage()`);
     // Get the current active page from the browser window
     const currentPage = await this.browserWindow.getCurrentPage();
-    console.log(`[BrowserContext.getCurrentPage] ##### Got page with tabId: ${currentPage.tabId}`);
-
     // Update our pages array to reflect the current state
     if (!this.pages.includes(currentPage)) {
-      console.log(`[BrowserContext.getCurrentPage] ##### Adding page to pages array`);
       this.pages = [currentPage];
     }
     return currentPage;
@@ -429,30 +419,16 @@ export class BrowserContext {
     url: string,
     options?: NavigateOptionsWithProgress,
   ): Promise<NavigationResponse | null> {
-    console.log(`[BrowserContext.safeGoto] ##### Starting safeGoto with URL: ${url}`);
-    console.log(
-      `[BrowserContext.safeGoto] ##### Config allowedDomains:`,
-      this.config.allowedDomains,
-    );
-
     // Check if URL is allowed before navigation
     const isAllowed = this._isUrlAllowed(url);
-    console.log(`[BrowserContext.safeGoto] ##### URL allowed check result: ${isAllowed}`);
-
     if (!isAllowed) {
-      console.log(
-        `[BrowserContext.safeGoto] ##### URL not allowed, calling _handleDisallowedNavigation`,
-      );
       await this._handleDisallowedNavigation(url);
       return null; // This line won't be reached due to exception, but for clarity
     }
 
-    console.log(`[BrowserContext.safeGoto] ##### URL allowed, proceeding with navigation`);
     // If URL is allowed, proceed with navigation
     const page = await this.getCurrentPage();
-    console.log(`[BrowserContext.safeGoto] ##### Got current page, calling page.goto`);
     const result = await page.goto(url, options);
-    console.log(`[BrowserContext.safeGoto] ##### page.goto returned:`, result);
     return result;
   }
 
@@ -799,20 +775,7 @@ export class BrowserContext {
    * Matches the Python implementation's _is_url_allowed method
    */
   _isUrlAllowed(url: string): boolean {
-    console.log(`[BrowserContext._isUrlAllowed] ##### Checking URL: ${url}`);
-    console.log(
-      `[BrowserContext._isUrlAllowed] ##### Config allowedDomains:`,
-      this.config.allowedDomains,
-    );
-    console.log(
-      `[BrowserContext._isUrlAllowed] ##### allowedDomains length:`,
-      this.config.allowedDomains?.length,
-    );
-
     if (!this.config.allowedDomains || this.config.allowedDomains.length === 0) {
-      console.log(
-        `[BrowserContext._isUrlAllowed] ##### No allowedDomains configured, allowing all URLs`,
-      );
       return true;
     }
 
@@ -820,13 +783,10 @@ export class BrowserContext {
       // Parse the URL to extract the domain
       const urlObj = new URL(url);
       let domain = urlObj.hostname.toLowerCase();
-      console.log(`[BrowserContext._isUrlAllowed] ##### Parsed hostname: ${domain}`);
-
       // Remove port number if present
       if (domain.includes(':')) {
         const parts = domain.split(':');
         domain = parts[0] || '';
-        console.log(`[BrowserContext._isUrlAllowed] ##### Removed port, domain now: ${domain}`);
       }
 
       // Check if domain matches any allowed domain pattern
@@ -834,17 +794,12 @@ export class BrowserContext {
         const lowerAllowed = allowedDomain.toLowerCase();
         const exactMatch = domain === lowerAllowed;
         const subdomainMatch = domain.endsWith('.' + lowerAllowed);
-        console.log(
-          `[BrowserContext._isUrlAllowed] ##### Checking against '${lowerAllowed}': exact=${exactMatch}, subdomain=${subdomainMatch}`,
-        );
         return exactMatch || subdomainMatch;
       });
 
-      console.log(`[BrowserContext._isUrlAllowed] ##### Final result: ${isAllowed}`);
       return isAllowed;
     } catch (e: unknown) {
       // Normal behavior when testing malformed URLs
-      console.log(`[BrowserContext._isUrlAllowed] ##### Invalid URL format tested: ${url}`, e);
       return false;
     }
   }

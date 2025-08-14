@@ -775,6 +775,7 @@ export class HandledInjectedScript {
     }
 
     try {
+      console.log(`[HandledInjectedScript.clickElement] ####### calling element.click() #######`);
       (element as HTMLElement).click();
       return { success: true };
     } catch (error) {

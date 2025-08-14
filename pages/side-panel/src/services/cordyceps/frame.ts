@@ -900,47 +900,33 @@ export class Frame extends Disposable {
     url: string,
     options?: NavigateOptionsWithProgress,
   ): Promise<NavigationResponse | null> {
-    console.log(`[Frame.goto] ##### Starting frame goto with URL: ${url}`);
-    console.log(`[Frame.goto] ##### Frame ID: ${this.frameId}, Tab ID: ${this.tabId}`);
-    console.log(`[Frame.goto] ##### Parent frame:`, !!this._parentFrame);
-
     if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
 
     const waitUntil = options?.waitUntil ?? 'load';
     const timeoutMs = options?.timeout ?? 30000;
 
-    console.log(`[Frame.goto] ##### Options - waitUntil: ${waitUntil}, timeout: ${timeoutMs}ms`);
-
     return executeWithProgress(async p => {
-      console.log(`[Frame.goto] ##### Inside executeWithProgress, getting navigation tracker`);
       const tracker = getNavigationTracker();
 
       // Start listening for internal navigation events for this frame
       const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
       const disposable = tracker.onInternalNavigation(ev => {
         if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
-          console.log(`[Frame.goto] ##### Received navigation event:`, ev);
           events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
         }
       });
       p.cleanupWhenAborted(() => disposable.dispose());
 
       // Initiate navigation directly via chrome.tabs.update
-      console.log(
-        `[Frame.goto] ##### Calling chrome.tabs.update for tab ${this.tabId} with URL: ${url}`,
-      );
       p.log(`Frame ${this.frameId} navigating to "${url}"`);
       chrome.tabs.update(this.tabId, { url });
 
-      console.log(`[Frame.goto] ##### Waiting for navigation to complete...`);
       // Wait for navigation to complete with the requested lifecycle
       const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
         toUrl: url,
         waitUntil,
         timeoutMs,
       });
-
-      console.log(`[Frame.goto] ##### Navigation completed:`, navEv);
 
       // Update our URL to the committed one (could differ due to redirects)
       this.setUrl(navEv.url);
@@ -957,7 +943,6 @@ export class Frame extends Disposable {
           : undefined,
       );
 
-      console.log(`[Frame.goto] ##### Creating NavigationResponse for successful navigation`);
       // Create a NavigationResponse for the successful navigation
       const navigationResponse = new Network.NavigationResponse(
         navEv.url,
@@ -967,7 +952,6 @@ export class Frame extends Disposable {
         null, // No request object for now - can be enhanced later
       );
 
-      console.log(`[Frame.goto] ##### Returning NavigationResponse:`, navigationResponse);
       return navigationResponse;
     }, options);
   }
@@ -1127,10 +1111,6 @@ export class Frame extends Disposable {
     options: WaitForElementOptions,
     scope?: ElementHandle,
   ): Promise<ElementHandle | null> {
-    console.log(
-      `[Frame.waitForSelector] ####### entry frameId=${this.frameId} selector="${selector}" options=${JSON.stringify(options)} scope=${scope?.remoteObject || 'null'}`,
-    );
-
     // Validate options
     const { state = 'visible' } = options;
     validateWaitState(state);
@@ -1144,35 +1124,20 @@ export class Frame extends Disposable {
       progress,
       DEFAULT_RETRY_TIMEOUTS,
       async continuePolling => {
-        console.log(
-          `[Frame.waitForSelector] ####### retry attempt for selector="${selector}" #######`,
-        );
-
         // Step 1: Resolve selector metadata
         const resolved = await progress.race(
           this.selectors.resolveInjectedForSelector(selector, options, scope),
         );
-        console.log(
-          `[Frame.waitForSelector] ####### resolved=${resolved ? 'success' : 'null'} #######`,
-        );
-
         if (!resolved) {
           // For hidden/detached states, null means success
           if (state === 'hidden' || state === 'detached') {
-            console.log(
-              `[Frame.waitForSelector] ####### returning null for hidden/detached state #######`,
-            );
             return null;
           }
-          console.log(
-            `[Frame.waitForSelector] ####### continuing polling - resolved is null #######`,
-          );
           return continuePolling;
         }
 
         const context = resolved.frame.context;
 
-        console.log(`[Frame.waitForSelector] ####### calling waitForSelectorEvaluation #######`);
         const result = await progress.race(
           context.waitForSelectorEvaluation(
             resolved.info.parsed,
@@ -1183,21 +1148,11 @@ export class Frame extends Disposable {
           ),
         );
 
-        console.log(
-          `[Frame.waitForSelector] ####### waitForSelectorEvaluation result=${JSON.stringify(result)} #######`,
-        );
-
         if (!result) {
           // For hidden/detached states, null means success
           if (state === 'hidden' || state === 'detached') {
-            console.log(
-              `[Frame.waitForSelector] ####### returning null for hidden/detached with null result #######`,
-            );
             return null;
           }
-          console.log(
-            `[Frame.waitForSelector] ####### continuing polling - result is null #######`,
-          );
           return continuePolling;
         }
 
@@ -1206,9 +1161,6 @@ export class Frame extends Disposable {
 
         // Handle errors from content script
         if (error) {
-          console.log(
-            `[Frame.waitForSelector] ####### throwing error from content script: ${error} #######`,
-          );
           throw new Error(`Selector evaluation failed: ${error}`);
         }
 
@@ -1217,15 +1169,8 @@ export class Frame extends Disposable {
           progress.log(log);
         }
 
-        console.log(
-          `[Frame.waitForSelector] ####### state check - desired="${state}" visible=${visible} attached=${attached} #######`,
-        );
-
         // Step 4: Check if current state matches desired state
         if (!doesStateMatch(state, visible, attached)) {
-          console.log(
-            `[Frame.waitForSelector] ####### state does not match, continuing polling #######`,
-          );
           return continuePolling; // Keep retrying
         }
 

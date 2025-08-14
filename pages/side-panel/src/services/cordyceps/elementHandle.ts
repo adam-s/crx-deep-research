@@ -112,9 +112,6 @@ export class ElementHandle extends JSHandle {
   }
 
   async click(options?: ClickOptions): Promise<void> {
-    console.log(
-      `[ElementHandle.click] ####### entry remoteObject=${this.remoteObject} options=${JSON.stringify(options)}`,
-    );
     return executeElementOperation(
       async progress => await this._click(progress, options),
       'Click',
@@ -123,48 +120,27 @@ export class ElementHandle extends JSHandle {
   }
 
   async clickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {
-    console.log(
-      `[ElementHandle.clickWithProgress] ####### entry remoteObject=${this.remoteObject} options=${JSON.stringify(options)}`,
-    );
     const result = await this._click(progress, options);
-    console.log(`[ElementHandle.clickWithProgress] ####### _click result=${result} #######`);
     if (result !== 'done') {
-      console.log(
-        `[ElementHandle.clickWithProgress] ####### result not done, throwing error #######`,
-      );
       throw new Error(createOperationFailedError('Click', result));
     }
   }
 
   async clickSimple(): Promise<void> {
-    console.log(
-      `[ElementHandle.clickSimple] ####### entry remoteObject=${this.remoteObject} #######`,
-    );
     return executeWithProgress(
       async progress => {
-        console.log(`[ElementHandle.clickSimple] ####### calling _click with progress #######`);
         const result = await this._click(progress);
-        console.log(`[ElementHandle.clickSimple] ####### _click result=${result} #######`);
         if (result !== 'done') {
-          console.log(
-            `[ElementHandle.clickSimple] ####### result not done, throwing error #######`,
-          );
           throw new Error(createOperationFailedError('Click', result));
         }
-        console.log(`[ElementHandle.clickSimple] ####### completed successfully #######`);
       },
       { timeout: 30000 },
     );
   }
 
   async _click(progress: Progress, options?: ClickOptions): Promise<'error:notconnected' | 'done'> {
-    console.log(
-      `[ElementHandle._click] ####### entry remoteObject=${this.remoteObject} options=${JSON.stringify(options)}`,
-    );
-
     // Use enhanced click if options are provided
     if (requiresEnhancedInteraction(options)) {
-      console.log(`[ElementHandle._click] ####### using enhanced interaction #######`);
       const clickResult = await progress.race(
         this._context.clickElementWithOptions(this.remoteObject, {
           position: options?.position,
@@ -174,20 +150,11 @@ export class ElementHandle extends JSHandle {
         }),
       );
 
-      console.log(
-        `[ElementHandle._click] ####### enhanced result=${JSON.stringify(clickResult)} #######`,
-      );
       if (isResultDisconnected(clickResult)) {
-        console.log(
-          `[ElementHandle._click] ####### enhanced result disconnected, returning error:notconnected #######`,
-        );
         return 'error:notconnected';
       }
 
       if (!isOperationSuccessful(clickResult)) {
-        console.log(
-          `[ElementHandle._click] ####### enhanced result not successful, throwing error #######`,
-        );
         throw new Error(createInteractionError('click', clickResult?.error));
       }
 
@@ -196,32 +163,19 @@ export class ElementHandle extends JSHandle {
         await progress.race(createDelayPromise(options.delay));
       }
 
-      console.log(`[ElementHandle._click] ####### enhanced click completed successfully #######`);
       return 'done';
     }
 
     // Use simple click for basic cases
-    console.log(`[ElementHandle._click] ####### using simple click #######`);
     const clickResult = await progress.race(this._context.clickElement(this.remoteObject));
-    console.log(
-      `[ElementHandle._click] ####### simple click result=${JSON.stringify(clickResult)} #######`,
-    );
-
     if (isResultDisconnected(clickResult)) {
-      console.log(
-        `[ElementHandle._click] ####### simple result disconnected, returning error:notconnected #######`,
-      );
       return 'error:notconnected';
     }
 
     if (!isOperationSuccessful(clickResult)) {
-      console.log(
-        `[ElementHandle._click] ####### simple result not successful, throwing error #######`,
-      );
       throw new Error(createInteractionError('click', clickResult?.error));
     }
 
-    console.log(`[ElementHandle._click] ####### simple click completed successfully #######`);
     return 'done';
   }
 
@@ -467,16 +421,12 @@ export class ElementHandle extends JSHandle {
     value: string,
     options?: { force?: boolean },
   ): Promise<'error:notconnected' | 'done'> {
-    console.log(
-      `[ElementHandle._fill] ####### entry remoteObject=${this.remoteObject} value="${value}" options=${JSON.stringify(options)}`,
-    );
     progress.log(`  fill("${value}")`);
 
     // Use the extracted fill element script
     const fillElement = createFillElementScript();
 
     try {
-      console.log(`[ElementHandle._fill] ####### executing fill script #######`);
       const result = await progress.race(
         this._context.executeScript(
           fillElement,
@@ -486,10 +436,8 @@ export class ElementHandle extends JSHandle {
           options?.force || false,
         ),
       );
-      console.log(`[ElementHandle._fill] ####### fill script result=${result} #######`);
       return result === 'done' ? 'done' : 'error:notconnected';
     } catch (error) {
-      console.log(`[ElementHandle._fill] ####### fill operation failed error=${error} #######`);
       console.error('Fill operation failed:', error);
       return 'error:notconnected';
     }
@@ -899,9 +847,6 @@ export class ElementHandle extends JSHandle {
   }
 
   async type(text: string, options: { delay?: number } = {}): Promise<void> {
-    console.log(
-      `[ElementHandle.type] ####### entry remoteObject=${this.remoteObject} text="${text}" options=${JSON.stringify(options)}`,
-    );
     await executeWithProgress(
       async progress => {
         progress.log(`elementHandle.type("${text}")`);
@@ -921,7 +866,6 @@ export class ElementHandle extends JSHandle {
       },
       { timeout: STANDARD_TIMEOUT },
     );
-    console.log(`[ElementHandle.type] ####### completed successfully #######`);
   }
 
   /** Convenience alias for getInnerHTML */

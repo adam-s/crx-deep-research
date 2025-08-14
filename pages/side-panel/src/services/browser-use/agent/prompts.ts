@@ -11,7 +11,7 @@ abstract class BasePrompt {
     this.prompt = '';
   }
 
-  /**
+  /**.
    * Get the system message for the prompt
    */
   getSystemMessage(): SystemMessage {

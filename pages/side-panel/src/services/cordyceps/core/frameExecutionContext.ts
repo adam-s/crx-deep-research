@@ -355,10 +355,6 @@ export class FrameExecutionContext extends Disposable {
       }
     | undefined
   > {
-    console.log(
-      `[FrameExecutionContext.waitForSelectorEvaluation] ####### entry frameId=${this.frame.frameId} selector="${selectorString}" strict=${strict} scopeHandle=${scopeHandle}`,
-    );
-
     const result = this.executeScript(
       (
         parsedSelector: unknown,
@@ -381,9 +377,6 @@ export class FrameExecutionContext extends Disposable {
       selectorString,
     );
 
-    console.log(
-      `[FrameExecutionContext.waitForSelectorEvaluation] ####### result promise created #######`,
-    );
     return result;
   }
 
@@ -493,10 +486,6 @@ export class FrameExecutionContext extends Disposable {
     handle: string,
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<{ success: boolean; error?: string } | undefined> {
-    console.log(
-      `[FrameExecutionContext.clickElement] ####### entry frameId=${this.frame.frameId} handle=${handle} world=${world}`,
-    );
-
     const result = this.executeScript(
       (handle: string) => {
         const injected = window.__cordyceps_handledInjectedScript;
@@ -506,7 +495,6 @@ export class FrameExecutionContext extends Disposable {
       handle,
     );
 
-    console.log(`[FrameExecutionContext.clickElement] ####### result promise created #######`);
     return result;
   }
 
