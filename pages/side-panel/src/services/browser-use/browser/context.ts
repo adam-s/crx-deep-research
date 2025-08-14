@@ -1936,9 +1936,65 @@ export class BrowserContext {
     }
   }
 
-  switchToTab(pageId: unknown) {
-    pageId;
+  /**
+   * Switch to a specific tab by its page_id
+   * Chrome extension implementation - uses Cordyceps Page.bringToFront() API
+   */
+  async switchToTab(pageId: number): Promise<void> {
+    // Ensure we're in an active state
+    if (this.session.state !== BrowserContextState.ACTIVE) {
+      await this.enter();
+    }
+
+    // Validate pageId is within bounds
+    if (pageId < 0 || pageId >= this.pages.length) {
+      throw new Error(
+        `No tab found with page_id: ${pageId}. Available pages: 0-${this.pages.length - 1}`,
+      );
+    }
+
+    const page = this.pages[pageId];
+
+    // Check if the tab's URL is allowed before switching
+    const pageUrl = page.url();
+    if (pageUrl && !this._isUrlAllowed(pageUrl)) {
+      throw new Error(`Cannot switch to tab with non-allowed URL: ${pageUrl}`);
+    }
+
+    try {
+      // Use Cordyceps Page.bringToFront() API instead of direct Chrome tabs API
+      await page.bringToFront();
+
+      // Wait for the page to be ready after switching
+      // Use timeout protection for Chrome internal pages
+      if (pageUrl?.startsWith('chrome://') || pageUrl?.startsWith('chrome-untrusted://')) {
+        console.log(
+          `Switching to Chrome internal page (${pageUrl}) - using simplified load detection`,
+        );
+        try {
+          await Promise.race([
+            page.waitForLoadState('domcontentloaded', { timeout: 3000 }),
+            new Promise<void>(resolve => setTimeout(resolve, 2000)), // Max 2s wait
+          ]);
+        } catch (error) {
+          console.warn(
+            'Chrome internal page load check failed after switch, continuing anyway:',
+            error,
+          );
+        }
+      } else {
+        // For regular pages, wait for load state
+        await page.waitForLoadState('load', { timeout: 10000 });
+      }
+
+      console.log(`Successfully switched to tab ${pageId} (tabId: ${page.tabId})`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to switch to tab ${pageId}:`, errorMessage);
+      throw new Error(`Failed to switch to tab ${pageId}: ${errorMessage}`);
+    }
   }
+
   closeCurrentTab() {}
 
   /**

@@ -40,6 +40,7 @@ import {
   testNetworkEventFunctionality,
   debugNetworkEvents,
   testDownloadFunctionality,
+  testActiveTabManagementFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -346,6 +347,30 @@ export class LocatorTest extends PlaygroundTest {
           timestamp: Date.now(),
           severity: Severity.Warning,
           message: 'BrowserContext network stability test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
+
+      // Test Active Tab Management functionality (after all navigation and form tests)
+      progress.log(
+        'Testing Active Tab Management functionality (BrowserWindow, cache, bringToFront)',
+      );
+      try {
+        await testActiveTabManagementFunctionality(page, progress, this.context);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'Active Tab Management functionality tests completed successfully',
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(
+          `Active Tab Management functionality test failed (non-fatal): ${errorMessage}`,
+        );
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Active Tab Management functionality test failed but continuing',
           details: { error: errorMessage },
         });
       }

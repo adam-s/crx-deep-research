@@ -1,4 +1,5 @@
 export { testApiConsistencyAcrossLayers } from './apiConsistencyTests';
+export { testActiveTabManagementFunctionality } from './activeTabManagementFunctionality';
 export { testAriaSnapshotFunctionality } from './ariaSnapshotFunctionality';
 export { testCheckFunctionality } from './checkFunctionality';
 export { testClearFunctionality } from './clearFunctionality';

@@ -32,6 +32,9 @@ export class Session extends Disposable {
   readonly onTabRemoved: Event<{ tabId: number; removeInfo: chrome.tabs.TabRemoveInfo }> =
     this._onTabRemoved.event;
 
+  private readonly _onTabActivated = this._register(new Emitter<chrome.tabs.TabActiveInfo>());
+  readonly onTabActivated: Event<chrome.tabs.TabActiveInfo> = this._onTabActivated.event;
+
   private readonly _onBeforeNavigate = this._register(
     new Emitter<chrome.webNavigation.WebNavigationParentedCallbackDetails>(),
   );
@@ -168,13 +171,19 @@ export class Session extends Disposable {
       }
     };
 
+    const tabActivatedListener = (activeInfo: chrome.tabs.TabActiveInfo) => {
+      this._onTabActivated.fire(activeInfo);
+    };
+
     chrome.tabs.onCreated.addListener(tabCreatedListener);
     chrome.tabs.onRemoved.addListener(tabRemovedListener);
+    chrome.tabs.onActivated.addListener(tabActivatedListener);
 
     this._register({
       dispose: () => {
         chrome.tabs.onCreated.removeListener(tabCreatedListener);
         chrome.tabs.onRemoved.removeListener(tabRemovedListener);
+        chrome.tabs.onActivated.removeListener(tabActivatedListener);
       },
     });
   }

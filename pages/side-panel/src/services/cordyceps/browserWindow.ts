@@ -9,6 +9,7 @@ const windowId = () =>
 export class BrowserWindow extends Disposable {
   private _pages = new Map<number, Page>();
   private _processedCommittedDocuments: Set<string> = new Set();
+  private _activeTabId: number | undefined;
   readonly windowId: number;
   readonly session: Session;
 
@@ -39,6 +40,14 @@ export class BrowserWindow extends Disposable {
 
   private async _initialize(): Promise<void> {
     const tabs = await chrome.tabs.query({ windowId: this.windowId });
+
+    // Find and set the active tab
+    const activeTab = tabs.find(tab => tab.active);
+    if (activeTab?.id) {
+      this._activeTabId = activeTab.id;
+      console.log(`📋 Initial active tab: ${activeTab.id} in window ${this.windowId}`);
+    }
+
     for (const tab of tabs) {
       if (tab.id) {
         const page = this._createPage(tab.id);
@@ -124,6 +133,13 @@ export class BrowserWindow extends Disposable {
     this._register(
       this.session.onTabRemoved(({ tabId }) => {
         console.log(`🗑️ Tab ${tabId} removed - starting cleanup`);
+
+        // Clear active tab cache if the removed tab was the active one
+        if (this._activeTabId === tabId) {
+          this._activeTabId = undefined;
+          console.log(`📋 Cleared active tab cache (removed tab ${tabId} was active)`);
+        }
+
         const page = this._pages.get(tabId);
         if (page) {
           console.log(
@@ -162,6 +178,16 @@ export class BrowserWindow extends Disposable {
               `Failed to create page for new tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
+        }
+      }),
+    );
+
+    // Listen for tab activation changes
+    this._register(
+      this.session.onTabActivated(activeInfo => {
+        if (activeInfo.windowId === this.windowId) {
+          this._activeTabId = activeInfo.tabId;
+          console.log(`📋 Active tab changed to ${activeInfo.tabId} in window ${this.windowId}`);
         }
       }),
     );
@@ -426,7 +452,50 @@ export class BrowserWindow extends Disposable {
       throw new Error('Cannot get current page - BrowserWindow has been disposed');
     }
 
-    // Get the active tab in this window
+    // Use cached active tab if available, otherwise query Chrome
+    let activeTabId = this._activeTabId;
+
+    if (!activeTabId) {
+      // Fallback to querying Chrome if cache is not available
+      const [activeTab] = await chrome.tabs.query({
+        active: true,
+        windowId: this.windowId,
+      });
+
+      if (!activeTab?.id) {
+        throw new Error('No active tab found in side panel context - this should never happen');
+      }
+
+      activeTabId = activeTab.id;
+      this._activeTabId = activeTabId; // Update cache
+    }
+
+    // Return the page for the active tab, creating one if it doesn't exist
+    let page = this._pages.get(activeTabId);
+    if (!page) {
+      page = this._createPage(activeTabId);
+      await this._fetchAllFramesForTab(page);
+    }
+
+    return page;
+  }
+
+  /**
+   * Get the currently active tab ID in this window
+   * Returns cached value if available, otherwise queries Chrome
+   */
+  async getActiveTabId(): Promise<number> {
+    // Check if this BrowserWindow has been disposed
+    if (this._store.isDisposed) {
+      throw new Error('Cannot get active tab ID - BrowserWindow has been disposed');
+    }
+
+    // Use cached active tab if available, otherwise query Chrome
+    if (this._activeTabId) {
+      return this._activeTabId;
+    }
+
+    // Fallback to querying Chrome if cache is not available
     const [activeTab] = await chrome.tabs.query({
       active: true,
       windowId: this.windowId,
@@ -436,14 +505,8 @@ export class BrowserWindow extends Disposable {
       throw new Error('No active tab found in side panel context - this should never happen');
     }
 
-    // Return the page for the active tab, creating one if it doesn't exist
-    let page = this._pages.get(activeTab.id);
-    if (!page) {
-      page = this._createPage(activeTab.id);
-      await this._fetchAllFramesForTab(page);
-    }
-
-    return page;
+    this._activeTabId = activeTab.id; // Update cache
+    return activeTab.id;
   }
 
   async newPage(options: { timeout?: number; progress?: Progress } = {}): Promise<Page> {

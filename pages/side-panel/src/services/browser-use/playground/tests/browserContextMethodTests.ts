@@ -947,6 +947,157 @@ export async function testCreateNewTabMethod(
 }
 
 /**
+ * Test switchToTab() method functionality
+ */
+export async function testSwitchToTabMethod(
+  progress: TestProgress,
+  context: BrowserUsePlaygroundService,
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.switchToTab() method...');
+
+  try {
+    // Get the current window ID to ensure we have a valid browser window
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      progress.log(`Using Chrome window ID: ${currentWindow.id}`);
+    } catch (error) {
+      // Fallback: skip the test if Chrome APIs are not available
+      progress.log(
+        '⚠️ Skipping switchToTab() tests - Chrome APIs not available in test environment',
+      );
+      return;
+    }
+
+    // Create BrowserWindow and BrowserContext for testing
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: ['localhost', '127.0.0.1'], // Allow localhost for testing
+    });
+
+    progress.log('✅ Created BrowserContext for switchToTab() testing');
+
+    // Initialize the context and create multiple tabs for testing
+    await browserContext.enter();
+    const initialPages = browserContext.pages.length;
+    progress.log(`Initial pages count: ${initialPages}`);
+
+    // Create a couple of test tabs
+    await browserContext.createNewTab('http://localhost:3005');
+    await browserContext.createNewTab(); // New tab without URL
+
+    const finalPages = browserContext.pages.length;
+    progress.log(`Pages count after creating test tabs: ${finalPages}`);
+
+    if (finalPages < initialPages + 2) {
+      throw new Error(`Expected at least ${initialPages + 2} pages, got ${finalPages}`);
+    }
+
+    // Test 1: Switch to a valid tab by pageId
+    progress.log('Test 1: Switching to valid tab by pageId...');
+
+    const targetPageId = finalPages - 1; // Switch to the last created tab
+    await browserContext.switchToTab(targetPageId);
+
+    progress.log('✅ Test 1 passed: Successfully switched to valid tab');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'switchToTab() valid tab test passed',
+      details: { targetPageId, totalPages: finalPages },
+    });
+
+    // Test 2: Switch to the first tab (should be localhost:3005)
+    progress.log('Test 2: Switching to first tab with URL...');
+
+    await browserContext.switchToTab(initialPages); // First created tab (localhost:3005)
+
+    progress.log('✅ Test 2 passed: Successfully switched to first tab with URL');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'switchToTab() URL tab test passed',
+      details: { targetPageId: initialPages, totalPages: finalPages },
+    });
+
+    // Test 3: Try to switch to invalid pageId (should throw error)
+    progress.log('Test 3: Testing switchToTab() with invalid pageId...');
+    try {
+      await browserContext.switchToTab(999); // Invalid pageId
+      throw new Error('Test 3 failed: Should have thrown error for invalid pageId');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('No tab found with page_id')) {
+        progress.log('✅ Test 3 passed: Properly rejected invalid pageId');
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'switchToTab() invalid pageId test passed',
+          details: { invalidPageId: 999, totalPages: finalPages },
+        });
+      } else {
+        throw new Error(
+          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // Test 4: Try to switch to negative pageId (should throw error)
+    progress.log('Test 4: Testing switchToTab() with negative pageId...');
+    try {
+      await browserContext.switchToTab(-1); // Negative pageId
+      throw new Error('Test 4 failed: Should have thrown error for negative pageId');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('No tab found with page_id')) {
+        progress.log('✅ Test 4 passed: Properly rejected negative pageId');
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'switchToTab() negative pageId test passed',
+          details: { invalidPageId: -1, totalPages: finalPages },
+        });
+      } else {
+        throw new Error(
+          `Test 4 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // Test 5: Test state management during tab switching
+    progress.log('Test 5: Testing state management during tab switching...');
+    const isActive = browserContext.isActive();
+    progress.log(`BrowserContext active state: ${isActive}`);
+
+    if (isActive) {
+      progress.log('✅ Test 5 passed: BrowserContext maintains active state during tab switching');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'switchToTab() state management test passed',
+        details: { activeState: isActive, totalPages: finalPages },
+      });
+    } else {
+      progress.log('⚠️ Test 5 warning: BrowserContext not in active state after tab switching');
+    }
+
+    progress.log('✅ All switchToTab() method tests completed successfully');
+
+    // Clean up
+    await browserContext.close();
+    browserWindow.dispose();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ switchToTab() method test failed: ${errorMessage}`);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'switchToTab() method test failed',
+      details: { error: errorMessage },
+    });
+    throw error;
+  }
+}
+
+/**
  * Main test runner for browser context method tests
  */
 export async function runBrowserContextMethodTests(

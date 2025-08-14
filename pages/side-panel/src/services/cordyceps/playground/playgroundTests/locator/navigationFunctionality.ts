@@ -157,7 +157,7 @@ export async function testNavigationGoForward(
 
       const origin = await page.evaluate(() => window.location.origin);
 
-      // Ensure we're on root page
+      // Set up clean state - navigate to root first to establish a clean starting point
       await page.goto(`${origin}/`, { waitUntil: 'load' });
       await new Promise(r => setTimeout(r, 200));
 
@@ -169,7 +169,7 @@ export async function testNavigationGoForward(
       await page.goBack({ waitUntil: 'load', timeout: 15000 });
       await new Promise(r => setTimeout(r, 200));
 
-      // Verify we're back on root
+      // Verify we're back on root (this is the critical assertion that was failing)
       let currentUrl = await page.evaluate(() => window.location.pathname);
       assertTestCondition(
         currentUrl === '/',
