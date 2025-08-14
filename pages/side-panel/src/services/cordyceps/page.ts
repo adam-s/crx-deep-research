@@ -36,6 +36,8 @@ import { Screenshotter, validateScreenshotOptions } from './media/screenshotter'
 import { NetworkListenerManager } from './navigation/networkListenerManager';
 import { waitForCondition } from './navigation/autoWait';
 import { LongStandingScope } from '@injected/isomorphic/manualPromise';
+import { DownloadManager, DownloadEventData } from './operations/downloadManager';
+import { Download } from './operations/download';
 
 export class Page extends Disposable {
   // Event emitters for page lifecycle events
@@ -46,6 +48,7 @@ export class Page extends Disposable {
   );
   private readonly _onDomContentLoaded = this._register(new Emitter<PageFrameEvent>());
   private readonly _onLoad = this._register(new Emitter<PageFrameEvent>());
+  private readonly _onDownload = this._register(new Emitter<Download>());
 
   public readonly onFrameAttached: Event<PageFrameEvent> = this._onFrameAttached.event;
   public readonly onFrameDetached: Event<PageFrameEvent> = this._onFrameDetached.event;
@@ -53,6 +56,7 @@ export class Page extends Disposable {
     this._onInternalFrameNavigatedToNewDocument.event;
   public readonly onDomContentLoaded: Event<PageFrameEvent> = this._onDomContentLoaded.event;
   public readonly onLoad: Event<PageFrameEvent> = this._onLoad.event;
+  public readonly onDownload: Event<Download> = this._onDownload.event;
 
   private _ownedContext?: object;
   readonly frameManager: FrameManager;
@@ -93,6 +97,22 @@ export class Page extends Disposable {
     );
     this.onRequest = this._networkEvents.onRequest;
     this.onResponse = this._networkEvents.onResponse;
+
+    // Register with download manager for download tracking
+    const downloadManager = DownloadManager.getInstance();
+    downloadManager.registerPage(this);
+
+    // Listen for downloads and relay them as page events
+    this._register(
+      downloadManager.onDownloadStarted((event: DownloadEventData) => {
+        console.log(
+          `📥 [Page ${this.tabId}] Received download event: ${event.download.chromeDownloadId}`,
+        );
+        // For now, emit download events to all pages since Chrome doesn't provide tab association
+        // In a real scenario, we'd need better tab-to-download mapping
+        this._onDownload.fire(event.download);
+      }),
+    );
 
     // Wire request lifecycle into frames for accurate networkidle
     this._register(
@@ -950,6 +970,10 @@ export class Page extends Disposable {
         case 'response':
           vsCodeEvent = this.onResponse;
           break;
+        case 'download':
+          console.log(`📱 [Page ${this.tabId}] Setting up waitForEvent for download`);
+          vsCodeEvent = this.onDownload;
+          break;
         case 'close':
           // Page close handling would need to be implemented
           reject(new Error(`Event "${event}" is not yet supported`));
@@ -1028,6 +1052,9 @@ export class Page extends Disposable {
       case 'response':
         vsCodeEvent = this.onResponse;
         break;
+      case 'download':
+        vsCodeEvent = this.onDownload;
+        break;
       default:
         throw new Error(`Unknown or unsupported event "${event}"`);
     }
@@ -1059,6 +1086,32 @@ export class Page extends Disposable {
     } = {},
   ): Promise<void> {
     return waitForCondition(progress, condition, options);
+  }
+
+  /**
+   * Helper method to wait for download event and then click with consistent timing
+   * Follows the same pattern as other Page methods with delay options
+   */
+  async waitForDownloadAndClick(
+    selector: string,
+    options?: { delay?: number; timeout?: number },
+  ): Promise<Download> {
+    const delay = options?.delay ?? 100; // Default 100ms delay between downloads
+    const timeout = options?.timeout ?? 30000;
+
+    // Start waiting for download before clicking
+    const downloadPromise = this.waitForEvent('download', { timeout });
+
+    // Add delay before clicking to space out downloads
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    // Click to trigger download
+    await this.click(selector);
+
+    // Wait for the download event
+    return (await downloadPromise) as Download;
   }
 
   /**

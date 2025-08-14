@@ -471,6 +471,39 @@
           </div>
         </div>
 
+        <!-- Download Testing -->
+        <div style="margin: 1em 0;">
+          <h4>📥 Download Testing</h4>
+          <p>Test Cordyceps download functionality with server-served files.</p>
+
+          <!-- Core Downloads (Server-served files) -->
+          <div
+            style="margin: 1em 0; padding: 0.5em; background-color: #d4edda; border-radius: 0.25em;">
+            <strong>Cordyceps Download Tests:</strong><br>
+            <button type="button" id="download-text-file"
+              onclick="downloadTextFile()">Download Text File</button>
+            <button type="button" id="download-csv-file"
+              onclick="downloadCsvFile()">Download CSV File</button>
+            <button type="button" id="download-image-file"
+              onclick="downloadImageFile()">Download PNG Image</button>
+          </div>
+
+          <!-- Download Status Display -->
+          <div id="download-status"
+            style="margin: 1em 0; padding: 0.5em; background-color: #f8f9fa; border-radius: 0.25em; display: none;">
+            <strong>Download Status:</strong>
+            <div id="download-log"></div>
+          </div>
+
+          <!-- Download Test Buttons -->
+          <div style="margin: 1em 0;">
+            <button type="button" onclick="showDownloadStatus()">Show Download
+              Status</button>
+            <button type="button" onclick="clearDownloadLog()">Clear Download
+              Log</button>
+          </div>
+        </div>
+
         <!-- Color and URL Inputs -->
         <div style="margin: 1em 0;">
           <h4>Color and URL Inputs</h4>
@@ -996,6 +1029,105 @@
 
       console.log('✅ Drag and drop initialized');
     }
+
+    // =============================================================================
+    // DOWNLOAD TESTING FUNCTIONALITY - REFACTORED AND ORGANIZED
+    // =============================================================================
+
+    /**
+     * Download Manager - Centralized download functionality
+     */
+    const DownloadManager = {
+      // Global state
+      counter: 0,
+      logElement: null,
+
+      // Initialize the download manager
+      init() {
+        this.logElement = document.getElementById('download-log');
+      },
+
+      // Logging functionality
+      logDownload(filename, type = 'basic') {
+        if (!this.logElement) this.init();
+
+        const timestamp = new Date().toLocaleTimeString();
+        const entry = document.createElement('div');
+        entry.innerHTML = `[${timestamp}] ${type}: Downloaded "${filename}"`;
+        entry.style.margin = '0.25em 0';
+        entry.style.padding = '0.25em';
+        entry.style.backgroundColor = '#e8f5e8';
+        entry.style.borderRadius = '0.25em';
+        this.logElement?.appendChild(entry);
+        console.log(`📥 Download: ${filename} (${type})`);
+      }
+    };
+
+    // =============================================================================
+    // CORDYCEPS DOWNLOAD FUNCTIONS - SERVER-SERVED FILES
+    // =============================================================================
+
+    function downloadTextFile() {
+      const link = document.createElement('a');
+      link.href = '/downloads/test-file.txt';
+      link.download = 'test-file.txt';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      DownloadManager.logDownload('test-file.txt', 'text file');
+      return 'test-file.txt';
+    }
+
+    function downloadCsvFile() {
+      const link = document.createElement('a');
+      link.href = '/downloads/test-data.csv';
+      link.download = 'test-data.csv';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      DownloadManager.logDownload('test-data.csv', 'csv file');
+      return 'test-data.csv';
+    }
+
+    function downloadImageFile() {
+      const link = document.createElement('a');
+      link.href = '/downloads/test-image.png';
+      link.download = 'test-image.png';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      DownloadManager.logDownload('test-image.png', 'png image');
+      return 'test-image.png';
+    }
+
+    // =============================================================================
+    // DOWNLOAD STATUS AND CONTROL FUNCTIONS
+    // =============================================================================
+
+    function showDownloadStatus() {
+      const statusDiv = document.getElementById('download-status');
+      statusDiv.style.display = 'block';
+
+      if (DownloadManager.counter === 0) {
+        document.getElementById('download-log').innerHTML = '<em>No downloads yet. Click any download button to test.</em>';
+      }
+    }
+
+    function clearDownloadLog() {
+      if (!DownloadManager.logElement) DownloadManager.init();
+      DownloadManager.logElement.innerHTML = '';
+      DownloadManager.counter = 0;
+      console.log('📥 Download log cleared');
+    }
+
+    // Initialize the download manager when the script loads
+    DownloadManager.init();
   </script>
 </body>
 

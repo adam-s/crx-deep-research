@@ -12,6 +12,40 @@ const app = express();
 // Serve everything in /public as static assets
 app.use(express.static(PUBLIC_DIR));
 
+// Special handling for downloads directory with proper headers
+app.use(
+  '/downloads',
+  (req, res, next) => {
+    const fileName = path.basename(req.path);
+
+    // Set Content-Disposition header to force download
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    // Set appropriate MIME types
+    const ext = path.extname(fileName).toLowerCase();
+    const mimeTypes = {
+      '.txt': 'text/plain',
+      '.json': 'application/json',
+      '.csv': 'text/csv',
+      '.html': 'text/html',
+      '.xml': 'application/xml',
+      '.pdf': 'application/pdf',
+      '.zip': 'application/zip',
+      '.md': 'text/markdown',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+
+    if (mimeTypes[ext]) {
+      res.setHeader('Content-Type', mimeTypes[ext]);
+    }
+
+    next();
+  },
+  express.static(path.join(PUBLIC_DIR, 'downloads')),
+);
+
 // Define all HTML routes in one place
 const pages = [
   { route: '/', file: 'index.html', label: 'Main page' },

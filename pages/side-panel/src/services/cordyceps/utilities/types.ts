@@ -167,6 +167,7 @@ export type TimeoutOptions = { timeout?: number };
 export type WaitForEventOptions = {
   timeout?: number;
   predicate?: (eventArg: unknown) => boolean;
+  delay?: number; // Delay in ms before triggering the action that causes the event
 };
 
 export type StrictOptions = {

@@ -94,3 +94,10 @@ export {
 } from './utilities/elementHandleUtils';
 
 // #endregion
+
+// #region Download functionality
+export { Download } from './operations/download';
+export { DownloadManager } from './operations/downloadManager';
+export type { DownloadInfo, DownloadEventData } from './operations/downloadManager';
+
+// #endregion

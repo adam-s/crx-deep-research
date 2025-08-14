@@ -1,0 +1,9 @@
+File without extension
+Type will be determined by MIME type
+Generated: 2025-08-13T12:00:00.000Z
+
+This file demonstrates:
+- Downloads without file extensions
+- MIME type detection
+- Server content-type headers
+- Browser file type recognition
