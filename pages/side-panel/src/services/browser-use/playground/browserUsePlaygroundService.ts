@@ -54,6 +54,10 @@ export interface IBrowserUsePlaygroundService {
   runGetScrollInfoTests: () => Promise<void>;
   /** Run quick _getScrollInfo test */
   runQuickGetScrollInfoTest: () => Promise<boolean>;
+  /** Run getLocateElement and _inputTextElementNode functionality tests */
+  runElementInteractionTests: () => Promise<void>;
+  /** Run quick element interaction test */
+  runQuickElementInteractionTest: () => Promise<boolean>;
 }
 
 export class BrowserUsePlaygroundService
@@ -105,6 +109,9 @@ export class BrowserUsePlaygroundService
 
       // Run _getScrollInfo functionality tests
       await this.runGetScrollInfoTests();
+
+      // Run getLocateElement and _inputTextElementNode functionality tests
+      await this.runElementInteractionTests();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -855,6 +862,112 @@ export class BrowserUsePlaygroundService
         timestamp: Date.now(),
         severity: Severity.Error,
         message: 'Quick _getScrollInfo() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  public async runElementInteractionTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting getLocateElement and _inputTextElementNode functionality tests',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runAllElementInteractionTests } = await import('./tests/getLocateElementTest');
+
+      // Create test context compatible with the test requirements
+      const testContext = {
+        events: {
+          emit: (event: {
+            timestamp: number;
+            severity: Severity;
+            message: string;
+            details?: unknown;
+            error?: Error;
+          }) => {
+            // Convert to EventMessage format
+            this.events.emit({
+              timestamp: event.timestamp,
+              severity: event.severity,
+              message: event.message,
+              details: event.details as Record<string, unknown> | undefined,
+              error: event.error,
+            });
+          },
+        },
+        browserUseService: this,
+      };
+
+      // Run the comprehensive element interaction tests
+      await runAllElementInteractionTests(testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 All element interaction tests passed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Element interaction tests failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickElementInteractionTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Running quick element interaction test',
+    });
+
+    try {
+      // Import the quick test functions dynamically
+      const { quickGetLocateElementTest, quickInputTextElementNodeTest } = await import(
+        './tests/getLocateElementTest'
+      );
+
+      // Run both quick tests
+      const getLocateResult = await quickGetLocateElementTest();
+      const inputTextResult = await quickInputTextElementNodeTest();
+
+      const overallResult = getLocateResult && inputTextResult;
+
+      if (overallResult) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick element interaction tests passed',
+          details: {
+            getLocateElementTest: getLocateResult,
+            inputTextElementNodeTest: inputTextResult,
+          },
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick element interaction tests failed',
+          details: {
+            getLocateElementTest: getLocateResult,
+            inputTextElementNodeTest: inputTextResult,
+          },
+        });
+      }
+
+      return overallResult;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick element interaction test encountered an error',
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;

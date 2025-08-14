@@ -178,7 +178,6 @@ export class NetworkListenerManager extends Disposable {
     if (!tabData) {
       tabData = this._createTabData(tabId);
       this._tabEmitters.set(tabId, tabData);
-      console.log(`[NetworkListenerManager.registerTab] Created new tab data for ${tabId}`);
     } else {
       console.log(`[NetworkListenerManager.registerTab] Reusing existing tab data for ${tabId}`);
     }
@@ -284,39 +283,23 @@ export class NetworkListenerManager extends Disposable {
       return;
     }
     const onBeforeRequest = (details: chrome.webRequest.WebRequestDetails) => {
-      console.log(
-        `[NetworkListenerManager.onBeforeRequest] Received request tabId=${details.tabId} requestId=${details.requestId} url=${details.url} ############`,
-      );
-
       // Filter out invalid/unwanted requests early
       if (details.tabId < 0) {
-        console.log(
-          `[NetworkListenerManager.onBeforeRequest] Filtered out tabId < 0: ${details.tabId} ############`,
-        );
         return; // Service requests, downloads, etc.
       }
 
       // Filter out own extension requests to reduce noise
       if (details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
-        console.log(
-          `[NetworkListenerManager.onBeforeRequest] Filtered out extension request: ${details.url} ############`,
-        );
         return;
       }
 
       const tabData = this._tabEmitters.get(details.tabId);
       if (!tabData) {
-        console.log(
-          `[NetworkListenerManager.onBeforeRequest] No tabData for tabId=${details.tabId} ############`,
-        );
         return;
       }
 
       // Enforce pending request limits to prevent memory leaks
       if (tabData.pendingRequests.size >= NetworkListenerManager.MAX_PENDING_REQUESTS_PER_TAB) {
-        console.log(
-          `[NetworkListenerManager.onBeforeRequest] Clearing pending requests for tabId=${details.tabId}, size=${tabData.pendingRequests.size} ############`,
-        );
         tabData.pendingRequests.clear();
       }
 
@@ -335,9 +318,6 @@ export class NetworkListenerManager extends Disposable {
 
       // Debug: count emitted request events
       tabData.debug.requestEmits += 1;
-      console.log(
-        `[NetworkListenerManager.onBeforeRequest] Firing request event tabId=${details.tabId} requestId=${details.requestId} pendingSize=${tabData.pendingRequests.size} ############`,
-      );
       tabData.requestEmitter.fire(requestInfo);
     };
 
@@ -371,31 +351,18 @@ export class NetworkListenerManager extends Disposable {
     };
 
     const onCompleted = (details: chrome.webRequest.WebResponseDetails) => {
-      console.log(
-        `[NetworkListenerManager.onCompleted] Received response tabId=${details.tabId} requestId=${details.requestId} statusCode=${details.statusCode} url=${details.url} ############`,
-      );
-
       // Apply same filtering as onBeforeRequest
       if (details.tabId < 0 || details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
-        console.log(
-          `[NetworkListenerManager.onCompleted] Filtered out request tabId=${details.tabId} url=${details.url} ############`,
-        );
         return;
       }
 
       const tabData = this._tabEmitters.get(details.tabId);
       if (!tabData) {
-        console.log(
-          `[NetworkListenerManager.onCompleted] No tabData for tabId=${details.tabId} ############`,
-        );
         return;
       }
 
       const requestInfo = tabData.pendingRequests.get(details.requestId);
       if (!requestInfo) {
-        console.log(
-          `[NetworkListenerManager.onCompleted] No requestInfo for requestId=${details.requestId} ############`,
-        );
         return;
       }
 
@@ -417,9 +384,6 @@ export class NetworkListenerManager extends Disposable {
 
       // Debug: count emitted response events
       tabData.debug.responseEmits += 1;
-      console.log(
-        `[NetworkListenerManager.onCompleted] Firing response events tabId=${details.tabId} requestId=${details.requestId} pendingSize=${tabData.pendingRequests.size} ############`,
-      );
       // Backward-compatibility: treat onResponse as completion
       tabData.responseEmitter.fire(responseInfo);
       // New: emit dedicated completed event
@@ -460,15 +424,8 @@ export class NetworkListenerManager extends Disposable {
     };
 
     const onErrorOccurred = (details: chrome.webRequest.WebRequestDetails) => {
-      console.log(
-        `[NetworkListenerManager.onErrorOccurred] Request error tabId=${details.tabId} requestId=${details.requestId} url=${details.url} ############`,
-      );
-
       // Apply same filtering as onBeforeRequest
       if (details.tabId < 0 || details.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) {
-        console.log(
-          `[NetworkListenerManager.onErrorOccurred] Filtered out request tabId=${details.tabId} url=${details.url} ############`,
-        );
         return;
       }
       const tabData = this._tabEmitters.get(details.tabId);
@@ -477,9 +434,6 @@ export class NetworkListenerManager extends Disposable {
         // Emit error event with minimal info
         const frameId = (details as chrome.webRequest.WebRequestBodyDetails).frameId ?? 0;
         const error = (details as chrome.webRequest.WebResponseErrorDetails).error || 'unknown';
-        console.log(
-          `[NetworkListenerManager.onErrorOccurred] Firing error event tabId=${details.tabId} requestId=${details.requestId} error=${error} pendingSize=${tabData.pendingRequests.size} ############`,
-        );
         tabData.errorEmitter.fire({
           id: details.requestId,
           tabId: details.tabId,
@@ -489,7 +443,7 @@ export class NetworkListenerManager extends Disposable {
         });
       } else {
         console.log(
-          `[NetworkListenerManager.onErrorOccurred] No tabData for tabId=${details.tabId} ############`,
+          `[NetworkListenerManager.onErrorOccurred] No tabData for tabId=${details.tabId}`,
         );
       }
     };
@@ -545,7 +499,6 @@ export class NetworkListenerManager extends Disposable {
     // Register cleanup for global listeners and tab lifecycle
     this._register({
       dispose: () => {
-        console.log(`[NetworkListenerManager.dispose] Removing chrome.webRequest listeners`);
         chrome.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
         chrome.webRequest.onBeforeSendHeaders.removeListener(onBeforeSendHeaders);
         chrome.webRequest.onHeadersReceived.removeListener(onHeadersReceived);

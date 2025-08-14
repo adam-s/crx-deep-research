@@ -63,44 +63,24 @@ export class DOMService {
     selectorMap: SelectorMap;
     viewportInfo?: ViewportInfo;
   }> {
-    console.log(
-      `[DOMService.getClickableElements] ############ Starting getClickableElements(highlightElements=${highlightElements}, focusElement=${focusElement}, viewportExpansion=${viewportExpansion})`,
+    const [rootElement, selectorMap] = await this.buildDomTree(
+      highlightElements,
+      focusElement,
+      viewportExpansion,
     );
 
-    try {
-      console.log(`[DOMService.getClickableElements] ############ About to call buildDomTree`);
-      const [rootElement, selectorMap] = await this.buildDomTree(
-        highlightElements,
-        focusElement,
-        viewportExpansion,
-      );
-      console.log(`[DOMService.getClickableElements] ############ buildDomTree completed`);
+    // In the Python implementation, elementTree is the same as rootElement
+    // This is a key difference that was causing token count issues
+    const elementTree = rootElement;
 
-      // In the Python implementation, elementTree is the same as rootElement
-      // This is a key difference that was causing token count issues
-      const elementTree = rootElement;
-
-      // Get viewport information from the page
-      console.log(`[DOMService.getClickableElements] ############ About to get viewport info`);
-      const viewportInfo = await this.getViewportInfo();
-      console.log(`[DOMService.getClickableElements] ############ Got viewport info`);
-
-      console.log(
-        `[DOMService.getClickableElements] ############ getClickableElements completed successfully`,
-      );
-      return {
-        elementTree,
-        rootElement,
-        selectorMap,
-        viewportInfo,
-      };
-    } catch (error) {
-      console.error(
-        `[DOMService.getClickableElements] ############ Error in getClickableElements:`,
-        error,
-      );
-      throw error;
-    }
+    // Get viewport information from the page
+    const viewportInfo = await this.getViewportInfo();
+    return {
+      elementTree,
+      rootElement,
+      selectorMap,
+      viewportInfo,
+    };
   }
 
   /**
@@ -185,14 +165,10 @@ export class DOMService {
     focusElement: number,
     viewportExpansion: number,
   ): Promise<[DOMElementNode, SelectorMap]> {
-    console.log(`[DOMService.buildDomTree] ############ Starting buildDomTree`);
-
     // Verify that JavaScript evaluation works in our Chrome extension context
-    console.log(`[DOMService.buildDomTree] ############ Testing JavaScript evaluation`);
     if ((await this._page.evaluate(() => 1 + 1)) !== 2) {
       throw new Error('The page cannot evaluate JavaScript code properly');
     }
-    console.log(`[DOMService.buildDomTree] ############ JavaScript evaluation works`);
 
     // Ensure viewportExpansion matches Python implementation conventions
     // -1 means include all elements regardless of viewport position (no limit)
@@ -207,41 +183,22 @@ export class DOMService {
       debugMode: process.env && process.env['NODE_ENV'] === 'development',
     };
 
-    try {
-      // Call window.__cordyceps_buildDomTree using Page.evaluate which runs in the ISOLATED world.
-      console.log(
-        `[DOMService.buildDomTree] ############ About to call window.__cordyceps_buildDomTree with args:`,
-        args,
-      );
-      const domTreeResult = await this._page.evaluate((buildArgs: BuildDomTreeArgs) => {
-        if (typeof window.__cordyceps_buildDomTree !== 'function') {
-          throw new Error(
-            'window.__cordyceps_buildDomTree function not found. Make sure browserUse.js is loaded in the content script.',
-          );
-        }
-        return window.__cordyceps_buildDomTree(buildArgs);
-      }, args);
-      console.log(
-        `[DOMService.buildDomTree] ############ window.__cordyceps_buildDomTree completed`,
-      );
-
-      if (!domTreeResult || !domTreeResult.rootId || !domTreeResult.map) {
-        console.error(
-          `[DOMService.buildDomTree] ############ Invalid DOM tree result:`,
-          domTreeResult,
+    const domTreeResult = await this._page.evaluate((buildArgs: BuildDomTreeArgs) => {
+      if (typeof window.__cordyceps_buildDomTree !== 'function') {
+        throw new Error(
+          'window.__cordyceps_buildDomTree function not found. Make sure browserUse.js is loaded in the content script.',
         );
-        throw new Error('Invalid DOM tree result from content script');
       }
+      return window.__cordyceps_buildDomTree(buildArgs);
+    }, args);
 
-      // Construct our TypeScript DOM tree from the JavaScript result
-      console.log(`[DOMService.buildDomTree] ############ About to construct DOM tree from result`);
-      const result = this.constructDomTree(domTreeResult as BuildDomTreeResult);
-      console.log(`[DOMService.buildDomTree] ############ DOM tree construction completed`);
-      return result;
-    } catch (error) {
-      console.error(`[DOMService.buildDomTree] ############ Error building DOM tree:`, error);
-      throw error;
+    if (!domTreeResult || !domTreeResult.rootId || !domTreeResult.map) {
+      throw new Error('Invalid DOM tree result from content script');
     }
+
+    // Construct our TypeScript DOM tree from the JavaScript result
+    const result = this.constructDomTree(domTreeResult as BuildDomTreeResult);
+    return result;
   }
 
   /**

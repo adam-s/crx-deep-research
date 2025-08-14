@@ -65,7 +65,7 @@ export class LocatorTest extends PlaygroundTest {
       const snapshot = await page.snapshotForAI();
       progress.log('Snapshot for AI created successfully.');
 
-      console.log('############### Aria snapshot for AI \n', snapshot);
+      console.log('Aria snapshot for AI \n', snapshot);
       progress.log('Creating and testing a basic locator');
       // Create a locator for the body element
       const bodyLocator = page.locator('body');

@@ -269,6 +269,8 @@ export async function testGetScrollInfoErrorHandling(
   browserWindow: BrowserWindow,
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
+  let originalUrl: string | undefined;
+
   try {
     context.events.emit({
       timestamp: Date.now(),
@@ -283,10 +285,14 @@ export async function testGetScrollInfoErrorHandling(
 
     const page = await browserContext.getCurrentPage();
 
+    // Store the current URL to navigate back to later
+    originalUrl = page.url();
+    progress.log(`Original URL: ${originalUrl}`);
+
     // First test with an iframe page which might have different scroll behavior
     progress.log('Testing _getScrollInfo with iframe page...');
     try {
-      await page.goto('http://localhost:3005/iframe1');
+      await page.goto('http://localhost:3005/iframe1', { timeout: 10000 }); // 10 second timeout
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const [pixelsAbove, pixelsBelow] = await browserContext._getScrollInfo(page);
@@ -306,7 +312,7 @@ export async function testGetScrollInfoErrorHandling(
     // Now test with a potentially restricted page
     progress.log('Testing with chrome:// page for error handling...');
     try {
-      await page.goto('chrome://version/');
+      await page.goto('chrome://version/', { timeout: 5000 }); // 5 second timeout for chrome:// pages
       await new Promise(resolve => setTimeout(resolve, 500));
       progress.log('✅ Successfully navigated to chrome://version/ page');
     } catch (error) {
@@ -351,9 +357,43 @@ export async function testGetScrollInfoErrorHandling(
         `Test 4 failed: Invalid scroll info results: pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`,
       );
     }
+
+    // Navigate back to the original page
+    if (originalUrl && originalUrl !== 'about:blank' && !originalUrl.startsWith('chrome://')) {
+      progress.log(`Navigating back to original page: ${originalUrl}`);
+      try {
+        await page.goto(originalUrl, { timeout: 10000 });
+        progress.log('✅ Successfully navigated back to original page');
+      } catch (error) {
+        progress.log(`⚠️ Failed to navigate back to original page: ${error}`);
+        // Don't throw here - the test itself was successful
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     progress.log(`Test 4 failed: ${errorMessage}`);
+
+    // Try to navigate back to the original page even on error
+    if (browserContext) {
+      try {
+        const page = await browserContext.getCurrentPage();
+        const currentUrl = page.url();
+        if (
+          originalUrl &&
+          originalUrl !== 'about:blank' &&
+          !originalUrl.startsWith('chrome://') &&
+          currentUrl !== originalUrl
+        ) {
+          progress.log(`Attempting to navigate back to original page after error: ${originalUrl}`);
+          await page.goto(originalUrl, { timeout: 5000 }); // Shorter timeout on error recovery
+          progress.log('✅ Successfully navigated back to original page after error');
+        }
+      } catch (navError) {
+        progress.log(`⚠️ Failed to navigate back to original page after error: ${navError}`);
+        // Don't mask the original error
+      }
+    }
+
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Error,
@@ -383,7 +423,7 @@ export async function quickGetScrollInfoTest(browserWindow: BrowserWindow): Prom
     const page = await browserContext.getCurrentPage();
 
     // Navigate to the test server page
-    await page.goto('http://localhost:3005');
+    await page.goto('http://localhost:3005', { timeout: 10000 }); // 10 second timeout
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Ensure we're at the top

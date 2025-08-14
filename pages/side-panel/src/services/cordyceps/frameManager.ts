@@ -2,7 +2,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Frame, NavigationAbortedError } from './frame';
 import { Progress } from './core/progress';
 import { Page } from './page';
-import { assert } from '@injected/isomorphic/assert';
 import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
 import { DocumentInfo } from './utilities/types';
 
@@ -137,7 +136,8 @@ export class FrameManager extends Disposable {
   }
 
   public frame(frameId: number): Frame | null {
-    return this._frames.get(frameId) || null;
+    const frame = this._frames.get(frameId) || null;
+    return frame;
   }
 
   public frameAttached(
@@ -170,17 +170,17 @@ export class FrameManager extends Disposable {
 
   private _attachMainFrame(frameId: number, url?: string): Frame {
     if (this._mainFrame) {
+      this._mainFrame.dispose();
       this._frames.delete(this._mainFrame.frameId);
-      this._mainFrame.frameId = frameId;
-      if (url) {
-        this._mainFrame.setUrl(url);
-      }
     } else {
-      assert(!this._frames.has(frameId));
       this._mainFrame = this._register(new Frame(frameId, this, null, url));
       this._mainFrameResolve(this._mainFrame);
     }
     this._frames.set(frameId, this._mainFrame);
+
+    // Create execution context immediately for main frame
+    this.page.createExecutionContext(this._mainFrame);
+
     return this._mainFrame;
   }
 
@@ -189,51 +189,21 @@ export class FrameManager extends Disposable {
 
     // If parent frame doesn't exist, this could be due to timing issues or API inconsistencies
     if (parentFrame === undefined) {
-      console.warn(
-        `Parent frame with id ${parentFrameId} does not exist for child frame ${frameId}. Attaching as orphaned frame.`,
+      throw new Error(
+        `Parent frame ${parentFrameId} not found when attaching child frame ${frameId}`,
       );
-
-      // Create an orphaned frame attached to main frame as fallback
-      // This prevents crashes while still maintaining frame hierarchy where possible
-      const mainFrame = this._mainFrame;
-      if (!mainFrame) {
-        throw new Error(`Cannot attach orphaned frame ${frameId} - no main frame exists`);
-      }
-
-      console.log(
-        `📍 Attaching orphaned frame ${frameId} to main frame ${mainFrame.frameId} for tab ${this.page.tabId}`,
-      );
-
-      // Double-check frame doesn't exist (should be caught by frameAttached, but defensive)
-      if (this._frames.has(frameId)) {
-        const existingFrame = this._frames.get(frameId)!;
-        if (url) {
-          existingFrame.setUrl(url);
-        }
-        return existingFrame;
-      }
-
-      const frame = this._register(new Frame(frameId, this, mainFrame, url));
-      this._frames.set(frameId, frame);
-
-      // Emit FrameAttached event similar to Playwright
-      this.page._fireFrameAttached(frame);
-
-      return frame;
     }
 
     // Normal case: parent frame exists
     // Double-check frame doesn't exist (should be caught by frameAttached, but defensive)
     if (this._frames.has(frameId)) {
-      const existingFrame = this._frames.get(frameId)!;
-      if (url) {
-        existingFrame.setUrl(url);
-      }
-      return existingFrame;
+      throw new Error(`Frame ${frameId} already exists`);
     }
 
     const frame = this._register(new Frame(frameId, this, parentFrame, url));
     this._frames.set(frameId, frame);
+
+    this.page.createExecutionContext(frame);
 
     // Emit FrameAttached event similar to Playwright
     this.page._fireFrameAttached(frame);

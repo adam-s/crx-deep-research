@@ -110,7 +110,6 @@ export class ConnectionManager extends Disposable implements IConnectionManager 
         this._messageServer.onDidAddConnection,
         this._messageServer.onDidRemoveConnection,
         (connection: Connection<string>) => {
-          console.log('#####################', this._messageServer.connections.length);
           const originalEvent = connection.channelClient
             .getChannel(channelName)
             .listen<PayloadOf<S[EventKeys<S>]>>(String(eventName));

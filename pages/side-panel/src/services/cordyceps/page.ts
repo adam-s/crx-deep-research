@@ -107,9 +107,6 @@ export class Page extends Disposable {
     // Listen for downloads and relay them as page events
     this._register(
       downloadManager.onDownloadStarted((event: DownloadEventData) => {
-        console.log(
-          `📥 [Page ${this.tabId}] Received download event: ${event.download.chromeDownloadId}`,
-        );
         // For now, emit download events to all pages since Chrome doesn't provide tab association
         // In a real scenario, we'd need better tab-to-download mapping
         this._onDownload.fire(event.download);
@@ -119,15 +116,9 @@ export class Page extends Disposable {
     // Wire request lifecycle into frames for accurate networkidle
     this._register(
       this.onRequest(ri => {
-        console.log(
-          `[Page.onRequest] ############ Page ${this.tabId} received request: ${ri.url} (${ri.resourceType}) - ID: ${ri.id}, frameId: ${ri.frameId}`,
-        );
         const frame = this.frameManager.frame(ri.frameId) ?? this.frameManager.mainFrame();
         const req = frame._addInflightRequest(ri);
         this._reqById.set(ri.id, { frame, req });
-        console.log(
-          `[Page.onRequest] ############ Page ${this.tabId} request added to tracking, total tracked: ${this._reqById.size}`,
-        );
         if (
           typeof (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted ===
           'function'
@@ -139,23 +130,14 @@ export class Page extends Disposable {
 
     this._register(
       this._networkEvents.onCompleted(res => {
-        console.log(
-          `[Page.onCompleted] ############ Page ${this.tabId} received response completion: ${res.request.url} - ID: ${res.id}`,
-        );
         const rec = this._reqById.get(res.id);
         if (!rec) {
-          console.log(
-            `[Page.onCompleted] ############ Page ${this.tabId} no record found for request ID: ${res.id}`,
-          );
           return;
         }
         // Set response on our Network.Request wrapper
         (rec.req as unknown as { _setResponse?: (r: ResponseInfo) => void })._setResponse?.(res);
         // Remove before finishing so size-based checks are accurate
         rec.frame._removeInflightRequest(rec.req as never);
-        console.log(
-          `[Page.onCompleted] ############ Page ${this.tabId} request completed and removed from tracking, remaining: ${this._reqById.size}`,
-        );
         if (
           typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
             ._onRequestFinished === 'function'
@@ -168,21 +150,12 @@ export class Page extends Disposable {
 
     this._register(
       this._networkEvents.onError(err => {
-        console.log(
-          `[Page.onError] ############ Page ${this.tabId} received request error: ${err.url} - ID: ${err.id}, error: ${err.error}`,
-        );
         const rec = this._reqById.get(err.id);
         if (!rec) {
-          console.log(
-            `[Page.onError] ############ Page ${this.tabId} no record found for error ID: ${err.id}`,
-          );
           return;
         }
         // Remove before finishing so size-based checks are accurate
         rec.frame._removeInflightRequest(rec.req as never);
-        console.log(
-          `[Page.onError] ############ Page ${this.tabId} error request removed from tracking, remaining: ${this._reqById.size}`,
-        );
         if (
           typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
             ._onRequestFinished === 'function'
@@ -326,26 +299,28 @@ export class Page extends Disposable {
       onContentScriptLoadedForTab(sender => {
         const { frameId } = sender;
         if (frameId === undefined) {
-          console.warn('Content script loaded without frameId:', sender);
           return;
         }
-
         const frame = this.frameManager.frame(frameId);
         if (!frame) {
-          console.warn(`Frame ${frameId} not found when content script loaded.`);
           return;
         }
-
         this._createExecutionContext(frame);
       }),
     );
   }
 
   private _createExecutionContext(frame: Frame): void {
-    console.log(`🚀 Creating execution context for frame ${frame.frameId} in tab ${this.tabId}`);
     const context = new FrameExecutionContext(frame);
     frame._setContext(context);
-    console.log(`✅ Execution context created for frame ${frame.frameId} in tab ${this.tabId}`);
+  }
+
+  /**
+   * Public method to create execution context for frames
+   * Called by FrameManager when frames are attached
+   */
+  public createExecutionContext(frame: Frame): void {
+    this._createExecutionContext(frame);
   }
 
   async waitForMainFrame(progress?: Progress): Promise<Frame> {
