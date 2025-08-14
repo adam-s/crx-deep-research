@@ -23,6 +23,7 @@ const permissions = [
   'clipboardWrite',
   'activeTab',
   'tabCapture',
+  'downloads',
 ];
 
 /**

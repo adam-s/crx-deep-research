@@ -106,8 +106,20 @@ export function requiresEnhancedInteraction(options?: {
   force?: boolean;
   button?: string;
   clickCount?: number;
+  noWaitAfter?: boolean;
+  modifiers?: string[];
+  trial?: boolean;
 }): boolean {
-  return !!(options && (options.position || options.force || options.button || options.clickCount));
+  return !!(
+    options &&
+    (options.position ||
+      options.force ||
+      options.button ||
+      options.clickCount ||
+      options.noWaitAfter ||
+      (options.modifiers && options.modifiers.length > 0) ||
+      options.trial)
+  );
 }
 
 /**

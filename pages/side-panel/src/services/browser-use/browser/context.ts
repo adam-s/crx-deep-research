@@ -1,5 +1,6 @@
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Page } from '@src/services/cordyceps/page';
+import { ElementHandle } from '@src/services/cordyceps/elementHandle';
 import {
   RequestInfo,
   ResponseInfo,
@@ -12,14 +13,9 @@ import type {
 } from '@src/services/cordyceps/utilities/types';
 import { executeWithProgress } from '@src/services/cordyceps/core/progress';
 import { DOMService } from '../dom/service';
-
-// Interface for element objects used in CSS selector generation
-interface ElementForSelector {
-  xpath: string;
-  tag_name?: string;
-  highlight_index?: number;
-  attributes?: Record<string, string>;
-}
+import { DOMElementNode, SelectorMap } from '../dom/views';
+import { ElementForSelector, ElementNode } from '../dom/types';
+import { generateUuid } from 'vs/base/common/uuid';
 
 // Configuration interface for browser-use context
 interface BrowserContextConfig {
@@ -30,6 +26,7 @@ interface BrowserContextConfig {
   highlightElements?: boolean;
   // Pixels to expand viewport bounds when collecting elements (-1 for no limit)
   viewportExpansion?: number;
+  saveDownloadsPath: string | null;
 }
 
 /**
@@ -41,7 +38,7 @@ export class BrowserSession {
   endTime: Date | null;
   state: BrowserContextState;
   // Add context property to match Python implementation
-  context: unknown;
+  context: BrowserWindow | null;
   // Add cachedState property to match Python implementation
   cachedState: BrowserState | null;
 
@@ -88,6 +85,8 @@ export class BrowserContext {
   pages: Page[];
   session: BrowserSession;
   config: BrowserContextConfig;
+  // Following the Python implementation's state storage
+  state: { targetId?: string; [key: string]: unknown } = {};
 
   static _enhancedCssSelectorForElement(
     element: ElementForSelector,
@@ -283,6 +282,7 @@ export class BrowserContext {
       waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds default
       highlightElements: true,
       viewportExpansion: 500,
+      saveDownloadsPath: null, // Default to null (no download path)
       ...config,
     };
   }
@@ -1202,4 +1202,553 @@ export class BrowserContext {
    * Property to store the current state
    */
   private currentState?: BrowserState;
+
+  /**
+   * Reset the browser session
+   * Call this when you don't want to kill the context but just kill the state
+   * Exact match to Python implementation's reset_context method
+   */
+  async resetContext(): Promise<void> {
+    // Close all tabs and clear cached state
+    const session = await this.getSession();
+
+    if (session.context) {
+      const pages = session.context.pages();
+      for (const page of pages) {
+        await page.close();
+      }
+    }
+
+    session.cachedState = null;
+    // Reset the targetId in the context state
+    delete this.state.targetId;
+  }
+
+  /**
+   * Get a map of selectors for the current page
+   * This retrieves the selector map from the cached state
+   */
+  async getSelectorMap(): Promise<SelectorMap> {
+    // Get the selector map from the cached state directly from the session
+    const session = await this.getSession();
+    if (session.cachedState && session.cachedState.selectorMap) {
+      return session.cachedState.selectorMap;
+    }
+    return {};
+  }
+
+  /**
+   * Get a debug view of the page structure including iframes
+   * Exact match to Python implementation's get_page_structure method
+   */
+  async getPageStructure(): Promise<string> {
+    const debugScript = (): string => {
+      function getPageStructureInner(
+        element: Document | Element = document,
+        depth: number = 0,
+        maxDepth: number = 10,
+      ): string {
+        if (depth >= maxDepth) return '';
+
+        const indent: string = '  '.repeat(depth);
+        let structure: string = '';
+
+        // Skip certain elements that clutter the output
+        const skipTags = new Set<string>(['script', 'style', 'link', 'meta', 'noscript']);
+
+        // Add current element info if it's not the document
+        if (element !== document) {
+          const htmlElement = element as Element;
+          const tagName: string = htmlElement.tagName.toLowerCase();
+
+          // Skip uninteresting elements
+          if (skipTags.has(tagName)) return '';
+
+          const id: string = htmlElement.id ? '#' + htmlElement.id : '';
+          const classes: string =
+            htmlElement.className && typeof htmlElement.className === 'string'
+              ? '.' +
+                htmlElement.className
+                  .split(' ')
+                  .filter((c: string) => c)
+                  .join('.')
+              : '';
+
+          // Get additional useful attributes
+          const attrs: string[] = [];
+          const roleAttr: string | null = htmlElement.getAttribute('role');
+          if (roleAttr) attrs.push('role="' + roleAttr + '"');
+
+          const ariaLabelAttr: string | null = htmlElement.getAttribute('aria-label');
+          if (ariaLabelAttr) attrs.push('aria-label="' + ariaLabelAttr + '"');
+
+          const typeAttr: string | null = htmlElement.getAttribute('type');
+          if (typeAttr) attrs.push('type="' + typeAttr + '"');
+
+          const nameAttr: string | null = htmlElement.getAttribute('name');
+          if (nameAttr) attrs.push('name="' + nameAttr + '"');
+
+          const srcAttr: string | null = htmlElement.getAttribute('src');
+          if (srcAttr) {
+            const src: string = srcAttr;
+            attrs.push('src="' + src.substring(0, 50) + (src.length > 50 ? '...' : '') + '"');
+          }
+
+          // Add element info
+          structure +=
+            indent +
+            tagName +
+            id +
+            classes +
+            (attrs.length ? ' [' + attrs.join(', ') + ']' : '') +
+            '\\n';
+
+          // Handle iframes specially
+          if (tagName === 'iframe') {
+            try {
+              const iframeElement = htmlElement as HTMLIFrameElement;
+              const iframeDoc: Document | null =
+                iframeElement.contentDocument || iframeElement.contentWindow?.document || null;
+              if (iframeDoc) {
+                structure += indent + '  --- IFRAME CONTENT ---\\n';
+                structure += getPageStructureInner(iframeDoc, depth + 1, maxDepth);
+                structure += indent + '  --- END IFRAME ---\\n';
+              } else {
+                structure += indent + '  [Cannot access iframe content - likely cross-origin]\\n';
+              }
+            } catch (e: unknown) {
+              const errorMessage: string = e instanceof Error ? e.message : String(e);
+              structure += indent + '  [Cannot access iframe: ' + errorMessage + ']\\n';
+            }
+            // Skip child processing as we handled it specially
+            return structure;
+          }
+        } else {
+          // Document node
+          structure += indent + 'document [URL: ' + document.location.href + ']\\n';
+        }
+
+        // Process child elements
+        const children: HTMLCollection = element.children;
+        for (let i = 0; i < children.length; i++) {
+          const child: Element = children[i];
+          structure += getPageStructureInner(child, depth + 1, maxDepth);
+        }
+
+        return structure;
+      }
+
+      return getPageStructureInner();
+    };
+
+    const page = await this.getCurrentPage();
+    return await page.evaluate(debugScript);
+  }
+
+  /**
+   * Get a DOM element by its index in the selector map
+   * Exact match to Python implementation's get_dom_element_by_index method
+   */
+  async getDomElementByIndex(index: number | string): Promise<DOMElementNode> {
+    const indexKey = String(index);
+    const selectorMap = await this.getSelectorMap();
+
+    if (!(indexKey in selectorMap)) {
+      throw new Error(`Element index ${index} does not exist in selector map`);
+    }
+
+    // Direct match to Python implementation - returns element descriptor directly
+    return selectorMap[indexKey];
+  }
+
+  /**
+   * Get an element handle by its index in the selector map
+   * Exact match to Python implementation's get_element_by_index method
+   */
+  async getElementByIndex(index: number | string): Promise<ElementHandle | null> {
+    const selectorMap = await this.getSelectorMap();
+    const indexKey = String(index);
+    const elementHandle = await this.getLocateElement(selectorMap[indexKey]);
+    return elementHandle;
+  }
+
+  /**
+   * Helper function to get tag name from any ElementNode type
+   */
+  private static _getTagName(element: ElementNode): string {
+    if ('tag' in element && element.tag) {
+      return element.tag;
+    }
+    if ('tag_name' in element && element.tag_name) {
+      return element.tag_name;
+    }
+    return 'unknown';
+  }
+
+  /**
+   * Click on a DOM element node
+   * Exact match to Python implementation's _click_element_node
+   */
+  async _clickElementNode(elementNode: ElementNode): Promise<string | null> {
+    const page = await this.getCurrentPage();
+
+    try {
+      // Get element using getLocateElement (equivalent to Python's get_locate_element)
+      const elementHandle = await this.getLocateElement(elementNode);
+
+      if (!elementHandle) {
+        throw new Error(
+          `Element: ${JSON.stringify({
+            tagName: BrowserContext._getTagName(elementNode),
+            xpath: elementNode.xpath,
+          })} not found`,
+        );
+      }
+
+      // Define a perform_click function just like in the Python implementation
+      const performClick = async (clickFunc: () => Promise<void>): Promise<string | null> => {
+        if (this.config.saveDownloadsPath) {
+          try {
+            // Cordyceps Chrome extension download handling
+            // Use Cordyceps page.onDownload() instead of Playwright's waitForEvent
+            let downloadDetected = false;
+            let downloadPath: string | null = null;
+
+            // Set up download listener for Cordyceps
+            const downloadDisposable = page.onDownload(async download => {
+              downloadDetected = true;
+
+              // Get the suggested filename and save the file
+              const suggestedFilename = download.suggestedFilename();
+
+              // Get unique filename to avoid conflicts
+              const uniqueFilename = await this._getUniqueFilename(
+                this.config.saveDownloadsPath!,
+                suggestedFilename,
+              );
+
+              // In Chrome extension environment, downloads are handled by Chrome
+              // We get the download path from the Chrome downloads API
+              downloadPath = await download.path();
+
+              // If we have a specific save path configured, try to save there
+              if (this.config.saveDownloadsPath && downloadPath) {
+                try {
+                  // Create target path using simple string concatenation (Chrome extension compatible)
+                  const separator = this.config.saveDownloadsPath.endsWith('/') ? '' : '/';
+                  const targetPath = `${this.config.saveDownloadsPath}${separator}${uniqueFilename}`;
+                  await download.saveAs(targetPath);
+                  downloadPath = targetPath;
+                } catch (saveError) {
+                  // If saveAs fails in Chrome extension, use the default download path
+                  console.warn(
+                    'Could not save to custom path, using default download location:',
+                    saveError,
+                  );
+                }
+              }
+            });
+
+            // Perform the click
+            await clickFunc();
+
+            // Wait a short time to see if download was triggered
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Clean up the download listener
+            downloadDisposable.dispose();
+
+            if (downloadDetected && downloadPath) {
+              return downloadPath;
+            }
+
+            // If no download detected, proceed with normal navigation handling
+            await page.waitForLoadState();
+            await this._checkAndHandleNavigation(page);
+            return null;
+          } catch (e) {
+            // Handle errors in Chrome extension environment
+            if (e instanceof Error) {
+              // Check for common Chrome extension errors
+              if (e.message.includes('timeout') || e.message.includes('download')) {
+                await page.waitForLoadState();
+                await this._checkAndHandleNavigation(page);
+                return null;
+              }
+            }
+            throw e;
+          }
+        } else {
+          // Standard click logic if no download is expected
+          await clickFunc();
+
+          // Wait for load state - this is critical and matches Python exactly
+          await page.waitForLoadState();
+
+          // Check and handle navigation
+          await this._checkAndHandleNavigation(page);
+        }
+        return null;
+      };
+
+      // Try direct click as per Python implementation
+      try {
+        return await performClick(() => elementHandle.click({ timeout: 1500 }));
+      } catch (standardError) {
+        // If URL not allowed error, rethrow it
+        if (standardError instanceof Error && standardError.message.includes('URL not allowed')) {
+          throw standardError;
+        }
+
+        // If standard clicks fail, try JavaScript click as fallback (Python approach)
+        try {
+          return await performClick(() => page.evaluate('(el) => el.click()', elementHandle));
+        } catch (jsClickErr) {
+          // If URL not allowed error, rethrow it
+          if (jsClickErr instanceof Error && jsClickErr.message.includes('URL not allowed')) {
+            throw jsClickErr;
+          }
+          throw new Error(`Failed to click element: ${jsClickErr}`);
+        }
+      }
+    } catch (e) {
+      // Special handling for URL not allowed, to match Python's URLNotAllowedError
+      if (e instanceof Error && e.message.includes('URL not allowed')) {
+        throw e;
+      }
+      throw new Error(
+        `Failed to click element: ${JSON.stringify({
+          tagName: BrowserContext._getTagName(elementNode),
+          xpath: elementNode.xpath,
+        })}. Error: ${e}`,
+      );
+    }
+  }
+
+  /**
+   * Helper function to get parent from any ElementNode type
+   */
+  private static _getParent(element: ElementNode): ElementNode | null {
+    if ('parent' in element && element.parent) {
+      return element.parent;
+    }
+    return null;
+  }
+
+  /**
+   * Helper function to get highlight index from any ElementNode type
+   */
+  private static _getHighlightIndex(element: ElementNode): number | undefined {
+    if ('highlightIndex' in element) {
+      return element.highlightIndex;
+    }
+    if ('highlight_index' in element) {
+      return element.highlight_index;
+    }
+    return undefined;
+  }
+
+  /**
+   * Helper function to convert ElementNode to ElementForSelector for CSS generation
+   */
+  private static _toElementForSelector(element: ElementNode): ElementForSelector {
+    const result: ElementForSelector = {
+      xpath: element.xpath || '',
+      tag_name: BrowserContext._getTagName(element),
+      highlight_index: BrowserContext._getHighlightIndex(element),
+      attributes: element.attributes,
+    };
+    return result;
+  }
+
+  async getLocateElement(element: ElementNode): Promise<ElementHandle | null> {
+    if (!element) {
+      return null;
+    }
+
+    let currentFrame = await this.getCurrentPage();
+
+    // Start with the target element and collect all parents
+    const parents: ElementNode[] = [];
+    let current = element;
+    let parent = BrowserContext._getParent(current);
+    while (parent) {
+      parents.push(parent);
+      current = parent;
+      parent = BrowserContext._getParent(current);
+    }
+
+    // Reverse the parents list to process from top to bottom
+    parents.reverse();
+
+    // Process all iframe parents in sequence
+    const iframes = parents.filter(item => BrowserContext._getTagName(item) === 'iframe');
+
+    for (const parent of iframes) {
+      const cssSelector = BrowserContext._enhancedCssSelectorForElement(
+        BrowserContext._toElementForSelector(parent),
+        true, // Use true as default for includeDynamicAttributes
+      );
+      currentFrame = currentFrame.frameLocator(cssSelector);
+    }
+
+    const cssSelector = BrowserContext._enhancedCssSelectorForElement(
+      BrowserContext._toElementForSelector(element),
+      true, // Use true as default for includeDynamicAttributes
+    );
+
+    try {
+      if (typeof currentFrame.locator === 'function') {
+        // We're in a frame locator
+        try {
+          // Direct match to Python implementation
+          const elementHandle = await currentFrame.locator(cssSelector).elementHandle();
+
+          if (elementHandle) {
+            return elementHandle;
+          } else {
+            return null;
+          }
+        } catch (locatorError) {
+          return null;
+        }
+      } else {
+        // We're in a page - direct match to Python implementation
+        try {
+          const elementHandle = await currentFrame.querySelector(cssSelector);
+
+          if (elementHandle) {
+            try {
+              // Try to scroll into view if hidden - matches Python implementation
+              await elementHandle.scrollIntoViewIfNeeded();
+            } catch (scrollError) {}
+
+            return elementHandle;
+          }
+
+          return null;
+        } catch (querySelectorError) {
+          return null;
+        }
+      }
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Input text into a DOM element node
+   * Exact match to Python implementation's _input_text_element_node
+   */
+  async _inputTextElementNode(elementNode: ElementNode, text: string): Promise<void> {
+    try {
+      // Get the element handle
+      const elementHandle = await this.getLocateElement(elementNode);
+
+      if (!elementHandle) {
+        throw new Error(`Element: ${JSON.stringify(elementNode)} not found`);
+      }
+
+      // Ensure element is ready for input
+      try {
+        await elementHandle.waitForElementState('stable', { timeout: 1000 });
+        await elementHandle.scrollIntoViewIfNeeded({ timeout: 1000 });
+      } catch (e) {
+        // Silently continue if these operations fail
+      }
+
+      // Get element properties to determine input method
+      const tagHandle = await elementHandle.getProperty('tagName');
+      const tagName = ((await tagHandle.jsonValue()) as string).toLowerCase();
+
+      const isContentEditableHandle = await elementHandle.getProperty('isContentEditable');
+      const readonlyHandle = await elementHandle.getProperty('readOnly');
+      const disabledHandle = await elementHandle.getProperty('disabled');
+
+      const isContentEditable = (await isContentEditableHandle.jsonValue()) as boolean;
+      const readonly = readonlyHandle ? ((await readonlyHandle.jsonValue()) as boolean) : false;
+      const disabled = disabledHandle ? ((await disabledHandle.jsonValue()) as boolean) : false;
+
+      // Use appropriate input method based on element properties
+      if ((isContentEditable || tagName === 'input') && !(readonly || disabled)) {
+        await elementHandle.evaluate((el: HTMLElement) => {
+          el.textContent = '';
+        });
+        await elementHandle.type(text, { delay: 5 });
+      } else {
+        await elementHandle.fill(text);
+      }
+    } catch (error) {
+      const highlightIndex = BrowserContext._getHighlightIndex(elementNode);
+      throw new Error(`Failed to input text into index ${highlightIndex || 'unknown'}`);
+    }
+  }
+
+  /**
+   * Get a unique filename using UUID to avoid conflicts
+   * Chrome extension compatible version without Node.js dependencies
+   */
+  async _getUniqueFilename(directory: string, filename: string): Promise<string> {
+    // Split filename into base and extension using built-in string methods
+    const lastDotIndex = filename.lastIndexOf('.');
+    const hasExtension = lastDotIndex > 0 && lastDotIndex < filename.length - 1;
+
+    const base = hasExtension ? filename.substring(0, lastDotIndex) : filename;
+    const ext = hasExtension ? filename.substring(lastDotIndex) : '';
+
+    // Use UUID to ensure uniqueness in Chrome extension environment
+    const uuid = generateUuid();
+    const shortUuid = uuid.substring(0, 8); // Use first 8 characters for shorter filename
+
+    // Create a unique filename with UUID component
+    const newFilename = `${base}_${shortUuid}${ext}`;
+
+    return newFilename;
+  }
+
+  /**
+   * Check if current page URL is allowed and handle if not
+   * Exactly matches the Python implementation's _check_and_handle_navigation method
+   */
+  async _checkAndHandleNavigation(page: Page): Promise<void> {
+    const url = page.url() || '';
+    if (!this._isUrlAllowed(url)) {
+      console.warn(`Navigation to non-allowed URL detected: ${url}`);
+      try {
+        await this.goBack();
+      } catch (e) {
+        console.error(`Failed to go back after detecting non-allowed URL: ${e}`);
+      }
+      throw new Error(`Navigation to non-allowed URL: ${url}`);
+    }
+  }
+
+  /**
+   * Navigate back in browser history
+   * Exact match to Python implementation's go_back method
+   */
+  async goBack(): Promise<void> {
+    const page = await this.getCurrentPage();
+    try {
+      // 10 ms timeout
+      await page.goBack({ timeout: 10, waitUntil: 'domcontentloaded' });
+      // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
+    } catch (e: unknown) {
+      // Continue even if it's not fully loaded, because we wait later for the page to load
+    }
+  }
+
+  /**
+   * Navigate forward in browser history
+   * Exact match to Python implementation's go_forward method
+   */
+  async goForward(): Promise<void> {
+    const page = await this.getCurrentPage();
+    try {
+      await page.goForward({ timeout: 10, waitUntil: 'domcontentloaded' });
+      // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
+    } catch (e: unknown) {
+      // Continue even if it's not fully loaded, because we wait later for the page to load
+    }
+  }
 }

@@ -111,8 +111,12 @@ export class ElementHandle extends JSHandle {
     );
   }
 
-  async click(): Promise<void> {
-    return executeElementOperation(async progress => await this._click(progress), 'Click');
+  async click(options?: ClickOptions): Promise<void> {
+    return executeElementOperation(
+      async progress => await this._click(progress, options),
+      'Click',
+      options?.timeout,
+    );
   }
 
   async clickWithProgress(progress: Progress, options?: ClickOptions): Promise<void> {

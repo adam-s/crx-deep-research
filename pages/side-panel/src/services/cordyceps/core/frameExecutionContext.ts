@@ -560,6 +560,9 @@ export class FrameExecutionContext extends Disposable {
       force?: boolean;
       button?: 'left' | 'right' | 'middle';
       clickCount?: number;
+      noWaitAfter?: boolean;
+      modifiers?: ('Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift')[];
+      trial?: boolean;
     } = {},
     world: chrome.scripting.ExecutionWorld = 'ISOLATED',
   ): Promise<{ success: boolean; error?: string; needsForce?: boolean } | undefined> {
@@ -571,6 +574,9 @@ export class FrameExecutionContext extends Disposable {
           force?: boolean;
           button?: 'left' | 'right' | 'middle';
           clickCount?: number;
+          noWaitAfter?: boolean;
+          modifiers?: ('Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift')[];
+          trial?: boolean;
         },
       ) => {
         const injected = window.__cordyceps_handledInjectedScript;

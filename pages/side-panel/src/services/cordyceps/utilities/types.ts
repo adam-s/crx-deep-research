@@ -196,6 +196,10 @@ export type ClickOptions = {
   delay?: number;
   button?: 'left' | 'right' | 'middle';
   clickCount?: number;
+  // Additional Playwright compatibility options
+  noWaitAfter?: boolean;
+  modifiers?: ('Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift')[];
+  trial?: boolean;
 };
 
 export type SelectOption = string | { value?: string; label?: string; index?: number };
