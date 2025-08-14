@@ -53,6 +53,8 @@ export class Page extends Disposable {
   private readonly _onDomContentLoaded = this._register(new StateAwareEvent<PageFrameEvent>());
   private readonly _onLoad = this._register(new StateAwareEvent<PageFrameEvent>());
   private readonly _onDownload = this._register(new Emitter<Download>());
+  // Close event for page disposal/tab closure
+  private readonly _onClose = this._register(new Emitter<Page>());
 
   public readonly onFrameAttached: Event<PageFrameEvent> = this._onFrameAttached.event;
   public readonly onFrameDetached: Event<PageFrameEvent> = this._onFrameDetached.event;
@@ -61,6 +63,7 @@ export class Page extends Disposable {
   public readonly onDomContentLoaded: Event<PageFrameEvent> = this._onDomContentLoaded.event;
   public readonly onLoad: Event<PageFrameEvent> = this._onLoad.event;
   public readonly onDownload: Event<Download> = this._onDownload.event;
+  public readonly onClose: Event<Page> = this._onClose.event;
 
   private _ownedContext?: object;
   readonly frameManager: FrameManager;
@@ -287,7 +290,23 @@ export class Page extends Disposable {
    */
   close(): void {
     console.log(`🚪 Explicitly closing Page for tab ${this.tabId}`);
+
+    // Update closed state before disposing to prevent race conditions
+    if (this._closedState === 'closed') {
+      console.log(`⚠️ Page for tab ${this.tabId} already closed`);
+      return;
+    }
+
+    this._closedState = 'closing';
+
+    // Fire close event before disposing (similar to Playwright's _onClose)
+    this._onClose.fire(this);
+
+    // Now dispose of resources
     this.dispose();
+
+    // Mark as fully closed
+    this._closedState = 'closed';
   }
 
   dispose(): void {
@@ -1004,9 +1023,8 @@ export class Page extends Disposable {
           vsCodeEvent = this.onDownload;
           break;
         case 'close':
-          // Page close handling would need to be implemented
-          reject(new Error(`Event "${event}" is not yet supported`));
-          return;
+          vsCodeEvent = this.onClose;
+          break;
         case 'crash':
           // Page crash handling would need to be implemented
           reject(new Error(`Event "${event}" is not yet supported`));
@@ -1083,6 +1101,9 @@ export class Page extends Disposable {
         break;
       case 'download':
         vsCodeEvent = this.onDownload;
+        break;
+      case 'close':
+        vsCodeEvent = this.onClose;
         break;
       default:
         throw new Error(`Unknown or unsupported event "${event}"`);

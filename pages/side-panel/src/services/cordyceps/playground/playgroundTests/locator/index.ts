@@ -4,6 +4,7 @@ export { testAriaSnapshotFunctionality } from './ariaSnapshotFunctionality';
 export { testCheckFunctionality } from './checkFunctionality';
 export { testClearFunctionality } from './clearFunctionality';
 export { testClickFunctionality } from './clickFunctionality';
+export { testCloseCurrentTabFunctionality } from './closeCurrentTabFunctionality';
 export { testDblclickFunctionality } from './dblclickFunctionality';
 export { demoSelectTextFunctionality } from './demoSelectText';
 export { demoSetCheckedFunctionality } from './demoSetChecked';

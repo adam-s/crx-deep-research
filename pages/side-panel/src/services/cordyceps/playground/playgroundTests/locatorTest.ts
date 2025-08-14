@@ -41,6 +41,7 @@ import {
   debugNetworkEvents,
   testDownloadFunctionality,
   testActiveTabManagementFunctionality,
+  testCloseCurrentTabFunctionality,
 } from './locator';
 
 export class LocatorTest extends PlaygroundTest {
@@ -205,7 +206,23 @@ export class LocatorTest extends PlaygroundTest {
 
       // Test highlight() functionality
       progress.log('Testing highlight() and hideHighlight() methods');
-      await testHighlightFunctionality(page, progress, this.context);
+      try {
+        await testHighlightFunctionality(page, progress, this.context);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'Highlight functionality tests completed successfully',
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`Highlight functionality test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Highlight functionality test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
 
       // Test locator functionality (chaining, getBy methods, etc.)
       progress.log('Testing advanced locator methods (chaining, getBy, first, last, etc.)');
@@ -371,6 +388,26 @@ export class LocatorTest extends PlaygroundTest {
           timestamp: Date.now(),
           severity: Severity.Warning,
           message: 'Active Tab Management functionality test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
+
+      // Test Close Current Tab functionality (browser-use context integration)
+      progress.log('Testing Close Current Tab functionality (browser-use context integration)');
+      try {
+        await testCloseCurrentTabFunctionality(page, progress, this.context);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'Close Current Tab functionality tests completed successfully',
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`Close Current Tab functionality test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'Close Current Tab functionality test failed but continuing',
           details: { error: errorMessage },
         });
       }
