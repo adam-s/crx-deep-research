@@ -1,5 +1,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Progress, ProgressController, executeWithProgress } from './core/progress';
+import { StateAwareEvent } from './utilities/pageUtils';
 import type { FrameManager } from './frameManager';
 import type { FrameExecutionContext } from './core/frameExecutionContext';
 import type {
@@ -179,10 +180,18 @@ export class Frame extends Disposable {
   private readonly _onAddLifecycle = this._register(new Emitter<LifecycleEvent>());
   private readonly _onRemoveLifecycle = this._register(new Emitter<LifecycleEvent>());
 
+  // StateAware lifecycle events for specific event types (similar to Page API)
+  private readonly _onDomContentLoaded = this._register(new StateAwareEvent<LifecycleEvent>());
+  private readonly _onLoad = this._register(new StateAwareEvent<LifecycleEvent>());
+
   // Public event interfaces matching Playwright's Frame event system
   public readonly onInternalNavigation: Event<NavigationEvent> = this._onInternalNavigation.event;
   public readonly onAddLifecycle: Event<LifecycleEvent> = this._onAddLifecycle.event;
   public readonly onRemoveLifecycle: Event<LifecycleEvent> = this._onRemoveLifecycle.event;
+
+  // StateAware lifecycle events - fire immediately if already occurred
+  public readonly onDomContentLoaded = this._onDomContentLoaded.event;
+  public readonly onLoad = this._onLoad.event;
 
   _currentDocument: DocumentInfo;
   private _pendingDocument: DocumentInfo | undefined;
@@ -279,6 +288,11 @@ export class Frame extends Disposable {
   _onClearLifecycle() {
     for (const event of this._firedLifecycleEvents) this._fireRemoveLifecycle(event);
     this._firedLifecycleEvents.clear();
+
+    // Reset StateAware lifecycle events for new navigation
+    this._onDomContentLoaded.reset();
+    this._onLoad.reset();
+
     // Keep the current navigation request if any.
     this._inflightRequests = new Set(
       Array.from(this._inflightRequests).filter(
@@ -424,6 +438,13 @@ export class Frame extends Disposable {
    */
   private _fireAddLifecycle(lifecycle: LifecycleEvent): void {
     this._onAddLifecycle.fire(lifecycle);
+
+    // Also fire specific StateAwareEvent for the lifecycle type
+    if (lifecycle === 'domcontentloaded') {
+      this._onDomContentLoaded.fire(lifecycle);
+    } else if (lifecycle === 'load') {
+      this._onLoad.fire(lifecycle);
+    }
   }
 
   /**
@@ -1015,6 +1036,10 @@ export class Frame extends Disposable {
     options: WaitForElementOptions,
     scope?: ElementHandle,
   ): Promise<ElementHandle | null> {
+    console.log(
+      `[Frame.waitForSelector] ####### entry frameId=${this.frameId} selector="${selector}" options=${JSON.stringify(options)} scope=${scope?.remoteObject || 'null'}`,
+    );
+
     // Validate options
     const { state = 'visible' } = options;
     validateWaitState(state);
@@ -1028,18 +1053,35 @@ export class Frame extends Disposable {
       progress,
       DEFAULT_RETRY_TIMEOUTS,
       async continuePolling => {
+        console.log(
+          `[Frame.waitForSelector] ####### retry attempt for selector="${selector}" #######`,
+        );
+
         // Step 1: Resolve selector metadata
         const resolved = await progress.race(
           this.selectors.resolveInjectedForSelector(selector, options, scope),
         );
+        console.log(
+          `[Frame.waitForSelector] ####### resolved=${resolved ? 'success' : 'null'} #######`,
+        );
+
         if (!resolved) {
           // For hidden/detached states, null means success
-          if (state === 'hidden' || state === 'detached') return null;
+          if (state === 'hidden' || state === 'detached') {
+            console.log(
+              `[Frame.waitForSelector] ####### returning null for hidden/detached state #######`,
+            );
+            return null;
+          }
+          console.log(
+            `[Frame.waitForSelector] ####### continuing polling - resolved is null #######`,
+          );
           return continuePolling;
         }
 
         const context = resolved.frame.context;
 
+        console.log(`[Frame.waitForSelector] ####### calling waitForSelectorEvaluation #######`);
         const result = await progress.race(
           context.waitForSelectorEvaluation(
             resolved.info.parsed,
@@ -1050,9 +1092,21 @@ export class Frame extends Disposable {
           ),
         );
 
+        console.log(
+          `[Frame.waitForSelector] ####### waitForSelectorEvaluation result=${JSON.stringify(result)} #######`,
+        );
+
         if (!result) {
           // For hidden/detached states, null means success
-          if (state === 'hidden' || state === 'detached') return null;
+          if (state === 'hidden' || state === 'detached') {
+            console.log(
+              `[Frame.waitForSelector] ####### returning null for hidden/detached with null result #######`,
+            );
+            return null;
+          }
+          console.log(
+            `[Frame.waitForSelector] ####### continuing polling - result is null #######`,
+          );
           return continuePolling;
         }
 
@@ -1061,6 +1115,9 @@ export class Frame extends Disposable {
 
         // Handle errors from content script
         if (error) {
+          console.log(
+            `[Frame.waitForSelector] ####### throwing error from content script: ${error} #######`,
+          );
           throw new Error(`Selector evaluation failed: ${error}`);
         }
 
@@ -1069,21 +1126,35 @@ export class Frame extends Disposable {
           progress.log(log);
         }
 
+        console.log(
+          `[Frame.waitForSelector] ####### state check - desired="${state}" visible=${visible} attached=${attached} #######`,
+        );
+
         // Step 4: Check if current state matches desired state
         if (!doesStateMatch(state, visible, attached)) {
+          console.log(
+            `[Frame.waitForSelector] ####### state does not match, continuing polling #######`,
+          );
           return continuePolling; // Keep retrying
         }
 
         // Step 5: Handle return value based on options and state
         if (!shouldReturnElementHandle(state, options.omitReturnValue)) {
+          console.log(
+            `[Frame.waitForSelector] ####### returning null - should not return element handle #######`,
+          );
           return null; // User doesn't need the element or element shouldn't be used
         }
 
         // Step 6: Return ElementHandle for attached/visible states
         if (elementHandle) {
+          console.log(
+            `[Frame.waitForSelector] ####### returning ElementHandle with remoteObject=${elementHandle} #######`,
+          );
           return new ElementHandle(resolved.frame.context, elementHandle);
         }
 
+        console.log(`[Frame.waitForSelector] ####### returning null - no element handle #######`);
         return null;
       },
     );

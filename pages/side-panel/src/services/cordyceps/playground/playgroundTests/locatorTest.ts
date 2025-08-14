@@ -2,6 +2,7 @@ import { Severity } from '@src/utils/types';
 import { Progress, ProgressController } from '../../core/progress';
 import { Page } from '../../page';
 import { PlaygroundTest } from './api';
+import { StateAwareEventTest } from './stateAwareEvent';
 import {
   testApiConsistencyAcrossLayers,
   testAriaSnapshotFunctionality,
@@ -95,6 +96,27 @@ export class LocatorTest extends PlaygroundTest {
         });
       }
 
+      // Test StateAwareEvent functionality (lifecycle event race conditions)
+      progress.log('Testing StateAwareEvent functionality for lifecycle event race conditions');
+      try {
+        const stateAwareEventTest = new StateAwareEventTest(this.context);
+        await stateAwareEventTest.run(15000, 'StateAwareEvent functionality tests');
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'StateAwareEvent functionality tests completed successfully',
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.log(`StateAwareEvent functionality test failed (non-fatal): ${errorMessage}`);
+        this.context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: 'StateAwareEvent functionality test failed but continuing',
+          details: { error: errorMessage },
+        });
+      }
+
       // Test navigation auto-wait behavior first (hash + cross-doc)
       progress.log('Testing navigation auto-wait (hash and cross-document via click)');
       await testNavigationAutoWait(page, progress, this.context);
@@ -114,6 +136,9 @@ export class LocatorTest extends PlaygroundTest {
       // Test reload() functionality
       progress.log('Testing reload() method for page refresh');
       await testNavigationReload(page, progress, this.context);
+
+      // NOTE: Navigation tests above may leave the page on different URLs (like /iframe1).
+      // Tests below that interact with page elements should ensure they navigate to the correct page first.
 
       // Ensure we're back on the main page with form elements for subsequent tests
       progress.log('Navigating back to main page for form element tests');

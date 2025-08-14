@@ -31,6 +31,7 @@ import {
   createPageSnapshotForAI,
   isJavaScriptErrorInEvaluate,
   validateScreenshotFormat,
+  StateAwareEvent,
 } from './utilities/pageUtils';
 import { convertBrowserBufferToNodeBuffer } from './utilities/bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
@@ -48,8 +49,9 @@ export class Page extends Disposable {
   private readonly _onInternalFrameNavigatedToNewDocument = this._register(
     new Emitter<PageFrameEvent>(),
   );
-  private readonly _onDomContentLoaded = this._register(new Emitter<PageFrameEvent>());
-  private readonly _onLoad = this._register(new Emitter<PageFrameEvent>());
+  // State-aware lifecycle events that handle "already fired" scenarios
+  private readonly _onDomContentLoaded = this._register(new StateAwareEvent<PageFrameEvent>());
+  private readonly _onLoad = this._register(new StateAwareEvent<PageFrameEvent>());
   private readonly _onDownload = this._register(new Emitter<Download>());
 
   public readonly onFrameAttached: Event<PageFrameEvent> = this._onFrameAttached.event;
@@ -195,15 +197,28 @@ export class Page extends Disposable {
 
   // Page-level lifecycle relays for consumers that don't want to subscribe per frame
   _fireDomContentLoaded(frame: Frame): void {
-    this._onDomContentLoaded.fire({ frame });
+    // Only fire page-level events for main frame to avoid duplicates from child frames
+    if (frame === this.mainFrame()) {
+      this._onDomContentLoaded.fire({ frame });
+    }
   }
 
   _fireLoad(frame: Frame): void {
-    this._onLoad.fire({ frame });
+    // Only fire page-level events for main frame to avoid duplicates from child frames
+    if (frame === this.mainFrame()) {
+      this._onLoad.fire({ frame });
+    }
   }
 
   frameNavigatedToNewDocument(frame: Frame) {
     this._fireInternalFrameNavigatedToNewDocument(frame);
+
+    // Reset lifecycle events for main frame navigation to handle new document lifecycle
+    if (frame === this.mainFrame()) {
+      this._onDomContentLoaded.reset();
+      this._onLoad.reset();
+    }
+
     const origin = frame.origin();
     if (origin) {
       // Track visited origin for browser-use context compatibility

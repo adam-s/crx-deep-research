@@ -474,6 +474,434 @@ export async function testClickFunctionality(
       message: 'Test 8 passed: Advanced Playwright compatibility options tested',
     });
 
+    // Test 9: ElementHandle click tests for problematic selectors (checkboxes, radio buttons)
+    progress.log('Test 9: ElementHandle click tests for problematic selectors');
+
+    // Test 9a: Diagnostic test for checkbox ElementHandle click (#test-checkbox)
+    progress.log('Test 9a: Diagnostic test for ElementHandle.click() on checkbox (#test-checkbox)');
+
+    try {
+      // First verify the element exists in the page
+      const checkboxExists = await page.mainFrame().context.executeScript(() => {
+        const checkbox = document.getElementById('test-checkbox');
+        return {
+          exists: !!checkbox,
+          type: checkbox?.tagName,
+          inputType: (checkbox as HTMLInputElement)?.type,
+          checked: (checkbox as HTMLInputElement)?.checked,
+          visible: checkbox ? getComputedStyle(checkbox).display !== 'none' : false,
+          disabled: (checkbox as HTMLInputElement)?.disabled || false,
+        };
+      }, 'ISOLATED');
+
+      progress.log(`Checkbox diagnostic: ${JSON.stringify(checkboxExists)}`);
+
+      if (!checkboxExists?.exists) {
+        throw new Error('Checkbox element not found in DOM');
+      }
+
+      // Try to get ElementHandle
+      const checkboxElement = await page.elementHandle('#test-checkbox');
+      if (!checkboxElement) {
+        throw new Error('Could not create ElementHandle for checkbox');
+      }
+
+      progress.log('ElementHandle for checkbox created successfully');
+
+      // Get initial state
+      const initialState = await page.mainFrame().context.executeScript(() => {
+        const checkbox = document.getElementById('test-checkbox') as HTMLInputElement;
+        return checkbox ? checkbox.checked : null;
+      }, 'ISOLATED');
+
+      progress.log(`Initial checkbox state: ${initialState}`);
+
+      // Try clickWithProgress to get more detailed error info
+      const progressTracker = {
+        log: (msg: string) => progress.log(`  Progress: ${msg}`),
+        race: async <T>(promise: Promise<T>): Promise<T> => promise,
+      } as Progress;
+
+      await checkboxElement.clickWithProgress(progressTracker);
+
+      // Verify state changed
+      const finalState = await page.mainFrame().context.executeScript(() => {
+        const checkbox = document.getElementById('test-checkbox') as HTMLInputElement;
+        return checkbox ? checkbox.checked : null;
+      }, 'ISOLATED');
+
+      progress.log(`Final checkbox state: ${finalState}`);
+
+      const success = initialState !== finalState;
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: success ? Severity.Success : Severity.Error,
+        message: `Test 9a diagnostic: ElementHandle.click() on checkbox ${success ? 'successful' : 'failed'}`,
+        details: { checkboxExists, initialState, finalState, success },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      progress.log(`Test 9a diagnostic failed: ${errorMessage}`);
+
+      // Let's also try the simple click method
+      try {
+        progress.log('Attempting clickSimple() as fallback...');
+        const checkboxElement = await page.elementHandle('#test-checkbox');
+        if (checkboxElement) {
+          await checkboxElement.clickSimple();
+          progress.log('clickSimple() succeeded as fallback');
+        }
+      } catch (simpleError) {
+        progress.log(
+          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`,
+        );
+      }
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Test 9a diagnostic failed: ElementHandle.click() on checkbox failed',
+        details: { error: errorMessage },
+      });
+    }
+
+    // Test 9b: Diagnostic test for radio button ElementHandle click (#radio-1)
+    progress.log('Test 9b: Diagnostic test for ElementHandle.click() on radio button (#radio-1)');
+
+    try {
+      // First verify the element exists in the page
+      const radioExists = await page.mainFrame().context.executeScript(() => {
+        const radio = document.getElementById('radio-1');
+        return {
+          exists: !!radio,
+          type: radio?.tagName,
+          inputType: (radio as HTMLInputElement)?.type,
+          checked: (radio as HTMLInputElement)?.checked,
+          name: (radio as HTMLInputElement)?.name,
+          value: (radio as HTMLInputElement)?.value,
+          visible: radio ? getComputedStyle(radio).display !== 'none' : false,
+          disabled: (radio as HTMLInputElement)?.disabled || false,
+        };
+      }, 'ISOLATED');
+
+      progress.log(`Radio button diagnostic: ${JSON.stringify(radioExists)}`);
+
+      if (!radioExists?.exists) {
+        throw new Error('Radio button element not found in DOM');
+      }
+
+      // Try to get ElementHandle
+      const radioElement = await page.elementHandle('#radio-1');
+      if (!radioElement) {
+        throw new Error('Could not create ElementHandle for radio button');
+      }
+
+      progress.log('ElementHandle for radio button created successfully');
+
+      // Get initial state of all radio buttons in the group
+      const initialStates = await page.mainFrame().context.executeScript(() => {
+        const radios = document.querySelectorAll(
+          'input[name="size"]',
+        ) as NodeListOf<HTMLInputElement>;
+        const states: Record<string, boolean> = {};
+        radios.forEach(radio => {
+          states[radio.id] = radio.checked;
+        });
+        return states;
+      }, 'ISOLATED');
+
+      progress.log(`Initial radio states: ${JSON.stringify(initialStates)}`);
+
+      // Try clickWithProgress to get more detailed error info
+      const progressTracker = {
+        log: (msg: string) => progress.log(`  Progress: ${msg}`),
+        race: async <T>(promise: Promise<T>): Promise<T> => promise,
+      } as Progress;
+
+      await radioElement.clickWithProgress(progressTracker);
+
+      // Verify state changed
+      const finalStates = await page.mainFrame().context.executeScript(() => {
+        const radios = document.querySelectorAll(
+          'input[name="size"]',
+        ) as NodeListOf<HTMLInputElement>;
+        const states: Record<string, boolean> = {};
+        radios.forEach(radio => {
+          states[radio.id] = radio.checked;
+        });
+        return states;
+      }, 'ISOLATED');
+
+      progress.log(`Final radio states: ${JSON.stringify(finalStates)}`);
+
+      const success = finalStates ? finalStates['radio-1'] === true : false;
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: success ? Severity.Success : Severity.Error,
+        message: `Test 9b diagnostic: ElementHandle.click() on radio button ${success ? 'successful' : 'failed'}`,
+        details: { radioExists, initialStates, finalStates, success },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      progress.log(`Test 9b diagnostic failed: ${errorMessage}`);
+
+      // Let's also try the simple click method
+      try {
+        progress.log('Attempting clickSimple() as fallback...');
+        const radioElement = await page.elementHandle('#radio-1');
+        if (radioElement) {
+          await radioElement.clickSimple();
+          progress.log('clickSimple() succeeded as fallback');
+        }
+      } catch (simpleError) {
+        progress.log(
+          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`,
+        );
+      }
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Test 9b diagnostic failed: ElementHandle.click() on radio button failed',
+        details: { error: errorMessage },
+      });
+    }
+
+    // Test 9c: Multiple checkbox ElementHandle clicks
+    progress.log('Test 9c: Testing ElementHandle.click() on multiple checkboxes');
+
+    const checkboxSelectors = ['#checkbox-1', '#checkbox-2', '#checkbox-3'];
+    const checkboxResults = [];
+
+    for (const selector of checkboxSelectors) {
+      try {
+        const checkboxElement = await page.elementHandle(selector);
+        if (!checkboxElement) {
+          throw new Error(`Could not find checkbox element handle for ${selector}`);
+        }
+
+        // Get initial state
+        const initialState = await page.mainFrame().context.executeScript(
+          sel => {
+            const checkbox = document.querySelector(sel) as HTMLInputElement;
+            return checkbox ? checkbox.checked : null;
+          },
+          'ISOLATED',
+          selector,
+        );
+
+        // Click the checkbox
+        await checkboxElement.click();
+
+        // Get final state
+        const finalState = await page.mainFrame().context.executeScript(
+          sel => {
+            const checkbox = document.querySelector(sel) as HTMLInputElement;
+            return checkbox ? checkbox.checked : null;
+          },
+          'ISOLATED',
+          selector,
+        );
+
+        const result = {
+          selector,
+          initialState,
+          finalState,
+          success: initialState !== finalState,
+        };
+
+        checkboxResults.push(result);
+        progress.log(
+          `${selector}: ${initialState} -> ${finalState} (${result.success ? 'SUCCESS' : 'FAILED'})`,
+        );
+      } catch (error) {
+        const result = {
+          selector,
+          error: error instanceof Error ? error.message : String(error),
+          success: false,
+        };
+        checkboxResults.push(result);
+        progress.log(`${selector}: ERROR - ${result.error}`);
+      }
+    }
+
+    const successfulCheckboxes = checkboxResults.filter(r => r.success).length;
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity:
+        successfulCheckboxes === checkboxSelectors.length ? Severity.Success : Severity.Warning,
+      message: `Test 9c completed: ${successfulCheckboxes}/${checkboxSelectors.length} checkbox ElementHandle clicks successful`,
+      details: { checkboxResults },
+    });
+
+    // Test 9d: Multiple radio button ElementHandle clicks
+    progress.log('Test 9d: Testing ElementHandle.click() on multiple radio buttons');
+
+    const radioSelectors = ['#radio-1', '#radio-2', '#radio-3'];
+    const radioResults = [];
+
+    for (const selector of radioSelectors) {
+      try {
+        const radioElement = await page.elementHandle(selector);
+        if (!radioElement) {
+          throw new Error(`Could not find radio element handle for ${selector}`);
+        }
+
+        // Click the radio button
+        await radioElement.click();
+
+        // Verify this radio is selected and others are not
+        const radioStates = await page.mainFrame().context.executeScript(() => {
+          const radios = document.querySelectorAll(
+            'input[name="size"]',
+          ) as NodeListOf<HTMLInputElement>;
+          const states: Record<string, boolean> = {};
+          radios.forEach(radio => {
+            states[radio.id] = radio.checked;
+          });
+          return states;
+        }, 'ISOLATED');
+
+        const result = {
+          selector,
+          radioStates,
+          success: radioStates ? radioStates[selector.replace('#', '')] === true : false,
+        };
+
+        radioResults.push(result);
+        progress.log(
+          `${selector}: Selected=${result.success}, States=${JSON.stringify(radioStates)}`,
+        );
+      } catch (error) {
+        const result = {
+          selector,
+          error: error instanceof Error ? error.message : String(error),
+          success: false,
+        };
+        radioResults.push(result);
+        progress.log(`${selector}: ERROR - ${result.error}`);
+      }
+    }
+
+    const successfulRadios = radioResults.filter(r => r.success).length;
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: successfulRadios === radioSelectors.length ? Severity.Success : Severity.Warning,
+      message: `Test 9d completed: ${successfulRadios}/${radioSelectors.length} radio ElementHandle clicks successful`,
+      details: { radioResults },
+    });
+
+    // Test 9e: ElementHandle click with different timeouts
+    progress.log('Test 9e: Testing ElementHandle.click() with different timeout values');
+
+    const timeoutTests = [
+      { selector: '#action-button', timeout: 1000 },
+      { selector: '#toggle-button', timeout: 2000 },
+      { selector: '#log-button', timeout: 5000 },
+    ];
+
+    const timeoutResults = [];
+
+    for (const test of timeoutTests) {
+      try {
+        const element = await page.elementHandle(test.selector);
+        if (!element) {
+          throw new Error(`Could not find element handle for ${test.selector}`);
+        }
+
+        const startTime = Date.now();
+        await element.click({ timeout: test.timeout });
+        const duration = Date.now() - startTime;
+
+        const result = {
+          selector: test.selector,
+          timeout: test.timeout,
+          duration,
+          success: true,
+        };
+
+        timeoutResults.push(result);
+        progress.log(`${test.selector}: Completed in ${duration}ms (timeout: ${test.timeout}ms)`);
+      } catch (error) {
+        const result = {
+          selector: test.selector,
+          timeout: test.timeout,
+          error: error instanceof Error ? error.message : String(error),
+          success: false,
+        };
+        timeoutResults.push(result);
+        progress.log(`${test.selector}: ERROR - ${result.error}`);
+      }
+    }
+
+    const successfulTimeouts = timeoutResults.filter(r => r.success).length;
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: successfulTimeouts === timeoutTests.length ? Severity.Success : Severity.Warning,
+      message: `Test 9e completed: ${successfulTimeouts}/${timeoutTests.length} timeout ElementHandle clicks successful`,
+      details: { timeoutResults },
+    });
+
+    // Test 9f: ElementHandle clickSimple() method test
+    progress.log('Test 9f: Testing ElementHandle.clickSimple() method');
+
+    try {
+      // Set up click tracking for clickSimple
+      await page.mainFrame().context.executeScript(() => {
+        (window as unknown as Record<string, unknown>).clickSimpleCount = 0;
+        const button = document.getElementById('action-button');
+        const handler = () => {
+          ((window as unknown as Record<string, unknown>).clickSimpleCount as number)++;
+        };
+        if (button) {
+          button.addEventListener('click', handler);
+          (window as unknown as Record<string, unknown>).clickSimpleHandler = handler;
+        }
+      }, 'ISOLATED');
+
+      const element = await page.elementHandle('#action-button');
+      if (!element) {
+        throw new Error('Could not find action button element handle');
+      }
+
+      // Test clickSimple method
+      await element.clickSimple();
+
+      // Verify click happened
+      const clickSimpleCount = await page
+        .mainFrame()
+        .context.executeScript(
+          () => (window as unknown as Record<string, unknown>).clickSimpleCount,
+          'ISOLATED',
+        );
+
+      if (clickSimpleCount !== 1) {
+        throw new Error(`Expected 1 clickSimple count, but got ${clickSimpleCount}`);
+      }
+
+      progress.log('ElementHandle.clickSimple() successful');
+
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 9f passed: ElementHandle.clickSimple() successful',
+        details: { clickSimpleCount },
+      });
+    } catch (error) {
+      progress.log(`Test 9f failed: ${error instanceof Error ? error.message : String(error)}`);
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Test 9f failed: ElementHandle.clickSimple() failed',
+        details: { error: error instanceof Error ? error.message : String(error) },
+      });
+    }
+
     // Clean up event handlers
     progress.log('Cleaning up event handlers');
     await page.mainFrame().context.executeScript(() => {
@@ -527,6 +955,12 @@ export async function testClickFunctionality(
           button.removeEventListener('click', win.testTrialClickHandler as EventListener);
         }
       }
+      if (win.clickSimpleHandler) {
+        const button = document.getElementById('action-button');
+        if (button) {
+          button.removeEventListener('click', win.clickSimpleHandler as EventListener);
+        }
+      }
 
       delete win.testClickCount;
       delete win.testToggleCount;
@@ -537,6 +971,8 @@ export async function testClickFunctionality(
       delete win.testModifierClickCount;
       delete win.testModifierInfo;
       delete win.testTrialClickCount;
+      delete win.testCheckboxState;
+      delete win.clickSimpleCount;
       delete win.testActionHandler;
       delete win.testToggleHandler;
       delete win.testLogHandler;
@@ -545,6 +981,7 @@ export async function testClickFunctionality(
       delete win.testNoWaitAfterHandler;
       delete win.testModifierClickHandler;
       delete win.testTrialClickHandler;
+      delete win.clickSimpleHandler;
     }, 'ISOLATED');
 
     context.events.emit({
@@ -561,6 +998,11 @@ export async function testClickFunctionality(
           'Shadow DOM button click test (accessibility check)',
           'ElementHandle.click() with timeout options',
           'Advanced Playwright compatibility options (noWaitAfter, modifiers, trial)',
+          'ElementHandle.click() on problematic selectors (checkboxes, radio buttons)',
+          'Multiple checkbox ElementHandle clicks with state verification',
+          'Multiple radio button ElementHandle clicks with state verification',
+          'ElementHandle.click() with different timeout values',
+          'ElementHandle.clickSimple() method testing',
         ],
       },
     });

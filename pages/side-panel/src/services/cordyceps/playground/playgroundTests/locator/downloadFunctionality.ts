@@ -26,6 +26,40 @@ export async function testDownloadFunctionality(
   progress.log('Testing core download functionality with server fixtures');
 
   try {
+    // ENSURE PAGE IS ON CORRECT URL FIRST - Navigate to root page where download buttons are located
+    progress.log('Ensuring page is on correct URL for download tests');
+    const currentUrl = await page.evaluate(() => window.location.href);
+    const targetUrl = 'http://localhost:3005';
+
+    // Check if we're on the root page (either exact URL or with trailing slash)
+    if (currentUrl !== targetUrl && currentUrl !== targetUrl + '/') {
+      progress.log(
+        `Page is currently on ${currentUrl}, navigating to ${targetUrl} for download tests`,
+      );
+
+      try {
+        await page.goto(targetUrl, { waitUntil: 'load', timeout: 30000 });
+        await new Promise(resolve => setTimeout(resolve, 500)); // Extra settling time
+        progress.log('Successfully navigated to root page for download tests');
+      } catch (navigationError) {
+        progress.log(`Navigation to ${targetUrl} failed: ${navigationError}`);
+        progress.log('Attempting to continue with current page...');
+
+        // Check if current page has the expected elements
+        const hasDownloadButton = await page.evaluate(
+          () => !!document.querySelector('#download-text-file'),
+        );
+        if (!hasDownloadButton) {
+          throw new Error(
+            `Navigation failed and current page ${currentUrl} does not have download test elements. Please ensure test server is running at ${targetUrl}`,
+          );
+        }
+        progress.log('Current page has download elements, continuing with tests');
+      }
+    } else {
+      progress.log('Page is already on correct URL, ready for download tests');
+    }
+
     // Test 1: Basic download event listening (VS Code Event pattern used by Cordyceps)
     progress.log('Test 1: Setting up download event listener');
 

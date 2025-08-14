@@ -348,3 +348,85 @@ export async function createPageSnapshotForAI(
 }
 
 // #endregion
+
+// #region State-Aware Event Utilities
+
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+
+/**
+ * A state-aware event that tracks whether it has already fired.
+ * When a listener subscribes, it immediately fires if the event already occurred.
+ * Resets on navigation to handle new lifecycle events.
+ *
+ * @example
+ * ```typescript
+ * const loadEvent = new StateAwareEvent<PageFrameEvent>();
+ *
+ * // Fire the event
+ * loadEvent.fire({ frame });
+ *
+ * // Subscribe later - will immediately fire since event already occurred
+ * loadEvent.event(({ frame }) => {
+ *   console.log('Load event fired for frame:', frame.url());
+ * });
+ *
+ * // Reset state on navigation
+ * loadEvent.reset();
+ * ```
+ */
+export class StateAwareEvent<T> extends Disposable {
+  private readonly _emitter = this._register(new Emitter<T>());
+  private _hasFired = false;
+  private _lastEventData: T | undefined;
+
+  public readonly event: Event<T> = (listener, thisArgs?, disposables?) => {
+    // If event already fired, immediately call listener with last event data
+    if (this._hasFired && this._lastEventData !== undefined) {
+      // Schedule on next tick to maintain async behavior
+      setTimeout(() => {
+        try {
+          listener.call(thisArgs, this._lastEventData!);
+        } catch (error) {
+          console.error('Error in state-aware event listener:', error);
+        }
+      }, 0);
+    }
+
+    // Subscribe to future events (this will receive new events when they fire)
+    return this._emitter.event(listener, thisArgs, disposables);
+  };
+
+  /**
+   * Fire the event and store the event data for late subscribers
+   */
+  public fire(data: T): void {
+    this._hasFired = true;
+    this._lastEventData = data;
+    this._emitter.fire(data);
+  }
+
+  /**
+   * Reset the fired state (typically called on navigation)
+   */
+  public reset(): void {
+    this._hasFired = false;
+    this._lastEventData = undefined;
+  }
+
+  /**
+   * Check if the event has already fired
+   */
+  public get hasFired(): boolean {
+    return this._hasFired;
+  }
+
+  /**
+   * Get the last event data (if any)
+   */
+  public get lastEventData(): T | undefined {
+    return this._lastEventData;
+  }
+}
+
+// #endregion
