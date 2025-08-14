@@ -15,6 +15,9 @@ import {
   MessageRole,
 } from '@shared/features/conversation';
 import { quickUrlAllowedTest } from './tests/urlAllowedTest';
+import { quickGetSelectorMapTest } from './tests/getSelectorMapTest';
+import { quickGetStateTest } from './tests/getStateTest';
+import { quickSafeGotoTest } from './tests/safeGotoTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
   'browserUsePlaygroundService',
@@ -58,6 +61,18 @@ export interface IBrowserUsePlaygroundService {
   runElementInteractionTests: () => Promise<void>;
   /** Run quick element interaction test */
   runQuickElementInteractionTest: () => Promise<boolean>;
+  /** Run getSelectorMap functionality test */
+  runGetSelectorMapTest: () => Promise<void>;
+  /** Run quick getSelectorMap test */
+  runQuickGetSelectorMapTest: () => Promise<boolean>;
+  /** Run getState functionality test */
+  runGetStateTest: () => Promise<void>;
+  /** Run quick getState test */
+  runQuickGetStateTest: () => Promise<boolean>;
+  /** Run safeGoto functionality test */
+  runSafeGotoTest: () => Promise<void>;
+  /** Run quick safeGoto test */
+  runQuickSafeGotoTest: () => Promise<boolean>;
 }
 
 export class BrowserUsePlaygroundService
@@ -89,29 +104,46 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      // First, run conversation service tests
-      await this.testConversationService();
+      // // First, run conversation service tests
+      // await this.testConversationService();
 
-      // Run browser-use context tests
-      await this.runContextTests();
+      // // Run browser-use context tests
+      // await this.runContextTests();
 
-      // Run _waitForStableNetwork functionality tests
-      await this.runWaitForStableNetworkTests();
+      // // Run _waitForStableNetwork functionality tests
+      // await this.runWaitForStableNetworkTests();
 
-      // Run _isUrlAllowed functionality tests
-      await this.runUrlAllowedTests();
+      // // Run _isUrlAllowed functionality tests
+      // await this.runUrlAllowedTests();
 
-      // Run _waitForPageAndFramesLoad functionality tests
-      await this.runWaitForPageAndFramesLoadTests();
+      // // Run _waitForPageAndFramesLoad functionality tests
+      // await this.runWaitForPageAndFramesLoadTests();
 
-      // Run takeScreenshot functionality test
-      await this.runTakeScreenshotTest();
+      // // Run takeScreenshot functionality test
+      // await this.runTakeScreenshotTest();
 
-      // Run _getScrollInfo functionality tests
-      await this.runGetScrollInfoTests();
+      // // Run _getScrollInfo functionality tests
+      // await this.runGetScrollInfoTests();
 
-      // Run getLocateElement and _inputTextElementNode functionality tests
-      await this.runElementInteractionTests();
+      // // Run getLocateElement and _inputTextElementNode functionality tests
+      // await this.runElementInteractionTests();
+      // Run getSelectorMap functionality tests
+      await this.runGetSelectorMapTest();
+
+      // Run quick getSelectorMap test
+      await this.runQuickGetSelectorMapTest();
+
+      // Run getState functionality tests
+      await this.runGetStateTest();
+
+      // Run quick getState test
+      await this.runQuickGetStateTest();
+
+      // Run safeGoto functionality tests
+      await this.runSafeGotoTest();
+
+      // Run quick safeGoto test
+      await this.runQuickSafeGotoTest();
 
       // Create a new conversation for this agent session
       const sessionId = `browser-use-${Date.now()}`;
@@ -968,6 +1000,222 @@ export class BrowserUsePlaygroundService
         timestamp: Date.now(),
         severity: Severity.Error,
         message: 'Quick element interaction test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  public async runGetSelectorMapTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting getSelectorMap() functionality test',
+    });
+
+    try {
+      // Import the test functions dynamically
+      const { runGetSelectorMapTest, TestProgress } = await import('./tests/getSelectorMapTest');
+
+      const progress = new TestProgress('GetSelectorMap Tests');
+
+      await runGetSelectorMapTest(progress, this);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '🎉 getSelectorMap() functionality test completed successfully!',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'getSelectorMap() functionality test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickGetSelectorMapTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Running quick getSelectorMap() test',
+    });
+
+    try {
+      // Get browser instance
+      const browserWindow = await this.browserUseService.getBrowser();
+
+      // Run the quick selector map test
+      const result = await quickGetSelectorMapTest(browserWindow);
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick getSelectorMap() test passed',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick getSelectorMap() test failed',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick getSelectorMap() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Run comprehensive getState functionality test
+   */
+  public async runGetStateTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting getState() functionality test...',
+    });
+
+    try {
+      const { runGetStateTest, TestProgress } = await import('./tests/getStateTest');
+      const progress = new TestProgress('GetState Tests');
+
+      await runGetStateTest(progress, this);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ getState() test completed successfully',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ getState() test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run quick getState test (basic validation)
+   */
+  public async runQuickGetStateTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting quick getState() test...',
+    });
+
+    try {
+      const browserWindow = await this.browserUseService.getBrowser();
+      const result = await quickGetStateTest(browserWindow);
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick getState() test passed',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick getState() test failed',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick getState() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Run comprehensive safeGoto test
+   */
+  public async runSafeGotoTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting comprehensive safeGoto() tests...',
+    });
+
+    try {
+      const { runSafeGotoTest, TestProgress } = await import('./tests/safeGotoTest');
+
+      const progress = new TestProgress('SafeGoto Tests');
+
+      await runSafeGotoTest(progress, this);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ All safeGoto() tests passed',
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ safeGoto() test failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run quick safeGoto test (basic validation)
+   */
+  public async runQuickSafeGotoTest(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting quick safeGoto() test...',
+    });
+
+    try {
+      const browserWindow = await this.browserUseService.getBrowser();
+      const result = await quickSafeGotoTest(browserWindow);
+
+      if (result) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Quick safeGoto() test passed',
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Quick safeGoto() test failed',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Quick safeGoto() test encountered an error',
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;

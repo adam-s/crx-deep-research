@@ -1,10 +1,20 @@
 import React from 'react';
 import { Button } from '@fluentui/react-components';
 import { useBrowserUse } from '../hooks/useBrowserBaseUse';
+import { useBrowserUsePlayground } from '../hooks/useBrowserUsePlayground';
 import { DarkScrollContainer } from './common/DarkScrollContainer';
 
 export const BrowserUseTestRunner: React.FC = () => {
   const { runExample, isRunning, error, clearError } = useBrowserUse();
+  const {
+    runAgentTest,
+    runPhase1Tests,
+    runPhase2Tests,
+    runPhase3Tests,
+    isRunning: isPlaygroundRunning,
+  } = useBrowserUsePlayground();
+
+  const anyRunning = isRunning || isPlaygroundRunning;
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -53,12 +63,32 @@ export const BrowserUseTestRunner: React.FC = () => {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <Button appearance="primary" disabled={isRunning} onClick={runExample}>
+        <Button appearance="primary" disabled={anyRunning} onClick={runExample}>
           {isRunning ? 'Running Example...' : 'Run Browser Use Example'}
+        </Button>
+
+        <Button appearance="secondary" disabled={anyRunning} onClick={runPhase1Tests}>
+          {isPlaygroundRunning
+            ? 'Running Phase 1 Tests...'
+            : 'Run Phase 1: Core BrowserContext Tests'}
+        </Button>
+
+        <Button appearance="secondary" disabled={anyRunning} onClick={runPhase2Tests}>
+          {isPlaygroundRunning
+            ? 'Running Phase 2 Tests...'
+            : 'Run Phase 2: Navigation Methods Tests'}
+        </Button>
+
+        <Button appearance="secondary" disabled={anyRunning} onClick={runPhase3Tests}>
+          {isPlaygroundRunning ? 'Running Phase 3 Tests...' : 'Run Phase 3: DOM Interaction Tests'}
+        </Button>
+
+        <Button appearance="outline" disabled={anyRunning} onClick={runAgentTest}>
+          {anyRunning ? 'Running...' : 'Run Agent Test'}
         </Button>
       </div>
 
-      {isRunning && (
+      {anyRunning && (
         <div
           style={{
             padding: '12px',
@@ -67,7 +97,7 @@ export const BrowserUseTestRunner: React.FC = () => {
             borderRadius: '4px',
             color: '#0066cc',
           }}>
-          🔄 Browser Use example is running...
+          🔄 {isRunning ? 'Browser Use example is running...' : 'Tests are running...'}
         </div>
       )}
     </div>

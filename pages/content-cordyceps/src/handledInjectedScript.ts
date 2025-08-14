@@ -500,11 +500,21 @@ export class HandledInjectedScript {
     attached: boolean;
     error?: string;
   } {
+    console.log(
+      `[HandledInjectedScript.waitForSelectorEvaluation] ####### entry selector="${selectorString}" strict=${strict} scopeHandle=${scopeHandle}`,
+    );
+
     try {
       // Get root element
       const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document || document;
+      console.log(
+        `[HandledInjectedScript.waitForSelectorEvaluation] ####### root element found=${!!root}`,
+      );
 
       if (!root) {
+        console.log(
+          `[HandledInjectedScript.waitForSelectorEvaluation] ####### root element not found, returning error #######`,
+        );
         return {
           log: '',
           elementHandle: null,
@@ -516,6 +526,9 @@ export class HandledInjectedScript {
 
       // Check if root is connected (for scoped searches)
       if (scopeHandle && root && !(root as Element).isConnected) {
+        console.log(
+          `[HandledInjectedScript.waitForSelectorEvaluation] ####### scoped root element not connected, returning error #######`,
+        );
         return {
           log: '',
           elementHandle: null,
@@ -526,14 +539,26 @@ export class HandledInjectedScript {
       }
 
       // Get all matching elements
+      console.log(
+        `[HandledInjectedScript.waitForSelectorEvaluation] ####### calling querySelectorAll #######`,
+      );
       const elementHandles = this.querySelectorAll(parsedSelector, root);
+      console.log(
+        `[HandledInjectedScript.waitForSelectorEvaluation] ####### querySelectorAll returned ${elementHandles.length} handles #######`,
+      );
 
       const elements = elementHandles
         .map(handle => this.getElementByHandle(handle))
         .filter(Boolean);
+      console.log(
+        `[HandledInjectedScript.waitForSelectorEvaluation] ####### filtered to ${elements.length} valid elements #######`,
+      );
 
       const element = elements[0];
       const visible = element ? this._injectedScript.utils.isElementVisible(element) : false;
+      console.log(
+        `[HandledInjectedScript.waitForSelectorEvaluation] ####### first element exists=${!!element} visible=${visible} #######`,
+      );
 
       let log = '';
       if (elements.length > 1) {
@@ -762,8 +787,17 @@ export class HandledInjectedScript {
    * This method handles the core click logic.
    */
   clickElement(handle: string): { success: boolean; error?: string } {
+    console.log(`[HandledInjectedScript.clickElement] ####### entry handle=${handle}`);
+
     const element = this.getElementByHandle(handle);
+    console.log(
+      `[HandledInjectedScript.clickElement] ####### element found=${!!element} isConnected=${element ? (element as Element).isConnected : 'N/A'}`,
+    );
+
     if (!element) {
+      console.log(
+        `[HandledInjectedScript.clickElement] ####### element not found, returning error #######`,
+      );
       return {
         success: false,
         error: 'Element not found',
@@ -772,6 +806,9 @@ export class HandledInjectedScript {
 
     // Check if element is connected to the DOM
     if (!(element as Element).isConnected) {
+      console.log(
+        `[HandledInjectedScript.clickElement] ####### element not connected, returning error #######`,
+      );
       return {
         success: false,
         error: 'Element is not attached to the DOM',
@@ -779,9 +816,14 @@ export class HandledInjectedScript {
     }
 
     try {
+      console.log(`[HandledInjectedScript.clickElement] ####### calling element.click() #######`);
       (element as HTMLElement).click();
+      console.log(`[HandledInjectedScript.clickElement] ####### click successful #######`);
       return { success: true };
     } catch (error) {
+      console.log(
+        `[HandledInjectedScript.clickElement] ####### click failed with error=${error} #######`,
+      );
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to click element',
