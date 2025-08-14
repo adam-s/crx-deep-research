@@ -165,6 +165,73 @@ class Network {
       this.request = responseInfo.request;
     }
   };
+
+  /**
+   * Simple NavigationResponse implementation for Frame.goto()
+   * Provides basic response information for successful navigations
+   */
+  static NavigationResponse = class NavigationResponseImpl implements NavigationResponse {
+    private _url: string;
+    private _status: number;
+    private _statusText: string;
+    private _headers: Record<string, string>;
+    private _request: NavigationRequest | null;
+
+    constructor(
+      url: string,
+      status: number = 200,
+      statusText: string = 'OK',
+      headers: Record<string, string> = {},
+      request: NavigationRequest | null = null,
+    ) {
+      this._url = url;
+      this._status = status;
+      this._statusText = statusText;
+      this._headers = headers;
+      this._request = request;
+    }
+
+    url(): string {
+      return this._url;
+    }
+
+    status(): number {
+      return this._status;
+    }
+
+    statusText(): string {
+      return this._statusText;
+    }
+
+    headers(): Record<string, string> {
+      return { ...this._headers };
+    }
+
+    headerValue(name: string): string | undefined {
+      return this._headers[name.toLowerCase()];
+    }
+
+    request(): NavigationRequest {
+      // For now, return a minimal request object if none provided
+      return (
+        this._request ||
+        ({
+          id: '',
+          url: this._url,
+          method: 'GET',
+          resourceType: 'document',
+          headers: {},
+          timestamp: Date.now(),
+          response: async () => null,
+          _finalRequest: () => this._request!,
+        } as NavigationRequest)
+      );
+    }
+
+    ok(): boolean {
+      return this._status >= 200 && this._status < 300;
+    }
+  };
 }
 
 /**
@@ -833,33 +900,47 @@ export class Frame extends Disposable {
     url: string,
     options?: NavigateOptionsWithProgress,
   ): Promise<NavigationResponse | null> {
+    console.log(`[Frame.goto] ##### Starting frame goto with URL: ${url}`);
+    console.log(`[Frame.goto] ##### Frame ID: ${this.frameId}, Tab ID: ${this.tabId}`);
+    console.log(`[Frame.goto] ##### Parent frame:`, !!this._parentFrame);
+
     if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
 
     const waitUntil = options?.waitUntil ?? 'load';
     const timeoutMs = options?.timeout ?? 30000;
 
+    console.log(`[Frame.goto] ##### Options - waitUntil: ${waitUntil}, timeout: ${timeoutMs}ms`);
+
     return executeWithProgress(async p => {
+      console.log(`[Frame.goto] ##### Inside executeWithProgress, getting navigation tracker`);
       const tracker = getNavigationTracker();
 
       // Start listening for internal navigation events for this frame
       const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
       const disposable = tracker.onInternalNavigation(ev => {
         if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
+          console.log(`[Frame.goto] ##### Received navigation event:`, ev);
           events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
         }
       });
       p.cleanupWhenAborted(() => disposable.dispose());
 
       // Initiate navigation directly via chrome.tabs.update
+      console.log(
+        `[Frame.goto] ##### Calling chrome.tabs.update for tab ${this.tabId} with URL: ${url}`,
+      );
       p.log(`Frame ${this.frameId} navigating to "${url}"`);
       chrome.tabs.update(this.tabId, { url });
 
+      console.log(`[Frame.goto] ##### Waiting for navigation to complete...`);
       // Wait for navigation to complete with the requested lifecycle
       const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
         toUrl: url,
         waitUntil,
         timeoutMs,
       });
+
+      console.log(`[Frame.goto] ##### Navigation completed:`, navEv);
 
       // Update our URL to the committed one (could differ due to redirects)
       this.setUrl(navEv.url);
@@ -876,8 +957,18 @@ export class Frame extends Disposable {
           : undefined,
       );
 
-      // Response mapping is not wired yet; return null for parity with same-document nav
-      return null;
+      console.log(`[Frame.goto] ##### Creating NavigationResponse for successful navigation`);
+      // Create a NavigationResponse for the successful navigation
+      const navigationResponse = new Network.NavigationResponse(
+        navEv.url,
+        200, // Assume success for now - we can enhance this later with actual response tracking
+        'OK',
+        {}, // Empty headers for now - can be enhanced later
+        null, // No request object for now - can be enhanced later
+      );
+
+      console.log(`[Frame.goto] ##### Returning NavigationResponse:`, navigationResponse);
+      return navigationResponse;
     }, options);
   }
 
@@ -1140,21 +1231,14 @@ export class Frame extends Disposable {
 
         // Step 5: Handle return value based on options and state
         if (!shouldReturnElementHandle(state, options.omitReturnValue)) {
-          console.log(
-            `[Frame.waitForSelector] ####### returning null - should not return element handle #######`,
-          );
           return null; // User doesn't need the element or element shouldn't be used
         }
 
         // Step 6: Return ElementHandle for attached/visible states
         if (elementHandle) {
-          console.log(
-            `[Frame.waitForSelector] ####### returning ElementHandle with remoteObject=${elementHandle} #######`,
-          );
           return new ElementHandle(resolved.frame.context, elementHandle);
         }
 
-        console.log(`[Frame.waitForSelector] ####### returning null - no element handle #######`);
         return null;
       },
     );

@@ -423,28 +423,44 @@ export class BrowserWindow extends Disposable {
    * Returns the page for the currently active tab in this window
    */
   async getCurrentPage(): Promise<Page> {
+    console.log(`[BrowserWindow.getCurrentPage] ##### Starting getCurrentPage()`);
+
     // Check if this BrowserWindow has been disposed
     if (this._store.isDisposed) {
+      console.log(`[BrowserWindow.getCurrentPage] ##### ERROR: BrowserWindow disposed`);
       throw new Error('Cannot get current page - BrowserWindow has been disposed');
     }
 
+    console.log(
+      `[BrowserWindow.getCurrentPage] ##### Querying active tab for window ${this.windowId}`,
+    );
     // Get the active tab in this window
     const [activeTab] = await chrome.tabs.query({
       active: true,
       windowId: this.windowId,
     });
 
+    console.log(`[BrowserWindow.getCurrentPage] ##### Found active tab:`, activeTab?.id);
     if (!activeTab?.id) {
+      console.log(`[BrowserWindow.getCurrentPage] ##### ERROR: No active tab found`);
       throw new Error('No active tab found in side panel context - this should never happen');
     }
 
     // Return the page for the active tab, creating one if it doesn't exist
     let page = this._pages.get(activeTab.id);
+    console.log(
+      `[BrowserWindow.getCurrentPage] ##### Existing page for tab ${activeTab.id}:`,
+      !!page,
+    );
+
     if (!page) {
+      console.log(`[BrowserWindow.getCurrentPage] ##### Creating new page for tab ${activeTab.id}`);
       page = this._createPage(activeTab.id);
+      console.log(`[BrowserWindow.getCurrentPage] ##### Fetching all frames for new page`);
       await this._fetchAllFramesForTab(page);
     }
 
+    console.log(`[BrowserWindow.getCurrentPage] ##### Returning page with tabId: ${page.tabId}`);
     return page;
   }
 
