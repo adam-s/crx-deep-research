@@ -306,6 +306,34 @@ export async function testFrameMissingMethodsFunctionality(
       throw new Error(`Test 12 failed: Expected 'Frame', got: ${pressedValue}`);
     }
 
+    // Test Frame content method
+    progress.log('Test 13: Testing Frame content method');
+    const frameContent = await frame.content();
+    progress.log(`Frame content - Retrieved content length: ${frameContent.length} characters`);
+    // Basic validation - check that we got HTML content
+    const hasDoctype = frameContent.includes('<!DOCTYPE') || frameContent.includes('<!doctype');
+    const hasHtml = frameContent.includes('<html');
+    const hasBody = frameContent.includes('<body');
+
+    if (hasDoctype && hasHtml && hasBody && frameContent.length > 100) {
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Test 13 passed: Frame content method works',
+        details: {
+          contentLength: frameContent.length,
+          hasDoctype,
+          hasHtml,
+          hasBody,
+          contentPreview: frameContent.substring(0, 200) + '...',
+        },
+      });
+    } else {
+      throw new Error(
+        `Test 13 failed: Frame content did not return valid HTML document. Length: ${frameContent.length}, hasDoctype: ${hasDoctype}, hasHtml: ${hasHtml}, hasBody: ${hasBody}`,
+      );
+    }
+
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,

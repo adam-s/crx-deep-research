@@ -543,9 +543,7 @@ export class BrowserContext {
    * Wait for network to stabilize using advanced filtering
    * This matches the Python implementation's _wait_for_stable_network method
    */
-  async _waitForStableNetwork(): Promise<void> {
-    // Starting _waitForStableNetwork()
-
+  async waitForStableNetwork(): Promise<void> {
     const page = await this.browserWindow.getCurrentPage();
 
     // Define relevant resource types and content types for filtering
@@ -851,8 +849,7 @@ export class BrowserContext {
     try {
       // Wait for network to stabilize with smart filtering
       // About to call _waitForStableNetwork()
-      await this._waitForStableNetwork();
-      // _waitForStableNetwork() completed
+      await this.waitForStableNetwork();
 
       // Check if the loaded URL is allowed
       // About to get current page for URL check
@@ -1869,5 +1866,56 @@ export class BrowserContext {
     } catch (e: unknown) {
       // Continue even if it's not fully loaded, because we wait later for the page to load
     }
+  }
+
+  // Navigation Helpers
+  async navigateTo(url: string): Promise<void> {
+    this.safeGoto(url, { waitUntil: 'domcontentloaded' });
+  }
+
+  createNewTab(url?: unknown) {
+    url;
+  }
+
+  switchToTab(pageId: unknown) {
+    pageId;
+  }
+  closeCurrentTab() {}
+
+  /**
+   * Get the current page HTML content
+   * Exact match to Python implementation's get_page_html method
+   */
+  async getPageHtml(): Promise<string> {
+    const page = await this.getCurrentPage();
+    return await page.content();
+  }
+
+  /**
+   * Execute JavaScript code on the page
+   * Exact match to Python implementation's execute_javascript method
+   * Typed to forward generics and optional argument/options to Page.evaluate
+   */
+  async executeJavaScript<R, Arg = void>(
+    script: (...args: [Arg]) => R,
+    arg?: Arg,
+    options?: { timeout?: number },
+  ): Promise<R> {
+    const page = await this.getCurrentPage();
+    return await page.evaluate<R, Arg>(script, arg as Arg, options);
+  }
+
+  // Refresh, scroll, recovery
+  refreshPage() {}
+  refresh() {}
+  scrollToBottom() {}
+  scrollToTop() {}
+  reinitializePage() {}
+
+  // Miscellaneous
+  isFileUploader(element: unknown, maxDepth?: unknown, currentDepth?: unknown) {
+    element;
+    maxDepth;
+    currentDepth;
   }
 }

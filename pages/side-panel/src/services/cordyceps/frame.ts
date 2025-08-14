@@ -1925,6 +1925,33 @@ export class Frame extends Disposable {
   _clearInflightRequests(): void {
     this._inflightRequests.clear();
   }
+
+  /**
+   * Get the full HTML content of the frame including doctype and document element.
+   * Chrome extension-compatible version of Playwright's frame.content()
+   * @returns Promise resolving to the complete HTML content as a string
+   */
+  async content(): Promise<string> {
+    try {
+      return await this.evaluate(() => {
+        let retVal = '';
+        if (document.doctype) {
+          retVal = new XMLSerializer().serializeToString(document.doctype);
+        }
+        if (document.documentElement) {
+          retVal += document.documentElement.outerHTML;
+        }
+        return retVal;
+      });
+    } catch (e) {
+      if (e instanceof Error && this.isNonRetriableError(e)) {
+        throw e;
+      }
+      throw new Error(
+        'Unable to retrieve content because the page is navigating and changing the content.',
+      );
+    }
+  }
 }
 
 // #region FrameLocator
@@ -2000,4 +2027,6 @@ export class FrameLocator {
   nth(index: number): FrameLocator {
     return new FrameLocator(this._frame, createFrameNthSelector(this._frameSelector, index));
   }
+
+  content() {}
 }

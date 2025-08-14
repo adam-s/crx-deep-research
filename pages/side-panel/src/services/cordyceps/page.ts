@@ -1127,4 +1127,8 @@ export class Page extends Disposable {
   } | null {
     return NetworkListenerManager.getInstance().getTabEmitterDebug(this.tabId);
   }
+
+  content() {
+    return this.mainFrame().content();
+  }
 }
