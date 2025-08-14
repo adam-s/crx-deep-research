@@ -1,7 +1,7 @@
 /**
  * Browser-Use _waitForStableNetwork functionality tests
  *
- * This file contains comprehensive tests for the BrowserContext._waitForStableNetwork method
+ * This file contains comprehensive tests for the browserContext.waitForStableNetwork method
  * designed to run within the Chrome extension side panel playground.
  */
 
@@ -65,7 +65,7 @@ export async function testWaitForStableNetworkImmediate(
     const startTime = Date.now();
 
     // Test immediate stability (no requests should complete quickly)
-    await browserContext._waitForStableNetwork();
+    await browserContext.waitForStableNetwork();
 
     const duration = Date.now() - startTime;
     progress.log(`Network stability achieved in ${duration}ms`);
@@ -138,7 +138,7 @@ export async function testWaitForStableNetworkWithActivity(
     const startTime = Date.now();
 
     // Start the stability wait in parallel with network activity
-    const stabilityPromise = browserContext._waitForStableNetwork();
+    const stabilityPromise = browserContext.waitForStableNetwork();
 
     // Trigger some network activity
     progress.log('Triggering network requests...');
@@ -240,7 +240,7 @@ export async function testWaitForStableNetworkFiltering(
     const startTime = Date.now();
 
     // Start the stability wait
-    const stabilityPromise = browserContext._waitForStableNetwork();
+    const stabilityPromise = browserContext.waitForStableNetwork();
 
     // Trigger requests that should be filtered out (analytics, tracking, etc.)
     progress.log('Triggering filtered requests (analytics, tracking, etc.)...');
@@ -352,7 +352,7 @@ export async function testWaitForStableNetworkDelayedStabilization(
     });
 
     // Start the stability wait
-    const stabilityPromise = browserContext._waitForStableNetwork();
+    const stabilityPromise = browserContext.waitForStableNetwork();
 
     // Continuously trigger requests to prevent stability
     progress.log('Continuously triggering relevant requests to test timeout...');

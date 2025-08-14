@@ -496,6 +496,34 @@ export class Page extends Disposable {
    * Chrome extension-compatible version of Playwright's waitForLoadState
    */
   async waitForLoadState(state?: LifecycleEvent, options?: TimeoutOptions): Promise<void> {
+    const url = this.url();
+
+    // For Chrome internal pages (new tab pages), use simplified load detection
+    if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
+      console.log(
+        `Page.waitForLoadState: Chrome internal page detected (${url}) - using simplified load detection`,
+      );
+
+      const timeout = options?.timeout ?? 5000; // Shorter timeout for Chrome pages
+      try {
+        await Promise.race([
+          this.mainFrame().waitForLoadState(state || 'domcontentloaded', { timeout }),
+          new Promise<void>(resolve => setTimeout(resolve, Math.min(timeout, 3000))), // Max 3s
+        ]);
+        console.log(
+          'Page.waitForLoadState: Chrome internal page load completed or timed out gracefully',
+        );
+        return;
+      } catch (error) {
+        console.warn(
+          'Page.waitForLoadState: Chrome internal page load failed, continuing anyway:',
+          error,
+        );
+        return;
+      }
+    }
+
+    // Normal behavior for regular pages
     return await this.mainFrame().waitForLoadState(state, options);
   }
 

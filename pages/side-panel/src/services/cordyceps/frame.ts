@@ -966,7 +966,39 @@ export class Frame extends Disposable {
     return executeWithProgress(async progress => {
       const verifiedState = verifyLifecycle('state', state);
       progress.log(`Waiting for load state "${verifiedState}"`);
-      await this._waitForLoadState(progress, verifiedState);
+
+      // For Chrome internal pages, apply timeout protection
+      const url = this.url();
+      if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
+        progress.log(
+          `Frame.waitForLoadState: Chrome internal page detected (${url}) - applying timeout protection`,
+        );
+
+        const timeout = options.timeout ?? 5000; // Shorter timeout for Chrome pages
+        try {
+          await Promise.race([
+            this._waitForLoadState(progress, verifiedState),
+            new Promise<void>((_, reject) =>
+              setTimeout(
+                () => reject(new Error(`Frame load state timed out after ${timeout}ms`)),
+                timeout,
+              ),
+            ),
+          ]);
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('timed out')) {
+            progress.log(
+              `Frame.waitForLoadState: Timeout for Chrome internal page - continuing gracefully`,
+            );
+            return;
+          }
+          throw error;
+        }
+      } else {
+        // Normal behavior for regular pages
+        await this._waitForLoadState(progress, verifiedState);
+      }
+
       progress.log(`Load state "${verifiedState}" reached`);
     }, options);
   }

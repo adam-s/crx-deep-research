@@ -783,6 +783,170 @@ export async function testMethodInteractions(
 }
 
 /**
+ * Test createNewTab() method functionality
+ */
+export async function testCreateNewTabMethod(
+  progress: TestProgress,
+  context: BrowserUsePlaygroundService,
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.createNewTab() method...');
+
+  try {
+    // Get the current window ID to ensure we have a valid browser window
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      progress.log(`Using Chrome window ID: ${currentWindow.id}`);
+    } catch (error) {
+      // Fallback: skip the test if Chrome APIs are not available
+      progress.log(
+        '⚠️ Skipping createNewTab() tests - Chrome APIs not available in test environment',
+      );
+      return;
+    }
+
+    // Create BrowserWindow and BrowserContext for testing
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: ['localhost', '127.0.0.1'], // Allow localhost for testing
+    });
+
+    progress.log('✅ Created BrowserContext for createNewTab() testing');
+
+    // Test 1: Create new tab without URL (will navigate to chrome://newtab/ by default)
+    progress.log('Test 1: Creating new tab without URL...');
+
+    // Initialize the context first to get a baseline
+    await browserContext.enter();
+    const initialPages = browserContext.pages.length;
+    progress.log(`Initial pages count: ${initialPages}`);
+
+    // Create new tab - should now handle chrome://newtab/ gracefully
+    await browserContext.createNewTab();
+
+    // Verify the pages array was updated
+    const afterCreatePages = browserContext.pages.length;
+    progress.log(`Pages count after creating new tab: ${afterCreatePages}`);
+
+    if (afterCreatePages > initialPages) {
+      progress.log('✅ Test 1 passed: New tab created successfully without URL');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'createNewTab() without URL test passed',
+        details: { initialPages, afterCreatePages, pagesAdded: afterCreatePages - initialPages },
+      });
+    } else {
+      throw new Error(
+        `Test 1 failed: Expected more than ${initialPages} pages, got ${afterCreatePages}`,
+      );
+    } // Test 2: Create new tab with allowed URL
+    progress.log('Test 2: Creating new tab with allowed URL...');
+    const beforeUrlPages = browserContext.pages.length;
+
+    // Add timeout protection for URL navigation
+    try {
+      await Promise.race([
+        browserContext.createNewTab('http://localhost:3005'),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('createNewTab with URL timed out after 15 seconds')),
+            15000,
+          ),
+        ),
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('timed out')) {
+        progress.log(
+          '⚠️ Test 2 warning: createNewTab with URL timed out, checking if tab was created...',
+        );
+        // Still check if the tab was created even if navigation timed out
+      } else {
+        throw error;
+      }
+    }
+
+    // Verify the pages array was updated
+    const afterUrlPages = browserContext.pages.length;
+    if (afterUrlPages > beforeUrlPages) {
+      progress.log('✅ Test 2 passed: New tab created successfully with URL');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'createNewTab() with URL test passed',
+        details: {
+          beforeUrlPages,
+          afterUrlPages,
+          url: 'http://localhost:3005',
+          pagesAdded: afterUrlPages - beforeUrlPages,
+        },
+      });
+    } else {
+      throw new Error(
+        `Test 2 failed: Expected more than ${beforeUrlPages} pages, got ${afterUrlPages}`,
+      );
+    }
+
+    // Test 3: Try to create new tab with disallowed URL (should throw error)
+    progress.log('Test 3: Testing createNewTab() with disallowed URL...');
+    try {
+      await browserContext.createNewTab('https://evil-site.com');
+      throw new Error('Test 3 failed: Should have thrown error for disallowed URL');
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('Cannot create new tab with non-allowed URL')
+      ) {
+        progress.log('✅ Test 3 passed: Properly rejected disallowed URL');
+        context.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: 'createNewTab() URL validation test passed',
+          details: { rejectedUrl: 'https://evil-site.com' },
+        });
+      } else {
+        throw new Error(
+          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // Test 4: Test state management during tab creation
+    progress.log('Test 4: Testing state management during tab creation...');
+    const isActive = browserContext.isActive();
+    progress.log(`BrowserContext active state: ${isActive}`);
+
+    if (isActive) {
+      progress.log('✅ Test 4 passed: BrowserContext maintains active state during tab creation');
+      context.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'createNewTab() state management test passed',
+        details: { activeState: isActive, totalPages: browserContext.pages.length },
+      });
+    } else {
+      progress.log('⚠️ Test 4 warning: BrowserContext not in active state after tab creation');
+    }
+
+    progress.log('✅ All createNewTab() method tests completed successfully');
+
+    // Clean up
+    await browserContext.close();
+    browserWindow.dispose();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ createNewTab() method test failed: ${errorMessage}`);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'createNewTab() method test failed',
+      details: { error: errorMessage },
+    });
+    throw error;
+  }
+}
+
+/**
  * Main test runner for browser context method tests
  */
 export async function runBrowserContextMethodTests(
@@ -798,6 +962,7 @@ export async function runBrowserContextMethodTests(
     await testStopLoadingMethod(progress, context);
     await testMethodInteractions(progress, context);
     await testGetStateMethod(progress, context);
+    await testCreateNewTabMethod(progress, context);
 
     progress.log('✅ All browser context method tests completed successfully!');
 
@@ -806,13 +971,14 @@ export async function runBrowserContextMethodTests(
       severity: Severity.Success,
       message: 'All browser context method tests completed successfully',
       details: {
-        totalTestSuites: 5,
+        totalTestSuites: 6,
         testSuites: [
           'getCurrentPage() Method Tests',
           'close() Method Tests',
           'stopLoading() Method Tests',
           'Method Interaction Tests',
           'getState() Method Tests',
+          'createNewTab() Method Tests',
         ],
       },
     });

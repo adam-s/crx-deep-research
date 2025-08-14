@@ -753,7 +753,7 @@ export class BrowserContext {
       });
     } catch (e: unknown) {
       console.error(
-        `[BrowserContext._waitForStableNetwork] Error while waiting for stable network:`,
+        `[browserContext.waitForStableNetwork] Error while waiting for stable network:`,
         e,
       );
       requestDisposable.dispose();
@@ -778,6 +778,15 @@ export class BrowserContext {
     }
 
     try {
+      // Special case: allow Chrome internal URLs for new tabs
+      if (
+        url === 'chrome://newtab/' ||
+        url === 'about:blank' ||
+        url.startsWith('chrome://new-tab-page/')
+      ) {
+        return true;
+      }
+
       // Parse the URL to extract the domain
       const urlObj = new URL(url);
       let domain = urlObj.hostname.toLowerCase();
@@ -1873,8 +1882,58 @@ export class BrowserContext {
     this.safeGoto(url, { waitUntil: 'domcontentloaded' });
   }
 
-  createNewTab(url?: unknown) {
-    url;
+  /**
+   * Create a new tab and optionally navigate to a URL
+   * Chrome extension-compatible version of Python implementation's create_new_tab method
+   */
+  async createNewTab(url?: string): Promise<void> {
+    if (url && !this._isUrlAllowed(url)) {
+      throw new Error(`Cannot create new tab with non-allowed URL: ${url}`);
+    }
+
+    // Ensure we're in an active state
+    if (this.session.state !== BrowserContextState.ACTIVE) {
+      await this.enter();
+    }
+
+    // Create new page using BrowserWindow's newPage method
+    const newPage = await this.browserWindow.newPage();
+
+    // Update our pages array to include the new page
+    if (!this.pages.includes(newPage)) {
+      this.pages.push(newPage);
+    }
+
+    if (url) {
+      // For user-provided URLs, do full navigation and load detection
+      await newPage.goto(url, { waitUntil: 'load' });
+      await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
+
+      // Update state for navigated tabs
+      try {
+        await this.getState();
+      } catch (error) {
+        console.warn('Failed to update state after creating new tab:', error);
+      }
+    } else {
+      // For new tab (no URL), just wait for basic readiness without full load
+      // Chrome new tab pages have complex iframe hierarchies that can hang
+      try {
+        console.log('Creating new tab without URL - using simplified load detection');
+        await Promise.race([
+          newPage.waitForLoadState('domcontentloaded', { timeout: 5000 }),
+          new Promise<void>(resolve => setTimeout(resolve, 3000)), // Max 3s wait
+        ]);
+        console.log('New tab basic load completed or timed out gracefully');
+      } catch (error) {
+        console.warn('New tab basic load failed, continuing anyway:', error);
+      }
+
+      // Skip state update for new tab pages to avoid chrome://newtab/ URL validation issues
+      console.log(
+        'Skipping state update for new tab without URL to avoid chrome:// URL validation',
+      );
+    }
   }
 
   switchToTab(pageId: unknown) {
