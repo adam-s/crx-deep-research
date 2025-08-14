@@ -102,7 +102,6 @@ setupNavigationEventBridge();
 
 // Add debugger to inspect the setup
 console.log('🔧 HandledInjectedScript initialized:', handledInjectedScript);
-// eslint-disable-next-line no-debugger
 
 // Send the loaded message
 chrome.runtime.sendMessage({

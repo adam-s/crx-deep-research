@@ -185,7 +185,6 @@ export class BrowserWindow extends Disposable {
             return;
           }
         }
-
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
       }),
@@ -208,7 +207,6 @@ export class BrowserWindow extends Disposable {
             return;
           }
         }
-
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
       }),

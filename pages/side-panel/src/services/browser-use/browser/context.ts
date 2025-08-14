@@ -1839,7 +1839,6 @@ export class BrowserContext {
       throw new Error(`Navigation to non-allowed URL: ${url}`);
     }
   }
-
   /**
    * Navigate back in browser history
    * Exact match to Python implementation's go_back method
@@ -1848,7 +1847,9 @@ export class BrowserContext {
     const page = await this.getCurrentPage();
     try {
       // 10 ms timeout
-      await page.goBack({ timeout: 10, waitUntil: 'domcontentloaded' });
+      await page.goBack({ timeout: 200, waitUntil: 'domcontentloaded' });
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit to ensure navigation
+
       // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
     } catch (e: unknown) {
       // Continue even if it's not fully loaded, because we wait later for the page to load
@@ -1862,7 +1863,8 @@ export class BrowserContext {
   async goForward(): Promise<void> {
     const page = await this.getCurrentPage();
     try {
-      await page.goForward({ timeout: 10, waitUntil: 'domcontentloaded' });
+      await page.goForward({ timeout: 200, waitUntil: 'domcontentloaded' });
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit to ensure navigation
       // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
     } catch (e: unknown) {
       // Continue even if it's not fully loaded, because we wait later for the page to load

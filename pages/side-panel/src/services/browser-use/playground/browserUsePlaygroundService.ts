@@ -17,7 +17,13 @@ import {
 import { quickUrlAllowedTest } from './tests/urlAllowedTest';
 import { quickGetSelectorMapTest } from './tests/getSelectorMapTest';
 import { quickGetStateTest } from './tests/getStateTest';
-import { quickSafeGotoTest } from './tests/safeGotoTest';
+import {
+  quickSafeGotoTest,
+  runSafeGotoTest,
+  TestProgress,
+  testGoBack,
+  testGoForward,
+} from './tests/safeGotoTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
   'browserUsePlaygroundService',
@@ -104,29 +110,29 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      // // First, run conversation service tests
-      // await this.testConversationService();
+      // First, run conversation service tests
+      await this.testConversationService();
 
-      // // Run browser-use context tests
-      // await this.runContextTests();
+      // Run browser-use context tests
+      await this.runContextTests();
 
-      // // Run _waitForStableNetwork functionality tests
-      // await this.runWaitForStableNetworkTests();
+      // Run _waitForStableNetwork functionality tests
+      await this.runWaitForStableNetworkTests();
 
-      // // Run _isUrlAllowed functionality tests
-      // await this.runUrlAllowedTests();
+      // Run _isUrlAllowed functionality tests
+      await this.runUrlAllowedTests();
 
-      // // Run _waitForPageAndFramesLoad functionality tests
-      // await this.runWaitForPageAndFramesLoadTests();
+      // Run _waitForPageAndFramesLoad functionality tests
+      await this.runWaitForPageAndFramesLoadTests();
 
-      // // Run takeScreenshot functionality test
-      // await this.runTakeScreenshotTest();
+      // Run takeScreenshot functionality test
+      await this.runTakeScreenshotTest();
 
-      // // Run _getScrollInfo functionality tests
-      // await this.runGetScrollInfoTests();
+      // Run _getScrollInfo functionality tests
+      await this.runGetScrollInfoTests();
 
-      // // Run getLocateElement and _inputTextElementNode functionality tests
-      // await this.runElementInteractionTests();
+      // Run getLocateElement and _inputTextElementNode functionality tests
+      await this.runElementInteractionTests();
       // Run getSelectorMap functionality tests
       await this.runGetSelectorMapTest();
 
@@ -1160,11 +1166,14 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { runSafeGotoTest, TestProgress } = await import('./tests/safeGotoTest');
-
       const progress = new TestProgress('SafeGoto Tests');
 
+      // // Run the comprehensive safeGoto tests
       await runSafeGotoTest(progress, this);
+
+      // Run additional history navigation tests for goBack/goForward
+      await testGoBack(progress, this);
+      await testGoForward(progress, this);
 
       this.events.emit({
         timestamp: Date.now(),

@@ -927,7 +927,6 @@ export class Frame extends Disposable {
         waitUntil,
         timeoutMs,
       });
-
       // Update our URL to the committed one (could differ due to redirects)
       this.setUrl(navEv.url);
 
@@ -1099,7 +1098,6 @@ export class Frame extends Disposable {
   url(): string | undefined {
     return this._url;
   }
-
   setUrl(url: string): void {
     this._url = url;
   }

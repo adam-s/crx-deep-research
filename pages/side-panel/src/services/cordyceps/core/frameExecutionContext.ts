@@ -120,7 +120,7 @@ export class FrameExecutionContext extends Disposable {
 
   async executeScript<T, Args extends unknown[]>(
     func: (...args: Args) => T,
-    world: chrome.scripting.ExecutionWorld,
+    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
     try {
@@ -329,7 +329,7 @@ export class FrameExecutionContext extends Disposable {
 
   public async evaluate<T, Args extends unknown[]>(
     func: (...args: Args) => T,
-    world: chrome.scripting.ExecutionWorld,
+    world?: chrome.scripting.ExecutionWorld,
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
     return this.executeScript(func, world, ...args);

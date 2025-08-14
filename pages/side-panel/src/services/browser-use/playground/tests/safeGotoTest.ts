@@ -382,6 +382,133 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
 }
 
 /**
+ * Test browser history: goBack using BrowserContext.goBack()
+ */
+export async function testGoBack(progress: TestProgress, context: TestContext): Promise<void> {
+  progress.log('🧭 Testing goBack via BrowserContext.goBack()');
+
+  try {
+    // Create a browser window and context
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, { allowedDomains: ['localhost'] });
+    const page = await browserWindow.getCurrentPage();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting testGoBack',
+    });
+
+    // Navigate to root then to iframe1 to build history
+    await browserContext.safeGoto('http://localhost:3005');
+    await browserContext.safeGoto('http://localhost:3005/iframe1');
+
+    // Verify we reached iframe1
+    const before = new URL(page.url()).pathname;
+    if (!before.includes('/iframe1')) {
+      throw new Error(`Expected to be on /iframe1 before goBack, actual: ${page.url()}`);
+    }
+
+    // Perform goBack via BrowserContext which delegates to Page and includes fallbacks
+    await browserContext.goBack();
+
+    // Short settle
+    await new Promise(r => setTimeout(r, 200));
+
+    const after = new URL(page.url()).pathname;
+    if (after !== '/') {
+      throw new Error(`goBack did not return to root as expected; current pathname: ${after}`);
+    }
+    await browserContext.safeGoto('http://localhost:3005');
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'testGoBack completed',
+    });
+    // Restore base page to keep test environment consistent
+    await browserContext.safeGoto('http://localhost:3005');
+
+    progress.log('✅ testGoBack passed');
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'testGoBack failed',
+      details: { error: errMsg },
+    });
+    progress.log(`❌ testGoBack failed: ${errMsg}`);
+    throw error;
+  }
+}
+
+/**
+ * Test browser history: goForward using BrowserContext.goForward()
+ */
+export async function testGoForward(progress: TestProgress, context: TestContext): Promise<void> {
+  progress.log('🧭 Testing goForward via BrowserContext.goForward()');
+
+  try {
+    // Create a browser window and context
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, { allowedDomains: ['localhost'] });
+    const page = await browserWindow.getCurrentPage();
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting testGoForward',
+    });
+
+    // Ensure we have history: navigate root -> iframe1, then goBack to create forward entry
+    await browserContext.safeGoto('http://localhost:3005');
+    await browserContext.safeGoto('http://localhost:3005/iframe1');
+
+    // Go back first
+    await browserContext.goBack();
+    // Verify we're back at root
+    let currentPath = new URL(page.url()).pathname;
+    if (currentPath !== '/') {
+      throw new Error(`Expected to be on root before goForward, actual: ${page.url()}`);
+    }
+
+    // Perform goForward via BrowserContext
+    await browserContext.goForward();
+
+    // Short settle
+
+    currentPath = new URL(page.url()).pathname;
+    if (currentPath !== '/iframe1') {
+      throw new Error(
+        `goForward did not navigate to /iframe1 as expected; current pathname: ${currentPath}`,
+      );
+    }
+    await browserContext.safeGoto('http://localhost:3005');
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'testGoForward completed',
+    });
+    // Restore base page to keep test environment consistent
+    await browserContext.safeGoto('http://localhost:3005');
+
+    progress.log('✅ testGoForward passed');
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'testGoForward failed',
+      details: { error: errMsg },
+    });
+    progress.log(`❌ testGoForward failed: ${errMsg}`);
+    throw error;
+  }
+}
+
+/**
  * Run the standalone safeGoto test
  */
 export async function runSafeGotoTest(
@@ -447,6 +574,7 @@ export async function quickSafeGotoTest(browserWindow: BrowserWindow): Promise<b
         error instanceof Error ? error.message : String(error),
       );
     }
+    await browserContext.safeGoto('http://localhost:3005');
 
     console.log(`✅ Quick safeGoto test passed (${duration.toFixed(2)}ms, status: ${status})`);
     return true;
