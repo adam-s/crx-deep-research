@@ -19,6 +19,7 @@ import type {
   NavigationRequest,
   ResponseInfo,
   RequestInfo,
+  TimeoutOptions,
 } from './utilities/types';
 import { verifyLifecycle } from './utilities/types';
 import { FrameSelectors } from './operations/frameSelectors';
@@ -865,6 +866,22 @@ export class Frame extends Disposable {
 
       // Response mapping is not wired yet; return null for parity with same-document nav
       return null;
+    }, options);
+  }
+
+  /**
+   * Wait for a specific lifecycle state to be reached
+   * Chrome extension-compatible version of Playwright's waitForLoadState
+   */
+  async waitForLoadState(
+    state: LifecycleEvent = 'load',
+    options: TimeoutOptions = {},
+  ): Promise<void> {
+    return executeWithProgress(async progress => {
+      const verifiedState = verifyLifecycle('state', state);
+      progress.log(`Waiting for load state "${verifiedState}"`);
+      await this._waitForLoadState(progress, verifiedState);
+      progress.log(`Load state "${verifiedState}" reached`);
     }, options);
   }
 

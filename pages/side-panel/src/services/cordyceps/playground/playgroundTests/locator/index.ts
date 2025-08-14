@@ -28,6 +28,7 @@ export { testTextContentFunctionality } from './textContentFunctionality';
 export { testTypeFunctionality } from './typeFunctionality';
 export { testWaitForFunctionality } from './waitForFunctionality';
 export { testWaitForEventFunctionality } from './waitForEventFunctionality';
+export { testWaitForLoadStateFunctionality } from './waitForLoadStateFunctionality';
 export { testNetworkEventFunctionality } from './networkEventFunctionality';
 export {
   testBrowserContextNetworkStability,

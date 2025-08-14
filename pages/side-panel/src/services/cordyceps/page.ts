@@ -20,6 +20,8 @@ import type {
   PageFrameEvent,
   NavigationResponse,
   WaitForEventOptions,
+  LifecycleEvent,
+  TimeoutOptions,
 } from './utilities/types';
 import { ByRoleOptions } from '@injected/isomorphic/locatorUtils';
 import { LocatorOptions, Locator } from './locator';
@@ -496,6 +498,14 @@ export class Page extends Disposable {
         }
       });
     }, options);
+  }
+
+  /**
+   * Wait for a specific lifecycle state to be reached on the main frame
+   * Chrome extension-compatible version of Playwright's waitForLoadState
+   */
+  async waitForLoadState(state?: LifecycleEvent, options?: TimeoutOptions): Promise<void> {
+    return await this.mainFrame().waitForLoadState(state, options);
   }
 
   locator(selector: string, options?: LocatorOptions): Locator {
