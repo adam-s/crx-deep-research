@@ -18,8 +18,14 @@ export class IPCClientService extends Disposable implements IClientService {
     const onReceiveClientEvent = new Emitter<VSBuffer>();
     const onMessage = onReceiveClientEvent.event;
 
-    port.onMessage.addListener((message: ArrayBuffer) => {
-      onReceiveClientEvent.fire(VSBuffer.wrap(new Uint8Array(message)));
+    port.onMessage.addListener(message => {
+      const arrayBuffer =
+        message instanceof ArrayBuffer
+          ? message
+          : message instanceof Uint8Array
+            ? message.buffer.slice(message.byteOffset, message.byteOffset + message.byteLength)
+            : new ArrayBuffer(0);
+      onReceiveClientEvent.fire(VSBuffer.wrap(new Uint8Array(arrayBuffer)));
     });
 
     const protocol = new Protocol(port, onMessage);

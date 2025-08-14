@@ -48,12 +48,13 @@ export function createPort(documentId: string): Port {
 
   return {
     name: container.port.name,
-    postMessage: (message: ArrayBuffer) => {
-      if (connected) container.port.postMessage(message);
+    postMessage: message => {
+      const data = message instanceof ArrayBuffer ? Array.from(new Uint8Array(message)) : message;
+      if (connected) container.port.postMessage(data);
     },
     disconnect: () => container.port.disconnect(),
     onMessage: {
-      addListener: callback => onMessageCallbacks.push(callback),
+      addListener: callback => onMessageCallbacks.push(callback as (message: unknown) => void),
     },
     onDisconnect: {
       addListener: callback => onDisconnectCallbacks.push(callback),

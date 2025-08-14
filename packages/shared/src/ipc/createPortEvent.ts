@@ -30,7 +30,7 @@ export function createPortEvent<TPort extends string>(
         },
         disconnect: () => port2.close(),
         onMessage: {
-          addListener: (callback: (msg: unknown) => void) => {
+          addListener: callback => {
             port2.onmessage = (event: MessageEvent) => {
               return callback(event.data);
             };

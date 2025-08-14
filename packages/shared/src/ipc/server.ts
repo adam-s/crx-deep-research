@@ -25,8 +25,14 @@ export class Server extends IPCServer {
 
       const onReceiveClientEvent = new Emitter<VSBuffer>();
       const onMessage = onReceiveClientEvent.event;
-      port.onMessage.addListener((data: ArrayBuffer) => {
-        onReceiveClientEvent.fire(VSBuffer.wrap(new Uint8Array(data)));
+      port.onMessage.addListener(data => {
+        const arrayBuffer =
+          data instanceof ArrayBuffer
+            ? data
+            : data instanceof Uint8Array
+              ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+              : new ArrayBuffer(0);
+        onReceiveClientEvent.fire(VSBuffer.wrap(new Uint8Array(arrayBuffer)));
       });
 
       const onDidClientDisconnect = onDidClientReconnect.event;
