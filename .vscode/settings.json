@@ -12,5 +12,10 @@
   },
   "prettier.printWidth": 80,
   "prettier.requireConfig": false,
-  "prettier.useEditorConfig": false
+  "prettier.useEditorConfig": false,
+  "cSpell.words": [
+    "cordyceps",
+    "deepseek",
+    "langchain"
+  ]
 }

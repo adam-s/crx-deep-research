@@ -80,3 +80,41 @@ export interface ElementForSelector {
  * - ElementForSelector: Interface for CSS selector generation with tag_name property
  */
 export type ElementNode = DOMElementNode | ElementNodeDict | ElementForSelector;
+
+/**
+ * Serialized representations used by history tree processor
+ */
+export interface CoordinateDict {
+  x: number;
+  y: number;
+}
+
+export interface CoordinateSetDict {
+  top_left: CoordinateDict;
+  top_right: CoordinateDict;
+  bottom_left: CoordinateDict;
+  bottom_right: CoordinateDict;
+  center: CoordinateDict;
+  width: number;
+  height: number;
+}
+
+export interface ViewportInfoDict {
+  scroll_x: number;
+  scroll_y: number;
+  width: number;
+  height: number;
+}
+
+export interface DOMHistoryElementDict {
+  tag_name: string;
+  xpath: string;
+  highlight_index: number | null;
+  entire_parent_branch_path: string[];
+  attributes: Record<string, string>;
+  shadow_root: boolean;
+  css_selector: string | null;
+  page_coordinates: CoordinateSetDict | null;
+  viewport_coordinates: CoordinateSetDict | null;
+  viewport_info: ViewportInfoDict | null;
+}

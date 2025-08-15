@@ -14,11 +14,14 @@ import {
   ConversationType,
 } from '@shared/features/conversation/ConversationDataAccessObject';
 
+// Define BufferEncoding type for browser environment
+type BufferEncoding = 'utf-8' | 'utf8' | 'ascii' | 'binary' | 'base64' | 'hex';
+
 interface JsonObject {
   [key: string]: unknown;
 }
 
-interface ModelResponse {
+export interface ModelResponse {
   content?: string;
   tool_calls?: Array<{
     id: string;
@@ -65,7 +68,7 @@ export function extractJsonFromModelOutput(content: string): JsonObject {
  */
 export function convertInputMessages(
   inputMessages: BaseMessage[],
-  modelName: string | null,
+  modelName: string | null
 ): BaseMessage[] {
   if (modelName === null) {
     return inputMessages;
@@ -117,7 +120,7 @@ function convertMessagesForNonFunctionCallingModels(inputMessages: BaseMessage[]
  */
 function mergeSuccessiveMessages<T extends BaseMessage>(
   messages: BaseMessage[],
-  classToMerge: new (...args: never[]) => T,
+  classToMerge: new (...args: never[]) => T
 ): BaseMessage[] {
   const mergedMessages: BaseMessage[] = [];
   let streak = 0;
@@ -148,15 +151,102 @@ function mergeSuccessiveMessages<T extends BaseMessage>(
 }
 
 /**
+ * Save conversation history to a file.
+ */
+export async function saveConversation(
+  inputMessages: BaseMessage[],
+  response: ModelResponse,
+  targetPath: string,
+  encoding?: BufferEncoding
+): Promise<void>;
+
+/**
  * Save conversation history using the conversation service.
  */
 export async function saveConversation(
   inputMessages: BaseMessage[],
   response: ModelResponse,
   conversationService: IConversationService,
-  title: string = 'Agent Conversation',
-  sessionId?: string,
-): Promise<string> {
+  title?: string,
+  sessionId?: string
+): Promise<string>;
+
+/**
+ * Save conversation history - unified implementation supporting both file and service targets.
+ */
+export async function saveConversation(
+  inputMessages: BaseMessage[],
+  response: ModelResponse,
+  third: string | IConversationService,
+  fourth?: string,
+  fifth?: string
+): Promise<void | string> {
+  // File-path branch
+  if (typeof third === 'string') {
+    const targetPath = third;
+    const encoding: BufferEncoding = (fourth as BufferEncoding) ?? 'utf-8';
+
+    // Build a simple text payload (similar to the Python variant)
+    const serializeMessage = (m: BaseMessage) => {
+      const role = m.constructor.name; // HumanMessage/SystemMessage/AIMessage/ToolMessage
+      const content = Array.isArray(m.content)
+        ? m.content
+            .map((c: unknown) => {
+              if (typeof c === 'object' && c && 'text' in (c as { text: unknown })) {
+                return String((c as { text: unknown }).text);
+              }
+              return String(c);
+            })
+            .join('\n')
+        : typeof m.content === 'string'
+          ? m.content
+          : JSON.stringify(m.content);
+      return `ROLE: ${role}\nCONTENT:\n${content}\n---\n`;
+    };
+
+    const header = `# Agent Conversation\n\n`;
+    const inputDump = inputMessages.map(serializeMessage).join('\n');
+    const responseDump = `# Model Response\n${JSON.stringify(response, null, 2)}\n`;
+
+    const body = `${header}${inputDump}\n${responseDump}`;
+
+    // In Chrome extension context, we'll use chrome.downloads API instead of fs
+    if (typeof chrome !== 'undefined' && chrome.downloads) {
+      const blob = new Blob([body], { type: `text/plain;charset=${encoding}` });
+      const url = URL.createObjectURL(blob);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          chrome.downloads.download(
+            {
+              url,
+              filename: targetPath,
+              conflictAction: 'overwrite',
+            },
+            _downloadId => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else {
+                resolve();
+              }
+            }
+          );
+        });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } else {
+      console.warn('Chrome downloads API is not available. Conversation not saved.');
+    }
+
+    return; // Promise<void>
+  }
+
+  // Service branch
+  const conversationService = third as IConversationService;
+  const title = fourth ?? 'Agent Conversation';
+  const sessionId = fifth;
+
   // Create a new conversation
   const conversationId = await conversationService.createConversation({
     title,
@@ -227,5 +317,5 @@ export async function saveConversation(
     toolCalls: response.tool_calls,
   });
 
-  return conversationId;
+  return conversationId; // Promise<string>
 }

@@ -23,7 +23,7 @@ export class BrowserWindow extends Disposable {
   dispose(): void {
     console.log(`🗑️ Disposing BrowserWindow for window ${this.windowId}`);
     console.log(
-      `🗑️ BrowserWindow disposing ${this._pages.size} pages: [${Array.from(this._pages.keys()).join(', ')}]`,
+      `🗑️ BrowserWindow disposing ${this._pages.size} pages: [${Array.from(this._pages.keys()).join(', ')}]`
     );
     for (const p of this._pages.values()) p.dispose();
     this._pages.clear();
@@ -60,7 +60,7 @@ export class BrowserWindow extends Disposable {
     this._register(
       this.session.onCommitted(details => {
         this._handleNavigationCommitted(details);
-      }),
+      })
     );
 
     // Translate lifecycle events to frames
@@ -77,7 +77,7 @@ export class BrowserWindow extends Disposable {
           } catch (error) {
             // Main frame not yet attached, skip this event
             console.log(
-              `Skipping completed event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+              `Skipping completed event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
             );
             return;
           }
@@ -86,7 +86,7 @@ export class BrowserWindow extends Disposable {
         frame._onLifecycleEvent('load');
         // Relay page-level load for consumers
         page._fireLoad(frame);
-      }),
+      })
     );
     this._register(
       this.session.onDOMContentLoaded(d => {
@@ -101,7 +101,7 @@ export class BrowserWindow extends Disposable {
           } catch (error) {
             // Main frame not yet attached, skip this event
             console.log(
-              `Skipping DOMContentLoaded event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+              `Skipping DOMContentLoaded event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
             );
             return;
           }
@@ -110,7 +110,7 @@ export class BrowserWindow extends Disposable {
         frame._onLifecycleEvent('domcontentloaded');
         // Relay page-level domcontentloaded for consumers
         page._fireDomContentLoaded(frame);
-      }),
+      })
     );
     // Commit handling is performed inside _handleMainFrameNavigation/_handleSubframeNavigation after frames are ensured
     this._register(
@@ -119,7 +119,7 @@ export class BrowserWindow extends Disposable {
         const page = this._pages.get(d.tabId);
         if (!page) return;
         page.frameManager.frameRequestedNavigation(d.frameId, undefined);
-      }),
+      })
     );
     this._register(
       this.session.onErrorOccurred(d => {
@@ -127,7 +127,7 @@ export class BrowserWindow extends Disposable {
         if (!page) return;
         // Abort pending navigation for this frame if any.
         page.frameManager.frameAbortedNavigation(d.frameId, d.error);
-      }),
+      })
     );
 
     this._register(
@@ -143,7 +143,7 @@ export class BrowserWindow extends Disposable {
         const page = this._pages.get(tabId);
         if (page) {
           console.log(
-            `🗑️ Found Page for tab ${tabId} with ${page.frameManager.frames().length} frames`,
+            `🗑️ Found Page for tab ${tabId} with ${page.frameManager.frames().length} frames`
           );
           page.dispose();
           this._pages.delete(tabId);
@@ -157,7 +157,7 @@ export class BrowserWindow extends Disposable {
           if (key.startsWith(prefix)) this._processedCommittedDocuments.delete(key);
         }
         console.log(`📊 BrowserWindow now has ${this._pages.size} pages remaining`);
-      }),
+      })
     );
 
     // Listen for new tab creation
@@ -165,7 +165,7 @@ export class BrowserWindow extends Disposable {
       this.session.onTabCreated(tab => {
         if (this._store.isDisposed) {
           console.log(
-            `⚠️ Skipping tab creation event for tab ${tab.id} - BrowserWindow already disposed`,
+            `⚠️ Skipping tab creation event for tab ${tab.id} - BrowserWindow already disposed`
           );
           return;
         }
@@ -175,11 +175,11 @@ export class BrowserWindow extends Disposable {
             // New tabs start with just a main frame, let navigation events handle the rest
           } catch (error) {
             console.log(
-              `Failed to create page for new tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to create page for new tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`
             );
           }
         }
-      }),
+      })
     );
 
     // Listen for tab activation changes
@@ -189,7 +189,7 @@ export class BrowserWindow extends Disposable {
           this._activeTabId = activeInfo.tabId;
           console.log(`📋 Active tab changed to ${activeInfo.tabId} in window ${this.windowId}`);
         }
-      }),
+      })
     );
 
     // Same-document navigations should trigger internal navigation
@@ -206,14 +206,14 @@ export class BrowserWindow extends Disposable {
           } catch (error) {
             // Main frame not yet attached, skip this event
             console.log(
-              `Skipping history state updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+              `Skipping history state updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
             );
             return;
           }
         }
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
-      }),
+      })
     );
     this._register(
       this.session.onReferenceFragmentUpdated(d => {
@@ -228,25 +228,25 @@ export class BrowserWindow extends Disposable {
           } catch (error) {
             // Main frame not yet attached, skip this event
             console.log(
-              `Skipping reference fragment updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`,
+              `Skipping reference fragment updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
             );
             return;
           }
         }
         frame.setUrl(d.url);
         frame._fireInternalNavigation(d.url, '', undefined, undefined, true);
-      }),
+      })
     );
   }
 
   private async _handleNavigationCommitted(
-    details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+    details: chrome.webNavigation.WebNavigationTransitionCallbackDetails
   ): Promise<void> {
     try {
       // Check if this BrowserWindow has been disposed
       if (this._store.isDisposed) {
         console.log(
-          `⚠️ Skipping navigation event for tab ${details.tabId} - BrowserWindow already disposed`,
+          `⚠️ Skipping navigation event for tab ${details.tabId} - BrowserWindow already disposed`
         );
         return;
       }
@@ -280,7 +280,7 @@ export class BrowserWindow extends Disposable {
               '',
               newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
               undefined,
-              true,
+              true
             );
             // Invalidate previous execution context; new one will be created when content script loads
             main._onNewDocumentCommitted('Main frame committed new document');
@@ -303,7 +303,7 @@ export class BrowserWindow extends Disposable {
               '',
               newDoc ? { documentId: newDoc.documentId, request: undefined } : undefined,
               undefined,
-              true,
+              true
             );
             // Invalidate subframe execution context on commit as well
             frame._onNewDocumentCommitted('Subframe committed new document');
@@ -323,7 +323,7 @@ export class BrowserWindow extends Disposable {
       if (frames) {
         console.log(
           `Fetching ${frames.length} frames for tab ${page.tabId}:`,
-          frames.map(f => ({ frameId: f.frameId, parentFrameId: f.parentFrameId, url: f.url })),
+          frames.map(f => ({ frameId: f.frameId, parentFrameId: f.parentFrameId, url: f.url }))
         );
 
         // Sort frames to ensure parents are attached before children
@@ -337,7 +337,7 @@ export class BrowserWindow extends Disposable {
           } catch (frameError) {
             console.warn(
               `Failed to attach frame ${frame.frameId} with parent ${frame.parentFrameId}:`,
-              frameError,
+              frameError
             );
             // Continue processing other frames even if one fails
           }
@@ -373,16 +373,15 @@ export class BrowserWindow extends Disposable {
         console.log(`Main frame not ready yet for tab ${tabId}, will be processed when attached`);
       }
     } catch (error) {
-      console.log(
-        `Failed to handle main frame navigation for tab ${tabId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.log(`Failed to handle main frame navigation for tab ${tabId}: ${errMsg}`);
     }
   }
 
   private async _handleSubframeNavigation(
     tabId: number,
     frameId: number,
-    url: string,
+    url: string
   ): Promise<void> {
     const page = this._pages.get(tabId);
     if (!page) {
@@ -540,7 +539,7 @@ export class BrowserWindow extends Disposable {
    * Main frame (parentFrameId = -1) comes first, then children in order of dependency.
    */
   private _sortFramesByHierarchy(
-    frames: chrome.webNavigation.GetAllFrameResultDetails[],
+    frames: chrome.webNavigation.GetAllFrameResultDetails[]
   ): chrome.webNavigation.GetAllFrameResultDetails[] {
     const frameMap = new Map<number, chrome.webNavigation.GetAllFrameResultDetails>();
     const sortedFrames: chrome.webNavigation.GetAllFrameResultDetails[] = [];

@@ -2,6 +2,8 @@
  * TypeScript implementation of browser-use DOM history tree processor views
  */
 
+import type { DOMHistoryElementDict } from '../types';
+
 /**
  * Hash of the DOM element to be used as a unique identifier
  */
@@ -50,7 +52,7 @@ export class CoordinateSet {
     bottomRight: Coordinates,
     center: Coordinates,
     width: number,
-    height: number,
+    height: number
   ) {
     this.topLeft = topLeft;
     this.topRight = topRight;
@@ -104,7 +106,7 @@ export class DOMHistoryElement {
     cssSelector: string | null = null,
     pageCoordinates: CoordinateSet | null = null,
     viewportCoordinates: CoordinateSet | null = null,
-    viewportInfo: ViewportInfo | null | undefined = null,
+    viewportInfo: ViewportInfo | null | undefined = null
   ) {
     this.tagName = tagName;
     this.xpath = xpath;
@@ -121,7 +123,7 @@ export class DOMHistoryElement {
   /**
    * Convert the DOM history element to a plain object
    */
-  toDict(): Record<string, any> {
+  toDict(): DOMHistoryElementDict {
     return {
       tag_name: this.tagName,
       xpath: this.xpath,

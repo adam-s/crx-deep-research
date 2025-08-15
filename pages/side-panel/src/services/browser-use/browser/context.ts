@@ -18,16 +18,28 @@ import { DOMElementNode, SelectorMap } from '../dom/views';
 import { ElementForSelector, ElementNode } from '../dom/types';
 import { generateUuid } from 'vs/base/common/uuid';
 
-// Configuration interface for browser-use context
-interface BrowserContextConfig {
-  maximumWaitPageLoadTime?: number; // seconds
-  waitForNetworkIdlePageLoadTime?: number; // seconds
-  allowedDomains?: string[]; // Optional list of allowed domains for URL filtering
+// Configuration class for browser-use context (instantiable with sane defaults)
+export class BrowserContextConfig {
+  public maximumWaitPageLoadTime: number;
+  public waitForNetworkIdlePageLoadTime: number;
+  public allowedDomains?: string[];
   // Whether to draw highlight overlays for detected clickable elements
-  highlightElements?: boolean;
+  public highlightElements: boolean;
   // Pixels to expand viewport bounds when collecting elements (-1 for no limit)
-  viewportExpansion?: number;
-  saveDownloadsPath: string | null;
+  public viewportExpansion: number;
+  public saveDownloadsPath: string | null;
+  /** Milliseconds to wait between automated actions (e.g. clicks, inputs) */
+  public waitBetweenActions: number;
+
+  constructor(init?: Partial<BrowserContextConfig>) {
+    this.maximumWaitPageLoadTime = init?.maximumWaitPageLoadTime ?? 5; // seconds
+    this.waitForNetworkIdlePageLoadTime = init?.waitForNetworkIdlePageLoadTime ?? 0.5; // seconds
+    this.allowedDomains = init?.allowedDomains;
+    this.highlightElements = init?.highlightElements ?? true;
+    this.viewportExpansion = init?.viewportExpansion ?? 500;
+    this.saveDownloadsPath = init?.saveDownloadsPath ?? null;
+    this.waitBetweenActions = init?.waitBetweenActions ?? 500; // milliseconds
+  }
 }
 
 /**
@@ -345,14 +357,8 @@ export class BrowserContext {
     this.browserWindow = browserWindow;
     this.pages = [];
     this.session = new BrowserSession();
-    this.config = {
-      maximumWaitPageLoadTime: 5, // 5 seconds default
-      waitForNetworkIdlePageLoadTime: 0.5, // 0.5 seconds default
-      highlightElements: true,
-      viewportExpansion: 500,
-      saveDownloadsPath: null, // Default to null (no download path)
-      ...config,
-    };
+    // Use the instantiable BrowserContextConfig so callers can import it as a value
+    this.config = new BrowserContextConfig(config);
   }
 
   /**

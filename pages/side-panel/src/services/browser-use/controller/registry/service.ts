@@ -2,7 +2,6 @@
  * TypeScript implementation of browser-use controller registry
  */
 import { BrowserContext } from '../../browser/context';
-import { BrowserContext } from '../../browser/interfaces';
 import { ActionModel, ActionRegistry, RegisteredAction } from './views';
 
 /**

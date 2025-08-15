@@ -56,7 +56,7 @@ export class DOMService {
   async getClickableElements(
     highlightElements: boolean = true,
     focusElement: number = -1,
-    viewportExpansion: number = 500, // Default matches Python implementation
+    viewportExpansion: number = 500 // Default matches Python implementation
   ): Promise<{
     elementTree: DOMElementNode;
     rootElement: DOMElementNode;
@@ -66,7 +66,7 @@ export class DOMService {
     const [rootElement, selectorMap] = await this.buildDomTree(
       highlightElements,
       focusElement,
-      viewportExpansion,
+      viewportExpansion
     );
 
     // In the Python implementation, elementTree is the same as rootElement
@@ -133,7 +133,7 @@ export class DOMService {
         pageData.scrollY,
         pageData.devicePixelRatio,
         pageData.documentHeight,
-        pageData.documentWidth,
+        pageData.documentWidth
       );
     } catch (error) {
       console.error('Error getting viewport info:', error);
@@ -145,7 +145,7 @@ export class DOMService {
         0, // default scrollY
         1, // default devicePixelRatio
         1024, // default documentHeight
-        768, // default documentWidth
+        768 // default documentWidth
       );
     }
   }
@@ -163,7 +163,7 @@ export class DOMService {
   private async buildDomTree(
     highlightElements: boolean,
     focusElement: number,
-    viewportExpansion: number,
+    viewportExpansion: number
   ): Promise<[DOMElementNode, SelectorMap]> {
     // Verify that JavaScript evaluation works in our Chrome extension context
     if ((await this._page.evaluate(() => 1 + 1)) !== 2) {
@@ -186,7 +186,7 @@ export class DOMService {
     const domTreeResult = await this._page.evaluate((buildArgs: BuildDomTreeArgs) => {
       if (typeof window.__cordyceps_buildDomTree !== 'function') {
         throw new Error(
-          'window.__cordyceps_buildDomTree function not found. Make sure browserUse.js is loaded in the content script.',
+          'window.__cordyceps_buildDomTree not found; ensure browserUse.js is loaded in content script.'
         );
       }
       return window.__cordyceps_buildDomTree(buildArgs);
@@ -206,7 +206,7 @@ export class DOMService {
    * @param domTreeResult Result from window.__cordyceps_buildDomTree function
    */
   private async constructDomTree(
-    domTreeResult: BuildDomTreeResult,
+    domTreeResult: BuildDomTreeResult
   ): Promise<[DOMElementNode, SelectorMap]> {
     const { rootId, map } = domTreeResult;
 
@@ -299,7 +299,7 @@ export class DOMService {
         null, // parent will be set later
         undefined, // viewportInfo
         null, // pageCoordinates
-        null, // viewportCoordinates
+        null // viewportCoordinates
       );
 
       return [elementNode, childrenIds];
