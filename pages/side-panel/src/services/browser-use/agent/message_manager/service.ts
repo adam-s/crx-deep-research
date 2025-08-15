@@ -28,7 +28,7 @@ export class MessageManagerSettings {
     includeAttributes?: string[],
     messageContext?: string | null,
     sensitiveData?: Record<string, string> | null,
-    availableFilePaths?: string[] | null,
+    availableFilePaths?: string[] | null
   ) {
     if (maxInputTokens !== undefined) this.maxInputTokens = maxInputTokens;
     if (includeAttributes !== undefined) this.includeAttributes = includeAttributes;
@@ -48,7 +48,7 @@ export class MessageManager {
     task: string,
     systemMessage: SystemMessage,
     settings: MessageManagerSettings = new MessageManagerSettings(),
-    state: MessageManagerState = new MessageManagerState(),
+    state: MessageManagerState = new MessageManagerState()
   ) {
     this.task = task;
     this.settings = settings;
@@ -69,20 +69,21 @@ export class MessageManager {
 
     if (this.settings.messageContext) {
       const contextMessage = new HumanMessage(
-        'Context for the task' + this.settings.messageContext,
+        'Context for the task' + this.settings.messageContext
       );
       this._addMessageWithTokens(contextMessage);
     }
 
     const taskMessage = new HumanMessage(
-      `Your ultimate task is: """${this.task}""". If you achieved your ultimate task, stop everything and use the done action in the next step to complete the task. If not, continue as usual.`,
+      // eslint-disable-next-line max-len
+      `Your ultimate task is: """${this.task}""". If you achieved your ultimate task, stop everything and use the done action in the next step to complete the task. If not, continue as usual.`
     );
     this._addMessageWithTokens(taskMessage);
 
     if (this.settings.sensitiveData) {
       const info = `Here are placeholders for sensitve data: ${Object.keys(this.settings.sensitiveData)}`;
       const infoMessage = new HumanMessage(
-        info + 'To use them, write <secret>the placeholder name</secret>',
+        info + 'To use them, write <secret>the placeholder name</secret>'
       );
       this._addMessageWithTokens(infoMessage);
     }
@@ -118,13 +119,14 @@ export class MessageManager {
 
     if (this.settings.availableFilePaths) {
       const filepathsMsg = new HumanMessage(
-        `Here are file paths you can use: ${this.settings.availableFilePaths}`,
+        `Here are file paths you can use: ${this.settings.availableFilePaths}`
       );
       this._addMessageWithTokens(filepathsMsg);
     }
   }
 
   addNewTask(newTask: string): void {
+    // eslint-disable-next-line max-len
     const content = `Your new ultimate task is: """${newTask}""". Take the previous context into account and finish your new ultimate task. `;
     const msg = new HumanMessage(content);
     this._addMessageWithTokens(msg);
@@ -135,7 +137,7 @@ export class MessageManager {
     state: BrowserState,
     result: ActionResult[] | null = null,
     stepInfo: AgentStepInfo | null = null,
-    useVision = true,
+    useVision = true
   ): void {
     /**
      * Add browser state as human message
@@ -169,7 +171,7 @@ export class MessageManager {
       state,
       result,
       this.settings.includeAttributes || [],
-      stepInfo,
+      stepInfo
     ).getUserMessage(useVision);
     this._addMessageWithTokens(stateMessage);
   }
@@ -301,7 +303,7 @@ export class MessageManager {
         tokenCount += 50; // Base token count for tool call structure
         if (toolCall.args) {
           tokenCount += Math.ceil(
-            JSON.stringify(toolCall.args).length / this.settings.estimatedCharactersPerToken,
+            JSON.stringify(toolCall.args).length / this.settings.estimatedCharactersPerToken
           );
         }
       }
@@ -370,7 +372,8 @@ export class MessageManager {
             msgWrapper.metadata.tokens -= imageTokens;
             this.state.history.currentTokens -= imageTokens;
             console.debug(
-              `Removed image with ${imageTokens} tokens - total tokens now: ${this.state.history.currentTokens}/${this.settings.maxInputTokens}`,
+              // eslint-disable-next-line max-len
+              `Removed image with ${imageTokens} tokens - total tokens now: ${this.state.history.currentTokens}/${this.settings.maxInputTokens}`
             );
           } else if (item.type === 'text' && 'text' in item) {
             text += item.text;
@@ -395,12 +398,14 @@ export class MessageManager {
     const proportionToRemove = updatedDiff / msgWrapper.metadata.tokens;
     if (proportionToRemove > 0.99) {
       throw new Error(
-        `Max token limit reached - history is too long - reduce the system prompt or task. proportion_to_remove: ${proportionToRemove}`,
+        // eslint-disable-next-line max-len
+        `Max token limit reached - history is too long - reduce the system prompt or task. proportion_to_remove: ${proportionToRemove}`
       );
     }
 
     console.debug(
-      `Removing ${proportionToRemove * 100}% of the last message (${proportionToRemove * msgWrapper.metadata.tokens} / ${msgWrapper.metadata.tokens} tokens)`,
+      // eslint-disable-next-line max-len
+      `Removing ${proportionToRemove * 100}% of the last message (${proportionToRemove * msgWrapper.metadata.tokens} / ${msgWrapper.metadata.tokens} tokens)`
     );
 
     const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);

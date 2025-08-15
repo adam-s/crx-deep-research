@@ -37,7 +37,7 @@ export class BrowserState extends DOMState {
     browserErrors: string[] = [],
     elementTree?: DOMElementNode,
     rootElement?: DOMElementNode,
-    selectorMap?: SelectorMap,
+    selectorMap?: SelectorMap
   ) {
     // Initialize with empty DOM elements if not provided
     super(rootElement || ({} as DOMElementNode), selectorMap || {});
@@ -69,7 +69,7 @@ export class BrowserStateHistory {
     title: string,
     tabs: TabInfo[],
     interactedElement: (DOMHistoryElement | null)[],
-    screenshot?: string,
+    screenshot?: string
   ) {
     this.url = url;
     this.title = title;

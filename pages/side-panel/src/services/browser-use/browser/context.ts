@@ -91,7 +91,7 @@ export class BrowserContext {
 
   static _enhancedCssSelectorForElement(
     element: ElementForSelector,
-    includeDynamicAttributes: boolean = true,
+    includeDynamicAttributes: boolean = true
   ): string {
     // Removed noisy debug logs for selector generation
 
@@ -215,7 +215,7 @@ export class BrowserContext {
     } catch (error) {
       console.error(
         `[BrowserContext._enhancedCssSelectorForElement] Error generating CSS selector:`,
-        error,
+        error
       );
       // Fallback to a more basic selector if something goes wrong
       const tagName = element.tag_name || '*';
@@ -388,7 +388,7 @@ export class BrowserContext {
     } catch (error) {
       console.error('❌ Failed to enter browser-use context:', error);
       throw new Error(
-        `Failed to enter browser-use context: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to enter browser-use context: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -418,7 +418,7 @@ export class BrowserContext {
    */
   async safeGoto(
     url: string,
-    options?: NavigateOptionsWithProgress,
+    options?: NavigateOptionsWithProgress
   ): Promise<NavigationResponse | null> {
     // Check if URL is allowed before navigation
     const isAllowed = this._isUrlAllowed(url);
@@ -474,7 +474,7 @@ export class BrowserContext {
    */
   async takeScreenshot(
     fullPage: boolean = false,
-    throwOnError: boolean = false,
+    throwOnError: boolean = false
   ): Promise<string | undefined> {
     // Starting takeScreenshot
 
@@ -755,7 +755,7 @@ export class BrowserContext {
     } catch (e: unknown) {
       console.error(
         `[browserContext.waitForStableNetwork] Error while waiting for stable network:`,
-        e,
+        e
       );
       requestDisposable.dispose();
       responseDisposable.dispose();
@@ -876,7 +876,7 @@ export class BrowserContext {
       }
       console.warn(
         `[BrowserContext._waitForPageAndFramesLoad] Page load failed, continuing...`,
-        error,
+        error
       );
     }
 
@@ -989,7 +989,7 @@ export class BrowserContext {
       const content = await domService.getClickableElements(
         this.config.highlightElements,
         focusElement,
-        this.config.viewportExpansion,
+        this.config.viewportExpansion
       );
       // Got clickable elements
 
@@ -1013,7 +1013,7 @@ export class BrowserContext {
         [], // browserErrors
         content.elementTree,
         content.rootElement,
-        content.selectorMap,
+        content.selectorMap
       );
       // BrowserState created
 
@@ -1061,7 +1061,7 @@ export class BrowserContext {
 
           // Remove highlight attributes from elements
           const highlightedElements = document.querySelectorAll(
-            '[browser-user-highlight-id^="playwright-highlight-"]',
+            '[browser-user-highlight-id^="playwright-highlight-"]'
           );
           highlightedElements.forEach(el => {
             el.removeAttribute('browser-user-highlight-id');
@@ -1094,7 +1094,7 @@ export class BrowserContext {
           };
         },
         undefined,
-        { timeout: 1000 },
+        { timeout: 1000 }
       ); // 1 second timeout for error handling
       return [scrollInfo.pixelsAbove, scrollInfo.pixelsBelow];
     } catch (error) {
@@ -1151,7 +1151,7 @@ export class BrowserContext {
       function getPageStructureInner(
         element: Document | Element = document,
         depth: number = 0,
-        maxDepth: number = 10,
+        maxDepth: number = 10
       ): string {
         if (depth >= maxDepth) return '';
 
@@ -1309,7 +1309,7 @@ export class BrowserContext {
           `Element: ${JSON.stringify({
             tagName: BrowserContext._getTagName(elementNode),
             xpath: elementNode.xpath,
-          })} not found`,
+          })} not found`
         );
       }
 
@@ -1332,7 +1332,7 @@ export class BrowserContext {
               // Get unique filename to avoid conflicts
               const uniqueFilename = await this._getUniqueFilename(
                 this.config.saveDownloadsPath!,
-                suggestedFilename,
+                suggestedFilename
               );
 
               // In Chrome extension environment, downloads are handled by Chrome
@@ -1351,7 +1351,7 @@ export class BrowserContext {
                   // If saveAs fails in Chrome extension, use the default download path
                   console.warn(
                     'Could not save to custom path, using default download location:',
-                    saveError,
+                    saveError
                   );
                 }
               }
@@ -1428,7 +1428,7 @@ export class BrowserContext {
         `Failed to click element: ${JSON.stringify({
           tagName: BrowserContext._getTagName(elementNode),
           xpath: elementNode.xpath,
-        })}. Error: ${e}`,
+        })}. Error: ${e}`
       );
     }
   }
@@ -1498,7 +1498,7 @@ export class BrowserContext {
         currentFrame = page as unknown as Frame;
       } else {
         throw new Error(
-          'Invalid Page object: missing mainFrame() method and required element methods',
+          'Invalid Page object: missing mainFrame() method and required element methods'
         );
       }
     }
@@ -1529,7 +1529,7 @@ export class BrowserContext {
       const parent = iframes[i];
       const cssSelector = BrowserContext._enhancedCssSelectorForElement(
         BrowserContext._toElementForSelector(parent),
-        true, // Use true as default for includeDynamicAttributes
+        true // Use true as default for includeDynamicAttributes
       );
       // Follow Cordyceps pattern: get iframe element, then get its contentFrame()
       // This is the correct approach for nested iframe navigation
@@ -1545,7 +1545,7 @@ export class BrowserContext {
               strict: true,
             });
           },
-          { timeout: 30000 },
+          { timeout: 30000 }
         );
       } else if ('locator' in currentFrame && typeof currentFrame.locator === 'function') {
         // currentFrame is a FrameLocator
@@ -1565,7 +1565,7 @@ export class BrowserContext {
         continue; // Skip the contentFrame logic for test mocks
       } else {
         throw new Error(
-          `Unsupported frame type for iframe navigation: ${currentFrame.constructor.name}`,
+          `Unsupported frame type for iframe navigation: ${currentFrame.constructor.name}`
         );
       }
 
@@ -1592,7 +1592,7 @@ export class BrowserContext {
 
     const cssSelector = BrowserContext._enhancedCssSelectorForElement(
       BrowserContext._toElementForSelector(element),
-      true, // Use true as default for includeDynamicAttributes
+      true // Use true as default for includeDynamicAttributes
     );
     // Generated final CSS selector
 
@@ -1648,7 +1648,7 @@ export class BrowserContext {
                 strict: true,
               });
             },
-            { timeout: 30000 },
+            { timeout: 30000 }
           );
 
           if (elementHandle) {
@@ -1665,7 +1665,7 @@ export class BrowserContext {
         } catch (frameSelectorError) {
           console.error(
             `[BrowserContext.getLocateElement] Frame waitForSelector error:`,
-            frameSelectorError,
+            frameSelectorError
           );
           return null;
         }
@@ -1689,12 +1689,13 @@ export class BrowserContext {
         // Unsupported frame type
         const frameType = currentFrame.constructor.name;
         const availableMethods = Object.getOwnPropertyNames(currentFrame).filter(
-          name => typeof (currentFrame as unknown as Record<string, unknown>)[name] === 'function',
+          name => typeof (currentFrame as unknown as Record<string, unknown>)[name] === 'function'
         );
         console.error(`[BrowserContext.getLocateElement] Unsupported frame type: ${frameType}`);
         console.error(`[BrowserContext.getLocateElement] Available methods:`, availableMethods);
         throw new Error(
-          `Unsupported frame type for element location: ${frameType}. Available methods: ${availableMethods.join(', ')}`,
+          `Unsupported frame type for element location: ${frameType}. ` +
+            `Available methods: ${availableMethods.join(', ')}`
         );
       }
     } catch (error) {
@@ -1803,7 +1804,8 @@ export class BrowserContext {
       const highlightIndex = BrowserContext._getHighlightIndex(elementNode);
       const xpath = elementNode?.xpath ?? 'n/a';
       throw new Error(
-        `Failed to input text into element (index: ${highlightIndex || 'unknown'}, xpath: ${xpath}): ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to input text into element (index: ${highlightIndex || 'unknown'}, xpath: ${xpath}): ` +
+          `${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -1933,7 +1935,7 @@ export class BrowserContext {
 
       // Skip state update for new tab pages to avoid chrome://newtab/ URL validation issues
       console.log(
-        'Skipping state update for new tab without URL to avoid chrome:// URL validation',
+        'Skipping state update for new tab without URL to avoid chrome:// URL validation'
       );
     }
   }
@@ -1951,7 +1953,7 @@ export class BrowserContext {
     // Validate pageId is within bounds
     if (pageId < 0 || pageId >= this.pages.length) {
       throw new Error(
-        `No tab found with page_id: ${pageId}. Available pages: 0-${this.pages.length - 1}`,
+        `No tab found with page_id: ${pageId}. Available pages: 0-${this.pages.length - 1}`
       );
     }
 
@@ -1971,7 +1973,7 @@ export class BrowserContext {
       // Use timeout protection for Chrome internal pages
       if (pageUrl?.startsWith('chrome://') || pageUrl?.startsWith('chrome-untrusted://')) {
         console.log(
-          `Switching to Chrome internal page (${pageUrl}) - using simplified load detection`,
+          `Switching to Chrome internal page (${pageUrl}) - using simplified load detection`
         );
         try {
           await Promise.race([
@@ -1981,7 +1983,7 @@ export class BrowserContext {
         } catch (error) {
           console.warn(
             'Chrome internal page load check failed after switch, continuing anyway:',
-            error,
+            error
           );
         }
       } else {
@@ -2018,7 +2020,7 @@ export class BrowserContext {
       const browserWindowPagesBefore = this.browserWindow.pages();
 
       console.log(
-        `Before close: ${allTabsBefore.length} total tabs, ${browserWindowPagesBefore.length} BrowserWindow pages`,
+        `Before close: ${allTabsBefore.length} total tabs, ${browserWindowPagesBefore.length} BrowserWindow pages`
       );
 
       // Close the Cordyceps Page - this now handles both cleanup and Chrome tab removal
@@ -2032,14 +2034,14 @@ export class BrowserContext {
       const allTabsAfter = await chrome.tabs.query({ windowId: this.browserWindow.windowId });
 
       console.log(
-        `After close: ${allTabsAfter.length} total tabs, ${remainingPages.length} BrowserWindow pages`,
+        `After close: ${allTabsAfter.length} total tabs, ${remainingPages.length} BrowserWindow pages`
       );
 
       if (remainingPages.length > 0) {
         // Switch to the first available tab
         const firstPage = remainingPages[0];
         console.log(
-          `Switching to first available tab (tabId: ${firstPage.tabId}) after closing current tab`,
+          `Switching to first available tab (tabId: ${firstPage.tabId}) after closing current tab`
         );
 
         // Use chrome.tabs.update to activate the tab
@@ -2083,7 +2085,7 @@ export class BrowserContext {
   async executeJavaScript<R, Arg = void>(
     script: (...args: [Arg]) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<R> {
     const page = await this.getCurrentPage();
     return await page.evaluate<R, Arg>(script, arg as Arg, options);
@@ -2167,7 +2169,7 @@ export class BrowserContext {
   async isFileUploader(
     element: ElementNode | null,
     maxDepth: number = 3,
-    currentDepth: number = 0,
+    currentDepth: number = 0
   ): Promise<boolean> {
     // Check if element is valid
     if (!element) {

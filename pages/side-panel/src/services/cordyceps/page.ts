@@ -47,7 +47,7 @@ export class Page extends Disposable {
   private readonly _onFrameAttached = this._register(new Emitter<PageFrameEvent>());
   private readonly _onFrameDetached = this._register(new Emitter<PageFrameEvent>());
   private readonly _onInternalFrameNavigatedToNewDocument = this._register(
-    new Emitter<PageFrameEvent>(),
+    new Emitter<PageFrameEvent>()
   );
   // State-aware lifecycle events that handle "already fired" scenarios
   private readonly _onDomContentLoaded = this._register(new StateAwareEvent<PageFrameEvent>());
@@ -100,7 +100,7 @@ export class Page extends Disposable {
 
     // Initialize network events using centralized manager to prevent memory leaks
     this._networkEvents = this._register(
-      NetworkListenerManager.getInstance().registerTab(this.tabId),
+      NetworkListenerManager.getInstance().registerTab(this.tabId)
     );
     this.onRequest = this._networkEvents.onRequest;
     this.onResponse = this._networkEvents.onResponse;
@@ -115,7 +115,7 @@ export class Page extends Disposable {
         // For now, emit download events to all pages since Chrome doesn't provide tab association
         // In a real scenario, we'd need better tab-to-download mapping
         this._onDownload.fire(event.download);
-      }),
+      })
     );
 
     // Wire request lifecycle into frames for accurate networkidle
@@ -130,7 +130,7 @@ export class Page extends Disposable {
         ) {
           (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted!();
         }
-      }),
+      })
     );
 
     this._register(
@@ -150,7 +150,7 @@ export class Page extends Disposable {
           (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
         }
         this._reqById.delete(res.id);
-      }),
+      })
     );
 
     this._register(
@@ -168,7 +168,7 @@ export class Page extends Disposable {
           (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
         }
         this._reqById.delete(err.id);
-      }),
+      })
     );
 
     // Setup content script listener immediately - this is needed for execution context creation
@@ -332,7 +332,7 @@ export class Page extends Disposable {
     // Create a tab-specific event for content script loads
     const onContentScriptLoadedForTab = Session.forTabContentScript(
       this.session.onContentScriptLoaded,
-      this.tabId,
+      this.tabId
     );
 
     this._register(
@@ -346,7 +346,7 @@ export class Page extends Disposable {
           return;
         }
         this._createExecutionContext(frame);
-      }),
+      })
     );
   }
 
@@ -361,6 +361,17 @@ export class Page extends Disposable {
    */
   public createExecutionContext(frame: Frame): void {
     this._createExecutionContext(frame);
+  }
+
+  /**
+   * Wait for a timeout that is cancelable by a Progress instance.
+   * @param progress Progress controller that supports .wait(timeout)
+   * @param timeout Timeout in milliseconds to wait
+   */
+  async waitForTimeout(timeout: number): Promise<void> {
+    return executeWithProgress(async progress =>
+      this.mainFrame().waitForTimeout(timeout, progress)
+    );
   }
 
   async waitForMainFrame(progress?: Progress): Promise<Frame> {
@@ -399,7 +410,7 @@ export class Page extends Disposable {
 
   public async goto(
     url: string,
-    options?: NavigateOptionsWithProgress,
+    options?: NavigateOptionsWithProgress
   ): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
       p.log(`Page navigating to "${url}"`);
@@ -416,7 +427,7 @@ export class Page extends Disposable {
         // Note: waitForNavigation may fail before we get response to reload(),
         // so we should await it immediately.
         console.log(
-          `[Page.reload] Starting Promise.all with _waitForNavigation and chrome.tabs.reload for tab ${this.tabId}`,
+          `[Page.reload] Starting Promise.all with _waitForNavigation and chrome.tabs.reload for tab ${this.tabId}`
         );
         const [response] = await Promise.all([
           // Reload must be a new document, and should not be confused with a stray pushState.
@@ -426,7 +437,7 @@ export class Page extends Disposable {
         ]);
         console.log(
           `[Page.reload] Promise.all completed for tab ${this.tabId}, response:`,
-          response,
+          response
         );
         return response;
       });
@@ -454,7 +465,7 @@ export class Page extends Disposable {
           // Use content script injection to navigate back in JavaScript history
           // This matches the navigation method used in Frame.goto() with window.location.assign()
           console.log(
-            `[Page.goBack] Calling window.history.back() via content script for tab ${this.tabId}`,
+            `[Page.goBack] Calling window.history.back() via content script for tab ${this.tabId}`
           );
           try {
             await chrome.scripting.executeScript({
@@ -469,17 +480,17 @@ export class Page extends Disposable {
             // Fallback to chrome.tabs.goBack if content script injection fails
             console.warn(
               `[Page.goBack] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goBack:`,
-              scriptError,
+              scriptError
             );
             chrome.tabs.goBack(this.tabId);
           }
           console.log(
-            `[Page.goBack] Navigation completed for tab ${this.tabId}, waiting for navigation...`,
+            `[Page.goBack] Navigation completed for tab ${this.tabId}, waiting for navigation...`
           );
           const response = await waitPromise;
           console.log(
             `[Page.goBack] waitPromise resolved for tab ${this.tabId}, response:`,
-            response,
+            response
           );
           if (error) throw error;
           return response;
@@ -506,7 +517,7 @@ export class Page extends Disposable {
           .catch(e => {
             console.log(
               `[Page.goForward] _waitForNavigation caught error for tab ${this.tabId}:`,
-              e,
+              e
             );
             error = e;
             return null;
@@ -516,7 +527,7 @@ export class Page extends Disposable {
           // Use content script injection to navigate forward in JavaScript history
           // This matches the navigation method used in Frame.goto() with window.location.assign()
           console.log(
-            `[Page.goForward] Calling window.history.forward() via content script for tab ${this.tabId}`,
+            `[Page.goForward] Calling window.history.forward() via content script for tab ${this.tabId}`
           );
           try {
             await chrome.scripting.executeScript({
@@ -531,17 +542,17 @@ export class Page extends Disposable {
             // Fallback to chrome.tabs.goForward if content script injection fails
             console.warn(
               `[Page.goForward] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goForward:`,
-              scriptError,
+              scriptError
             );
             chrome.tabs.goForward(this.tabId);
           }
           console.log(
-            `[Page.goForward] Navigation completed for tab ${this.tabId}, waiting for navigation...`,
+            `[Page.goForward] Navigation completed for tab ${this.tabId}, waiting for navigation...`
           );
           const response = await waitPromise;
           console.log(
             `[Page.goForward] waitPromise resolved for tab ${this.tabId}, response:`,
-            response,
+            response
           );
           if (error) throw error;
           return response;
@@ -564,7 +575,7 @@ export class Page extends Disposable {
     // For Chrome internal pages (new tab pages), use simplified load detection
     if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
       console.log(
-        `Page.waitForLoadState: Chrome internal page detected (${url}) - using simplified load detection`,
+        `Page.waitForLoadState: Chrome internal page detected (${url}) - using simplified load detection`
       );
 
       const timeout = options?.timeout ?? 5000; // Shorter timeout for Chrome pages
@@ -574,13 +585,13 @@ export class Page extends Disposable {
           new Promise<void>(resolve => setTimeout(resolve, Math.min(timeout, 3000))), // Max 3s
         ]);
         console.log(
-          'Page.waitForLoadState: Chrome internal page load completed or timed out gracefully',
+          'Page.waitForLoadState: Chrome internal page load completed or timed out gracefully'
         );
         return;
       } catch (error) {
         console.warn(
           'Page.waitForLoadState: Chrome internal page load failed, continuing anyway:',
-          error,
+          error
         );
         return;
       }
@@ -716,14 +727,14 @@ export class Page extends Disposable {
 
   async check(
     selector: string,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     await this.frameManager.mainFrame().check(selector, options);
   }
 
   async uncheck(
     selector: string,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     await this.frameManager.mainFrame().uncheck(selector, options);
   }
@@ -731,7 +742,7 @@ export class Page extends Disposable {
   async setChecked(
     selector: string,
     checked: boolean,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     await this.frameManager.mainFrame().setChecked(selector, checked, options);
   }
@@ -739,7 +750,7 @@ export class Page extends Disposable {
   async fill(
     selector: string,
     value: string,
-    options?: { timeout?: number; force?: boolean },
+    options?: { timeout?: number; force?: boolean }
   ): Promise<void> {
     await this.frameManager.mainFrame().fill(selector, value, options);
   }
@@ -747,7 +758,7 @@ export class Page extends Disposable {
   async selectOption(
     selector: string,
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[]> {
     return this.frameManager.mainFrame().selectOption(selector, values, options);
   }
@@ -760,7 +771,7 @@ export class Page extends Disposable {
     selector: string,
     type: string,
     eventInit: Record<string, unknown> = {},
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<void> {
     await this.frameManager.mainFrame().dispatchEvent(selector, type, eventInit, options);
   }
@@ -768,7 +779,7 @@ export class Page extends Disposable {
   async getAttribute(
     selector: string,
     name: string,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<string | null> {
     return await this.mainFrame().getAttribute(selector, name, options);
   }
@@ -821,7 +832,7 @@ export class Page extends Disposable {
   async press(
     selector: string,
     key: string,
-    options?: { delay?: number; timeout?: number },
+    options?: { delay?: number; timeout?: number }
   ): Promise<void> {
     return await this.mainFrame().press(selector, key, options);
   }
@@ -829,7 +840,7 @@ export class Page extends Disposable {
   async type(
     selector: string,
     text: string,
-    options?: { delay?: number; timeout?: number },
+    options?: { delay?: number; timeout?: number }
   ): Promise<void> {
     return await this.mainFrame().type(selector, text, options);
   }
@@ -837,7 +848,7 @@ export class Page extends Disposable {
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<R> {
     return await this.mainFrame().evaluate(pageFunction, arg, options);
   }
@@ -845,7 +856,7 @@ export class Page extends Disposable {
   async evaluateHandle<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<ElementHandle | null> {
     return await this.mainFrame().evaluateHandle(pageFunction, arg, options);
   }
@@ -874,7 +885,7 @@ export class Page extends Disposable {
   async setInputFiles(
     selector: string,
     files: FilePayload[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number }
   ): Promise<void> {
     return await this.mainFrame().setInputFiles(selector, files, options);
   }
@@ -915,13 +926,13 @@ export class Page extends Disposable {
           // Silently ignore other errors (connection issues, frame detached, etc.)
           console.debug(`Frame evaluation failed silently:`, e);
         }
-      }),
+      })
     );
   }
 
   async expectScreenshot(
     progress: Progress,
-    options: ExpectScreenshotOptions,
+    options: ExpectScreenshotOptions
   ): Promise<{
     actual?: Buffer;
     previous?: Buffer;
@@ -939,7 +950,7 @@ export class Page extends Disposable {
             progress,
             locator.selector,
             timeout,
-            options || {},
+            options || {}
           );
           // Convert BrowserBuffer to Node.js Buffer for compatibility if needed
           return convertBrowserBufferToNodeBuffer(bufferLike);
@@ -949,7 +960,7 @@ export class Page extends Disposable {
             async p => {
               await this.mainFrame().rafrafTimeout(p, timeout);
             },
-            { timeout: 30000 },
+            { timeout: 30000 }
           );
           const bufferLike = await this.screenshotter.screenshotPage(progress, options || {});
           // Convert BrowserBuffer to Node.js Buffer for compatibility
@@ -997,7 +1008,7 @@ export class Page extends Disposable {
       idleTime?: number;
       timeout?: number;
       ignoredResourceTypes?: string[];
-    } = {},
+    } = {}
   ): Promise<void> {
     return NetworkListenerManager.waitForNetworkStability(this._networkEvents, progress, options);
   }
@@ -1012,7 +1023,7 @@ export class Page extends Disposable {
    */
   async waitForEvent(
     event: string,
-    optionsOrPredicate: WaitForEventOptions | ((eventArg: unknown) => boolean) = {},
+    optionsOrPredicate: WaitForEventOptions | ((eventArg: unknown) => boolean) = {}
   ): Promise<unknown> {
     const timeout = 30000; // Default timeout
     const options =
@@ -1033,7 +1044,7 @@ export class Page extends Disposable {
       timeoutHandle = setTimeout(() => {
         cleanup();
         reject(
-          new Error(`Timeout ${options.timeout}ms exceeded while waiting for event "${event}"`),
+          new Error(`Timeout ${options.timeout}ms exceeded while waiting for event "${event}"`)
         );
       }, options.timeout);
 
@@ -1111,7 +1122,7 @@ export class Page extends Disposable {
   async _waitForEvent(
     event: string,
     optionsOrPredicate: WaitForEventOptions | ((eventArg: unknown) => boolean),
-    progress: Progress,
+    progress: Progress
   ): Promise<unknown> {
     const options =
       typeof optionsOrPredicate === 'function'
@@ -1177,7 +1188,7 @@ export class Page extends Disposable {
       pollInterval?: number;
       timeout?: number;
       description?: string;
-    } = {},
+    } = {}
   ): Promise<void> {
     return waitForCondition(progress, condition, options);
   }
@@ -1188,7 +1199,7 @@ export class Page extends Disposable {
    */
   async waitForDownloadAndClick(
     selector: string,
-    options?: { delay?: number; timeout?: number },
+    options?: { delay?: number; timeout?: number }
   ): Promise<Download> {
     const delay = options?.delay ?? 100; // Default 100ms delay between downloads
     const timeout = options?.timeout ?? 30000;

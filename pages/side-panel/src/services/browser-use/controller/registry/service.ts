@@ -2,7 +2,7 @@
  * TypeScript implementation of browser-use controller registry
  */
 import { BrowserContext } from '../../browser/context';
-import { ExtendedBrowserContext } from '../../browser/interfaces';
+import { BrowserContext } from '../../browser/interfaces';
 import { ActionModel, ActionRegistry, RegisteredAction } from './views';
 
 /**
@@ -85,7 +85,7 @@ export class Registry<Context = unknown> {
         propertyKey,
         description,
         descriptor.value,
-        actualParamModel,
+        actualParamModel
       );
 
       this.registry.actions[propertyKey] = action;
@@ -104,7 +104,7 @@ export class Registry<Context = unknown> {
     pageExtractionLlm?: unknown,
     sensitiveData?: Record<string, string>,
     availableFilePaths?: string[],
-    context?: Context,
+    context?: Context
   ): Promise<unknown> {
     if (!this.registry.actions[actionName]) {
       throw new Error(`Action ${actionName} not found`);
@@ -130,7 +130,7 @@ export class Registry<Context = unknown> {
 
     // Execute the action with appropriate parameters
     return await action.function(params, {
-      browser: browser as unknown as ExtendedBrowserContext,
+      browser: browser as unknown as BrowserContext,
       pageExtractionLlm,
       sensitiveData,
       availableFilePaths,
@@ -143,7 +143,7 @@ export class Registry<Context = unknown> {
    */
   private _replaceSensitiveData(
     params: Record<string, unknown>,
-    sensitiveData: Record<string, string>,
+    sensitiveData: Record<string, string>
   ): Record<string, unknown> {
     const secretPattern = /<secret>(.*?)<\/secret>/g;
 
@@ -160,7 +160,7 @@ export class Registry<Context = unknown> {
             acc[k] = replaceSecrets(v);
             return acc;
           },
-          {} as Record<string, unknown>,
+          {} as Record<string, unknown>
         );
       }
       return value;

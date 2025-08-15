@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BrowserState } from '../browser/views';
 import { ActionResult, AgentStepInfo } from './views';
@@ -27,7 +28,7 @@ export class SystemPrompt extends BasePrompt {
     availableActions: string,
     maxActionsPerStep: number = 10,
     overrideSystemMessage?: string,
-    extendSystemMessage?: string,
+    extendSystemMessage?: string
   ) {
     super();
 
@@ -158,7 +159,7 @@ export class AgentMessagePrompt {
     state: BrowserState,
     result: ActionResult[] | null = null,
     includeAttributes: string[] = [],
-    stepInfo: AgentStepInfo | null = null,
+    stepInfo: AgentStepInfo | null = null
   ) {
     this.state = state;
     this.result = result;

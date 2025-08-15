@@ -182,7 +182,7 @@ class Network {
       status: number = 200,
       statusText: string = 'OK',
       headers: Record<string, string> = {},
-      request: NavigationRequest | null = null,
+      request: NavigationRequest | null = null
     ) {
       this._url = url;
       this._status = status;
@@ -289,7 +289,7 @@ export class Frame extends Disposable {
     frameId: number,
     frameManager: FrameManager,
     parentFrame: Frame | null,
-    url?: string,
+    url?: string
   ) {
     super();
     this.frameId = frameId;
@@ -310,7 +310,7 @@ export class Frame extends Disposable {
           if (parentFrame) {
             parentFrame._childFrames.delete(this);
             console.log(
-              `🗑️ Frame ${this.frameId} removed from parent frame ${parentFrame.frameId} (tab ${this.tabId})`,
+              `🗑️ Frame ${this.frameId} removed from parent frame ${parentFrame.frameId} (tab ${this.tabId})`
             );
           }
         },
@@ -318,7 +318,7 @@ export class Frame extends Disposable {
     }
 
     console.log(
-      `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${parentFrame?.frameId ?? 'none'} - URL: ${url ?? 'no url'}`,
+      `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${parentFrame?.frameId ?? 'none'} - URL: ${url ?? 'no url'}`
     );
   }
 
@@ -363,8 +363,8 @@ export class Frame extends Disposable {
     // Keep the current navigation request if any.
     this._inflightRequests = new Set(
       Array.from(this._inflightRequests).filter(
-        request => request === this._currentDocument.request,
-      ),
+        request => request === this._currentDocument.request
+      )
     );
     this._stopNetworkIdleTimer();
     if (this._inflightRequests.size === 0) this._startNetworkIdleTimer();
@@ -392,7 +392,7 @@ export class Frame extends Disposable {
       this._context = undefined;
     } else {
       console.log(
-        `[Frame._onNewDocumentCommitted] No existing context to destroy for frame ${this.frameId}`,
+        `[Frame._onNewDocumentCommitted] No existing context to destroy for frame ${this.frameId}`
       );
     }
   }
@@ -488,7 +488,7 @@ export class Frame extends Disposable {
     name: string = '',
     newDocument?: DocumentInfo,
     error?: Error,
-    isPublic: boolean = true,
+    isPublic: boolean = true
   ): void {
     const navigationEvent: NavigationEvent = {
       url,
@@ -527,7 +527,7 @@ export class Frame extends Disposable {
    */
   async waitForNavigation(
     progress: Progress,
-    options: { waitUntil?: LifecycleEvent; timeout?: number } = {},
+    options: { waitUntil?: LifecycleEvent; timeout?: number } = {}
   ): Promise<NavigationResponse | null> {
     const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
     const timeout = options.timeout || 30000;
@@ -591,12 +591,12 @@ export class Frame extends Disposable {
   async _waitForNavigation(
     progress: Progress,
     requiresNewDocument: boolean,
-    options: { waitUntil?: LifecycleEvent; timeout?: number } = {},
+    options: { waitUntil?: LifecycleEvent; timeout?: number } = {}
   ): Promise<NavigationResponse | null> {
     const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
     console.log(
       `[Frame._waitForNavigation] Starting frame ${this.frameId}, tab ${this.tabId}, requiresNewDocument: ${requiresNewDocument}, waitUntil: "${waitUntil}", options:`,
-      options,
+      options
     );
 
     // Safe progress logging - check if progress.log exists
@@ -605,13 +605,13 @@ export class Frame extends Disposable {
     } else {
       console.log(
         `[Frame._waitForNavigation] Progress object missing log method, progress:`,
-        progress,
+        progress
       );
     }
 
     // Wait for navigation event using our VS Code Event system
     console.log(
-      `[Frame._waitForNavigation] Calling Frame.waitForEvent for onInternalNavigation, frame ${this.frameId}`,
+      `[Frame._waitForNavigation] Calling Frame.waitForEvent for onInternalNavigation, frame ${this.frameId}`
     );
     const navigationEvent = await Frame.waitForEvent(
       progress,
@@ -633,19 +633,19 @@ export class Frame extends Disposable {
 
         return true;
       },
-      options.timeout || 30000,
+      options.timeout || 30000
     );
 
     console.log(
       `[Frame._waitForNavigation] Frame.waitForEvent completed for frame ${this.frameId}, navigationEvent:`,
-      navigationEvent,
+      navigationEvent
     );
 
     // Check for navigation error
     if (navigationEvent.error) {
       console.log(
         `[Frame._waitForNavigation] Throwing navigation error for frame ${this.frameId}:`,
-        navigationEvent.error,
+        navigationEvent.error
       );
       throw navigationEvent.error;
     }
@@ -656,33 +656,33 @@ export class Frame extends Disposable {
     console.log(
       `[Frame._waitForNavigation] Checking lifecycle events for frame ${this.frameId}, firedEvents:`,
       Array.from(this._firedLifecycleEvents),
-      `waitUntil: "${waitUntil}"`,
+      `waitUntil: "${waitUntil}"`
     );
     const isSameDocument = !navigationEvent.newDocument;
     const shouldSkipLifecycleWait = isSameDocument && waitUntil !== 'commit';
     if (!shouldSkipLifecycleWait && !this._firedLifecycleEvents.has(waitUntil)) {
       console.log(
-        `[Frame._waitForNavigation] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`,
+        `[Frame._waitForNavigation] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`
       );
       await Frame.waitForEvent(
         progress,
         this.onAddLifecycle,
         (e: LifecycleEvent) => {
           console.log(
-            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
+            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`
           );
           return e === waitUntil;
         },
-        options.timeout || 30000,
+        options.timeout || 30000
       );
       console.log(
-        `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`,
+        `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
       );
     } else {
       console.log(
         shouldSkipLifecycleWait
           ? `[Frame._waitForNavigation] Same-document navigation detected; skipping lifecycle wait for "${waitUntil}"`
-          : `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`,
+          : `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`
       );
     }
 
@@ -690,14 +690,14 @@ export class Frame extends Disposable {
     const request = navigationEvent.newDocument ? navigationEvent.newDocument.request : undefined;
     console.log(
       `[Frame._waitForNavigation] Extracting request for frame ${this.frameId}, request:`,
-      request,
+      request
     );
     if (request) {
       // TODO: Implement proper ResponseInfo to NavigationResponse conversion
       // const responseInfo = await progress.race(request._finalRequest().response());
       // For now, return null since response mapping is not fully implemented
       console.log(
-        `[Frame._waitForNavigation] Returning null for frame ${this.frameId} (response mapping not implemented)`,
+        `[Frame._waitForNavigation] Returning null for frame ${this.frameId} (response mapping not implemented)`
       );
       return null;
     }
@@ -712,15 +712,15 @@ export class Frame extends Disposable {
   async _waitForLoadState(progress: Progress, state: LifecycleEvent): Promise<void> {
     const waitUntil = verifyLifecycle('state', state);
     console.log(
-      `[Frame._waitForLoadState] Starting for frame ${this.frameId}, state: "${state}", waitUntil: "${waitUntil}"`,
+      `[Frame._waitForLoadState] Starting for frame ${this.frameId}, state: "${state}", waitUntil: "${waitUntil}"`
     );
     console.log(
       `[Frame._waitForLoadState] Current fired lifecycle events for frame ${this.frameId}:`,
-      Array.from(this._firedLifecycleEvents),
+      Array.from(this._firedLifecycleEvents)
     );
     if (!this._firedLifecycleEvents.has(waitUntil)) {
       console.log(
-        `[Frame._waitForLoadState] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`,
+        `[Frame._waitForLoadState] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`
       );
       // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
       await progress.race(
@@ -729,19 +729,19 @@ export class Frame extends Disposable {
           this.onAddLifecycle,
           (e: LifecycleEvent) => {
             console.log(
-              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
+              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`
             );
             return e === waitUntil;
           },
-          30000, // This becomes irrelevant as progress.race will handle timeout
-        ),
+          30000 // This becomes irrelevant as progress.race will handle timeout
+        )
       );
       console.log(
-        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`,
+        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
       );
     } else {
       console.log(
-        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`,
+        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`
       );
     }
   }
@@ -754,11 +754,11 @@ export class Frame extends Disposable {
     progress: Progress,
     event: Event<T>,
     predicate?: (eventArg: T) => boolean,
-    timeout: number = 30000,
+    timeout: number = 30000
   ): Promise<T> {
     console.log(
       `[Frame.waitForEvent] Starting waitForEvent with timeout ${timeout}ms, predicate:`,
-      !!predicate,
+      !!predicate
     );
     return new Promise<T>((resolve, reject) => {
       let disposable: { dispose(): void } | null = null;
@@ -787,7 +787,7 @@ export class Frame extends Disposable {
           }
           console.log(
             `[Frame.waitForEvent] Event matches criteria, resolving with eventArg:`,
-            eventArg,
+            eventArg
           );
           cleanup();
           resolve(eventArg);
@@ -806,7 +806,7 @@ export class Frame extends Disposable {
       } else {
         console.log(
           `[Frame.waitForEvent] Progress object missing cleanupWhenAborted method, progress:`,
-          progress,
+          progress
         );
         // Still register cleanup in case we need it, but without progress support
       }
@@ -816,7 +816,7 @@ export class Frame extends Disposable {
   public async _retryWithProgressAndTimeouts<R>(
     progress: Progress,
     timeouts: readonly number[] = DEFAULT_RETRY_TIMEOUTS,
-    action: (continuePolling: symbol) => Promise<R | symbol>,
+    action: (continuePolling: symbol) => Promise<R | symbol>
   ): Promise<R> {
     const continuePolling = Symbol('continuePolling');
     // Prepend zero to ensure immediate first attempt
@@ -863,7 +863,7 @@ export class Frame extends Disposable {
 
   async raceNavigationAction(
     progress: Progress,
-    action: () => Promise<NavigationResponse | null>,
+    action: () => Promise<NavigationResponse | null>
   ): Promise<NavigationResponse | null> {
     return LongStandingScope.raceMultiple(
       [this._detachedScope, this.frameManager.page.openScope],
@@ -879,8 +879,18 @@ export class Frame extends Disposable {
           }
         }
         throw e;
-      }),
+      })
     );
+  }
+
+  /**
+   * Wait for a timeout that is cancelable by a Progress instance.
+   * @param progress Progress controller that supports .wait(timeout)
+   * @param timeout Timeout in milliseconds to wait
+   */
+  async waitForTimeout(timeout: number, progress?: Progress): Promise<void> {
+    // Use the provided Progress if available so callers can cancel the wait.
+    return executeWithProgress(async p => p.wait(timeout), { timeout, progress });
   }
 
   redirectNavigation(url: string, documentId: string, referer: string | undefined) {
@@ -901,7 +911,7 @@ export class Frame extends Disposable {
    */
   async goto(
     url: string,
-    options?: NavigateOptionsWithProgress,
+    options?: NavigateOptionsWithProgress
   ): Promise<NavigationResponse | null> {
     if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
 
@@ -939,7 +949,7 @@ export class Frame extends Disposable {
         // Fallback to chrome.tabs.update if content script injection fails
         console.warn(
           `Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.update:`,
-          error,
+          error
         );
         chrome.tabs.update(this.tabId, { url });
       }
@@ -962,7 +972,7 @@ export class Frame extends Disposable {
               documentId: navEv.newDocument.documentId,
               request: undefined, // request not available from NavigationTracker
             }
-          : undefined,
+          : undefined
       );
 
       // Create a NavigationResponse for the successful navigation
@@ -971,7 +981,7 @@ export class Frame extends Disposable {
         200, // Assume success for now - we can enhance this later with actual response tracking
         'OK',
         {}, // Empty headers for now - can be enhanced later
-        null, // No request object for now - can be enhanced later
+        null // No request object for now - can be enhanced later
       );
 
       return navigationResponse;
@@ -984,7 +994,7 @@ export class Frame extends Disposable {
    */
   async waitForLoadState(
     state: LifecycleEvent = 'load',
-    options: TimeoutOptions = {},
+    options: TimeoutOptions = {}
   ): Promise<void> {
     return executeWithProgress(async progress => {
       const verifiedState = verifyLifecycle('state', state);
@@ -994,7 +1004,7 @@ export class Frame extends Disposable {
       const url = this.url();
       if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
         progress.log(
-          `Frame.waitForLoadState: Chrome internal page detected (${url}) - applying timeout protection`,
+          `Frame.waitForLoadState: Chrome internal page detected (${url}) - applying timeout protection`
         );
 
         const timeout = options.timeout ?? 5000; // Shorter timeout for Chrome pages
@@ -1004,14 +1014,14 @@ export class Frame extends Disposable {
             new Promise<void>((_, reject) =>
               setTimeout(
                 () => reject(new Error(`Frame load state timed out after ${timeout}ms`)),
-                timeout,
-              ),
+                timeout
+              )
             ),
           ]);
         } catch (error) {
           if (error instanceof Error && error.message.includes('timed out')) {
             progress.log(
-              `Frame.waitForLoadState: Timeout for Chrome internal page - continuing gracefully`,
+              `Frame.waitForLoadState: Timeout for Chrome internal page - continuing gracefully`
             );
             return;
           }
@@ -1048,10 +1058,10 @@ export class Frame extends Disposable {
     if (this._childFrames.size > 0) {
       console.log(
         `🗑️ Frame ${this.frameId} disposing ${this._childFrames.size} child frames: [${Array.from(
-          this._childFrames,
+          this._childFrames
         )
           .map(f => f.frameId)
-          .join(', ')}]`,
+          .join(', ')}]`
       );
     }
 
@@ -1098,10 +1108,10 @@ export class Frame extends Disposable {
   clearChildFrames(): void {
     console.log(
       `🗑️ Frame ${this.frameId} clearing ${this._childFrames.size} child frames: [${Array.from(
-        this._childFrames,
+        this._childFrames
       )
         .map(f => f.frameId)
-        .join(', ')}]`,
+        .join(', ')}]`
     );
     for (const childFrame of this._childFrames) {
       childFrame.dispose();
@@ -1162,7 +1172,7 @@ export class Frame extends Disposable {
     selector: string,
     performActionPreChecksAndLog: boolean,
     options: WaitForElementOptions,
-    scope?: ElementHandle,
+    scope?: ElementHandle
   ): Promise<ElementHandle | null> {
     // Validate options
     const { state = 'visible' } = options;
@@ -1179,7 +1189,7 @@ export class Frame extends Disposable {
       async continuePolling => {
         // Step 1: Resolve selector metadata
         const resolved = await progress.race(
-          this.selectors.resolveInjectedForSelector(selector, options, scope),
+          this.selectors.resolveInjectedForSelector(selector, options, scope)
         );
         if (!resolved) {
           // For hidden/detached states, null means success
@@ -1197,8 +1207,8 @@ export class Frame extends Disposable {
             resolved.info.strict,
             resolved.frame === this && scope ? scope.remoteObject : null,
             selector,
-            resolved.info.world,
-          ),
+            resolved.info.world
+          )
         );
 
         if (!result) {
@@ -1238,7 +1248,7 @@ export class Frame extends Disposable {
         }
 
         return null;
-      },
+      }
     );
   }
 
@@ -1255,7 +1265,7 @@ export class Frame extends Disposable {
   private async _executeWithElementHandle<T>(
     selector: string,
     timeout: number,
-    action: (handle: ElementHandle, progress: Progress) => Promise<T>,
+    action: (handle: ElementHandle, progress: Progress) => Promise<T>
   ): Promise<T> {
     return await executeWithProgress(
       async progress => {
@@ -1272,7 +1282,7 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -1285,21 +1295,21 @@ export class Frame extends Disposable {
       this.tabId,
       () =>
         this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-          handle.clickWithProgress(progress, options),
+          handle.clickWithProgress(progress, options)
         ),
-      { waitUntil: 'commit', timeoutMs: options?.timeout ?? 30000 },
+      { waitUntil: 'commit', timeoutMs: options?.timeout ?? 30000 }
     );
   }
 
   async dblclick(selector: string, options?: ClickOptions): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.dblclickWithProgress(progress, options),
+      handle.dblclickWithProgress(progress, options)
     );
   }
 
   async tap(selector: string, options?: ClickOptions): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.tapWithProgress(progress, options),
+      handle.tapWithProgress(progress, options)
     );
   }
 
@@ -1307,10 +1317,10 @@ export class Frame extends Disposable {
     selector: string,
     type: string,
     eventInit: Record<string, unknown> = {},
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.dispatchEventWithProgress(progress, type, eventInit),
+      handle.dispatchEventWithProgress(progress, type, eventInit)
     );
   }
 
@@ -1337,7 +1347,7 @@ export class Frame extends Disposable {
   async dragAndDrop(
     source: string,
     target: string,
-    options: FrameDragAndDropOptions & { timeout?: number } = {},
+    options: FrameDragAndDropOptions & { timeout?: number } = {}
   ): Promise<void> {
     const timeout = options.timeout || 30000;
 
@@ -1380,7 +1390,7 @@ export class Frame extends Disposable {
             source,
             target,
             sourcePosition,
-            targetPosition,
+            targetPosition
           );
 
           progress.log(`Drag and drop from "${source}" to "${target}" completed successfully`);
@@ -1390,7 +1400,7 @@ export class Frame extends Disposable {
           targetHandle.dispose();
         }
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -1434,14 +1444,14 @@ export class Frame extends Disposable {
     progress: Progress,
     selector: string,
     timeout: number,
-    options: ScreenshotOptions,
+    options: ScreenshotOptions
   ): Promise<Buffer> {
     return await this._executeWithElementHandle(selector, 30000, async (handle, p) => {
       await this.rafrafTimeout(p, timeout);
       const bufferLike = await this.frameManager.page.screenshotter.screenshotElement(
         p,
         handle,
-        options,
+        options
       );
 
       // Convert BrowserBuffer to Node.js Buffer for compatibility
@@ -1496,7 +1506,7 @@ export class Frame extends Disposable {
 
   async check(
     selector: string,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     return await executeWithProgress(
       async progress => {
@@ -1510,13 +1520,13 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
   async uncheck(
     selector: string,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     return await executeWithProgress(
       async progress => {
@@ -1530,14 +1540,14 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
   async setChecked(
     selector: string,
     checked: boolean,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     if (checked) {
       await this.check(selector, options);
@@ -1549,26 +1559,26 @@ export class Frame extends Disposable {
   async fill(
     selector: string,
     value: string,
-    options?: { timeout?: number; force?: boolean },
+    options?: { timeout?: number; force?: boolean }
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.fillWithProgress(progress, value, options),
+      handle.fillWithProgress(progress, value, options)
     );
   }
 
   async selectOption(
     selector: string,
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[]> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.selectOptionWithProgress(progress, values, options),
+      handle.selectOptionWithProgress(progress, values, options)
     );
   }
 
   async clear(selector: string, options?: { timeout?: number; force?: boolean }): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-      handle.clearWithProgress(progress, options),
+      handle.clearWithProgress(progress, options)
     );
   }
 
@@ -1595,7 +1605,7 @@ export class Frame extends Disposable {
   async setInputFiles(
     selector: string,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number }
   ): Promise<void> {
     // For hidden elements with force option, wait for attached state instead of visible
     const waitState = getFileInputWaitState(options?.force);
@@ -1618,7 +1628,7 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
@@ -1627,7 +1637,7 @@ export class Frame extends Disposable {
       async () => {
         await this.context.highlight(selector);
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
@@ -1636,14 +1646,14 @@ export class Frame extends Disposable {
       async () => {
         await this.context.hideHighlight();
       },
-      { timeout: 30000 },
+      { timeout: 30000 }
     );
   }
 
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<R> {
     return await executeWithProgress(
       async p => {
@@ -1658,7 +1668,7 @@ export class Frame extends Disposable {
             [50, 100, 200, 400, 800, 1200, 2000],
             async continuePolling => {
               return this._context ? true : continuePolling;
-            },
+            }
           );
         }
 
@@ -1676,14 +1686,14 @@ export class Frame extends Disposable {
           return result as R;
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
   async evaluateHandle<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<ElementHandle | null> {
     return await executeWithProgress(
       async () => {
@@ -1698,7 +1708,7 @@ export class Frame extends Disposable {
           return result;
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
@@ -1713,28 +1723,28 @@ export class Frame extends Disposable {
   async getAttribute(
     selector: string,
     name: string,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<string | null> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.getAttribute(name),
+      handle.getAttribute(name)
     );
   }
 
   async hover(selector: string, options?: { timeout?: number }): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.hover(),
+      handle.hover()
     );
   }
 
   async innerHTML(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.innerHTML(),
+      handle.innerHTML()
     );
   }
 
   async innerText(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.innerText(),
+      handle.innerText()
     );
   }
 
@@ -1742,38 +1752,38 @@ export class Frame extends Disposable {
     const result = await this._executeWithElementHandle(
       selector,
       options?.timeout || 30000,
-      handle => handle.textContent(),
+      handle => handle.textContent()
     );
     return result;
   }
 
   async inputValue(selector: string, options?: { timeout?: number }): Promise<string> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.inputValue(),
+      handle.inputValue()
     );
   }
 
   async isChecked(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.isChecked(),
+      handle.isChecked()
     );
   }
 
   async isDisabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.isDisabled(),
+      handle.isDisabled()
     );
   }
 
   async isEditable(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.isEditable(),
+      handle.isEditable()
     );
   }
 
   async isEnabled(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.isEnabled(),
+      handle.isEnabled()
     );
   }
 
@@ -1797,33 +1807,33 @@ export class Frame extends Disposable {
           handle.dispose();
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
   async isVisible(selector: string, options?: { timeout?: number }): Promise<boolean> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.isVisible(),
+      handle.isVisible()
     );
   }
 
   async press(
     selector: string,
     key: string,
-    options?: { delay?: number; timeout?: number },
+    options?: { delay?: number; timeout?: number }
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.press(key, { delay: options?.delay }),
+      handle.press(key, { delay: options?.delay })
     );
   }
 
   async type(
     selector: string,
     text: string,
-    options?: { delay?: number; timeout?: number },
+    options?: { delay?: number; timeout?: number }
   ): Promise<void> {
     return this._executeWithElementHandle(selector, options?.timeout || 30000, handle =>
-      handle.type(text, { delay: options?.delay }),
+      handle.type(text, { delay: options?.delay })
     );
   }
 
@@ -1917,7 +1927,7 @@ export class Frame extends Disposable {
         }
         return portId;
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -1935,7 +1945,7 @@ export class Frame extends Disposable {
       },
       'ISOLATED',
       selectors as unknown[],
-      color,
+      color
     );
   }
 
@@ -1950,7 +1960,7 @@ export class Frame extends Disposable {
    */
   _addInflightRequest(
     requestInfo: RequestInfo,
-    documentId?: string,
+    documentId?: string
   ): InstanceType<typeof Network.Request> {
     const request = new Network.Request(requestInfo, documentId);
     this._inflightRequests.add(request);
@@ -2003,7 +2013,7 @@ export class Frame extends Disposable {
         throw e;
       }
       throw new Error(
-        'Unable to retrieve content because the page is navigating and changing the content.',
+        'Unable to retrieve content because the page is navigating and changing the content.'
       );
     }
   }
@@ -2024,14 +2034,14 @@ export class FrameLocator {
       return new Locator(
         this._frame,
         createFrameEnterSelector(this._frameSelector, selectorOrLocator),
-        options,
+        options
       );
     if (selectorOrLocator._frame !== this._frame)
       throw new Error(`Locators must belong to the same frame.`);
     return new Locator(
       this._frame,
       createFrameEnterSelector(this._frameSelector, selectorOrLocator._selector),
-      options,
+      options
     );
   }
 
