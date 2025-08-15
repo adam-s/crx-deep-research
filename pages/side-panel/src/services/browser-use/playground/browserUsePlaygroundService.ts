@@ -79,6 +79,16 @@ export interface IBrowserUsePlaygroundService {
   runSafeGotoTest: () => Promise<void>;
   /** Run quick safeGoto test */
   runQuickSafeGotoTest: () => Promise<boolean>;
+  /** Run refreshPage functionality test */
+  runRefreshPageTest: () => Promise<void>;
+  /** Run scrollToBottom functionality test */
+  runScrollToBottomTest: () => Promise<void>;
+  /** Run scrollToTop functionality test */
+  runScrollToTopTest: () => Promise<void>;
+  /** Run reinitializePage functionality test */
+  runReinitializePageTest: () => Promise<void>;
+  /** Run isFileUploader functionality test */
+  runIsFileUploaderTest: () => Promise<void>;
 }
 
 export class BrowserUsePlaygroundService
@@ -147,6 +157,21 @@ export class BrowserUsePlaygroundService
 
       // Run safeGoto functionality tests
       await this.runSafeGotoTest();
+
+      // Run refreshPage functionality tests
+      await this.runRefreshPageTest();
+
+      // Run scrollToBottom functionality tests
+      await this.runScrollToBottomTest();
+
+      // Run scrollToTop functionality tests
+      await this.runScrollToTopTest();
+
+      // Run reinitializePage functionality tests
+      await this.runReinitializePageTest();
+
+      // Run isFileUploader functionality tests
+      await this.runIsFileUploaderTest();
 
       // Run quick safeGoto test
       await this.runQuickSafeGotoTest();
@@ -1228,6 +1253,136 @@ export class BrowserUsePlaygroundService
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;
+    }
+  }
+
+  /**
+   * Run refreshPage functionality test
+   */
+  public async runRefreshPageTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting refreshPage() test...',
+    });
+
+    try {
+      const { testRefreshPage, TestProgress } = await import('./tests/refreshPageTest');
+      const progress = new TestProgress('refreshPage Test');
+
+      await testRefreshPage(progress, this);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'refreshPage() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run scrollToBottom functionality test
+   */
+  public async runScrollToBottomTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting scrollToBottom() test...',
+    });
+
+    try {
+      const { testScrollToBottom, TestProgress } = await import('./tests/scrollToBottomTest');
+      const progress = new TestProgress('scrollToBottom Test');
+
+      await testScrollToBottom(progress, this);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'scrollToBottom() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run scrollToTop functionality test
+   */
+  public async runScrollToTopTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting scrollToTop() test...',
+    });
+
+    try {
+      const { testScrollToTop, TestProgress } = await import('./tests/scrollToTopTest');
+      const progress = new TestProgress('scrollToTop Test');
+
+      await testScrollToTop(progress, this);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'scrollToTop() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run reinitializePage functionality test
+   */
+  public async runReinitializePageTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting reinitializePage() test...',
+    });
+
+    try {
+      const { testReinitializePage, TestProgress } = await import('./tests/reinitializePageTest');
+      const progress = new TestProgress('reinitializePage Test');
+
+      await testReinitializePage(progress, this);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'reinitializePage() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run isFileUploader functionality test
+   */
+  public async runIsFileUploaderTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🧪 Starting isFileUploader() test...',
+    });
+
+    try {
+      const { testIsFileUploader, TestProgress } = await import('./tests/isFileUploaderTest');
+      const progress = new TestProgress('isFileUploader Test');
+
+      await testIsFileUploader(progress, this);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'isFileUploader() test encountered an error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
     }
   }
 }

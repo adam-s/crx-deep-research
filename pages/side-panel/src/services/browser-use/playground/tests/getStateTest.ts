@@ -58,7 +58,6 @@ export async function testGetState(progress: TestProgress, context: TestContext)
       });
       return;
     }
-
     // Navigate to localhost:3005
     const page = await browserWindow.getCurrentPage();
     await page.goto('http://localhost:3005');
@@ -447,10 +446,12 @@ export async function testGetState(progress: TestProgress, context: TestContext)
     try {
       // Navigate to a route that doesn't exist on our server - will get 404
       await page.goto('http://localhost:3005/nonexistent-page-that-returns-404');
-      await page.waitForLoadState();
+      // Use domcontentloaded instead of default 'load' and add timeout for 404 pages
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
       progress.log(`📍 Navigation to 404 page completed`);
     } catch (navError) {
-      progress.log(`📍 Navigation to 404 page failed: ${navError}`);
+      progress.log(`📍 Navigation to 404 page failed or timed out: ${navError}`);
+      // Continue with test even if navigation times out
     }
 
     // Try to get state after 404 navigation
@@ -503,7 +504,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
         ],
       },
     });
-
+    await page.goto('http://localhost:3005'); // Return to main page after tests
     progress.log('🎉 All getState() tests passed successfully!');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

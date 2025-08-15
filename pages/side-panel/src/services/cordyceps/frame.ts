@@ -722,16 +722,19 @@ export class Frame extends Disposable {
       console.log(
         `[Frame._waitForLoadState] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`,
       );
-      await Frame.waitForEvent(
-        progress,
-        this.onAddLifecycle,
-        (e: LifecycleEvent) => {
-          console.log(
-            `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
-          );
-          return e === waitUntil;
-        },
-        30000,
+      // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
+      await progress.race(
+        Frame.waitForEvent(
+          progress,
+          this.onAddLifecycle,
+          (e: LifecycleEvent) => {
+            console.log(
+              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`,
+            );
+            return e === waitUntil;
+          },
+          30000, // This becomes irrelevant as progress.race will handle timeout
+        ),
       );
       console.log(
         `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`,

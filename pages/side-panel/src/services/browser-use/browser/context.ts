@@ -1846,6 +1846,7 @@ export class BrowserContext {
       throw new Error(`Navigation to non-allowed URL: ${url}`);
     }
   }
+
   /**
    * Navigate back in browser history
    * Exact match to Python implementation's go_back method
@@ -2088,17 +2089,135 @@ export class BrowserContext {
     return await page.evaluate<R, Arg>(script, arg as Arg, options);
   }
 
-  // Refresh, scroll, recovery
-  refreshPage() {}
-  refresh() {}
-  scrollToBottom() {}
-  scrollToTop() {}
-  reinitializePage() {}
+  /**
+   * Refresh the current page
+   * Exact match to Python implementation's refresh_page method
+   */
+  async refreshPage(): Promise<void> {
+    const page = await this.getCurrentPage();
+    await page.reload();
+    await page.waitForLoadState();
+  }
 
-  // Miscellaneous
-  isFileUploader(element: unknown, maxDepth?: unknown, currentDepth?: unknown) {
-    element;
-    maxDepth;
-    currentDepth;
+  /**
+   * Scroll to the bottom of the page
+   */
+  async scrollToBottom(): Promise<void> {
+    try {
+      const page = await this.getCurrentPage();
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      console.info('Scrolled to bottom of page');
+    } catch (e: unknown) {
+      console.error('Error scrolling to bottom:', e);
+    }
+  }
+
+  /**
+   * Scroll to the top of the page
+   */
+  async scrollToTop(): Promise<void> {
+    try {
+      const page = await this.getCurrentPage();
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
+      console.info('Scrolled to top of page');
+    } catch (e: unknown) {
+      console.error('Error scrolling to top:', e);
+    }
+  }
+
+  /**
+   * Reinitialize the current page for recovery purposes
+   * Chrome extension-compatible version that refreshes the page and clears cached state
+   */
+  async reinitializePage(): Promise<void> {
+    try {
+      const page = await this.getCurrentPage();
+      const url = page.url();
+      console.info('Reinitializing page for recovery, current URL:', url);
+
+      // Clear any cached state
+      this.currentState = undefined;
+      const session = await this.getSession();
+      session.cachedState = null;
+
+      // Remove any highlights before refresh
+      await this.removeHighlights();
+
+      // Refresh the page to reinitialize DOM state
+      await page.reload({ waitUntil: 'networkidle' });
+
+      // Wait for page to be fully loaded
+      await this._waitForPageAndFramesLoad({ timeoutOverwrite: 2 });
+
+      console.info('Page reinitialized successfully');
+    } catch (e: unknown) {
+      console.error('Error reinitializing page:', e);
+      throw new Error(`Failed to reinitialize page: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /**
+   * Check if element or its children are file uploaders
+   * Exact match to Python implementation's is_file_uploader method
+   */
+  async isFileUploader(
+    element: ElementNode | null,
+    maxDepth: number = 3,
+    currentDepth: number = 0,
+  ): Promise<boolean> {
+    // Check if element is valid
+    if (!element) {
+      return false;
+    }
+
+    // Check if we've exceeded the maximum depth
+    if (currentDepth > maxDepth) {
+      return false;
+    }
+
+    // Get tag name from different element types
+    let tagName: string;
+    if ('tagName' in element && typeof element.tagName === 'string') {
+      // DOMElementNode class instance
+      tagName = element.tagName;
+    } else if ('tag' in element && typeof element.tag === 'string') {
+      // ElementNodeDict or DOMElementNode interface
+      tagName = element.tag;
+    } else if ('tag_name' in element && typeof element.tag_name === 'string') {
+      // ElementForSelector
+      tagName = element.tag_name;
+    } else {
+      return false;
+    }
+
+    // Check current element
+    let isUploader = false;
+
+    // Check for file input attributes
+    if (tagName === 'input') {
+      const attributes = 'attributes' in element ? element.attributes : {};
+      isUploader = attributes?.type === 'file' || attributes?.accept !== undefined;
+    }
+
+    if (isUploader) {
+      return true;
+    }
+
+    // Recursively check children (only if we haven't reached max depth)
+    if ('children' in element && element.children && currentDepth < maxDepth) {
+      for (const child of element.children) {
+        if (child) {
+          if (await this.isFileUploader(child, maxDepth, currentDepth + 1)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 }

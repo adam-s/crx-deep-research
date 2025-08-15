@@ -69,10 +69,19 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     progress.log('Test 1: Basic successful navigation to localhost:3005');
 
     const startTime1 = performance.now();
-    const result1 = await browserContext.safeGoto('http://localhost:3005');
+    const result1 = await browserContext.safeGoto('http://localhost:3005', {
+      timeout: 10000,
+      waitUntil: 'domcontentloaded',
+    });
     const duration1 = performance.now() - startTime1;
 
     progress.log(`📍 safeGoto() completed in ${duration1.toFixed(2)}ms`);
+
+    // Wait for page to fully load and URL to update after navigation
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+
+    // Give a small additional delay for URL to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Note: Frame.goto() currently returns null because "Response mapping is not wired yet"
     // So we check for successful navigation by verifying the URL changed
@@ -90,7 +99,10 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     progress.log('Test 2: Navigation to iframe1 page');
 
     const startTime2 = performance.now();
-    const result2 = await browserContext.safeGoto('http://localhost:3005/iframe1');
+    const result2 = await browserContext.safeGoto('http://localhost:3005/iframe1', {
+      timeout: 10000,
+      waitUntil: 'domcontentloaded',
+    });
     const duration2 = performance.now() - startTime2;
 
     if (!result2) {
@@ -103,6 +115,12 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
         `Expected successful status code for iframe1, got: ${status2} ${result2.statusText()}`,
       );
     }
+
+    // Wait for page to fully load and URL to update after navigation
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+
+    // Give a small additional delay for URL to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const currentUrl2 = page.url();
     if (!currentUrl2.includes('iframe1')) {
@@ -118,7 +136,10 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     progress.log('Test 3: Navigation to 404 page');
 
     const startTime3 = performance.now();
-    const result3 = await browserContext.safeGoto('http://localhost:3005/nonexistent-page-404');
+    const result3 = await browserContext.safeGoto('http://localhost:3005/nonexistent-page-404', {
+      timeout: 10000,
+      waitUntil: 'domcontentloaded',
+    });
     const duration3 = performance.now() - startTime3;
 
     // Navigation to 404 should succeed (browser loads the 404 page)
@@ -612,10 +633,12 @@ export async function quickSafeGotoTest(browserWindow: BrowserWindow): Promise<b
     const browserContext = new BrowserContext(browserWindow, {
       allowedDomains: ['localhost'],
     });
-
     // Test basic navigation
     const startTime = performance.now();
-    const result = await browserContext.safeGoto('http://localhost:3005');
+    const result = await browserContext.safeGoto('http://localhost:3005', {
+      waitUntil: 'networkidle',
+      timeout: 10000,
+    });
     const duration = performance.now() - startTime;
 
     if (!result) {
@@ -629,10 +652,10 @@ export async function quickSafeGotoTest(browserWindow: BrowserWindow): Promise<b
       return false;
     }
 
-    // Verify we're at the correct URL
+    // Wait for page to fully load and URL to update
     const page = await browserWindow.getCurrentPage();
-    const currentUrl = page.url();
 
+    const currentUrl = page.url();
     if (!currentUrl.includes('localhost:3005')) {
       console.warn(`Quick safeGoto test failed: Wrong URL ${currentUrl}`);
       return false;
