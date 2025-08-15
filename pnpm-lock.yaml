@@ -385,10 +385,10 @@ importers:
         version: 3.5.0
       '@langchain/core':
         specifier: ^0.3.68
-        version: 0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.24.4))
+        version: 0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.25.76))
       '@langchain/openai':
         specifier: ^0.6.7
-        version: 0.6.7(@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.24.4)))(ws@8.18.2)
+        version: 0.6.7(@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.25.76)))(ws@8.18.2)
       '@types/d3-array':
         specifier: ^3.2.1
         version: 3.2.1
@@ -401,6 +401,9 @@ importers:
       '@types/react-window':
         specifier: ^1.8.8
         version: 1.8.8
+      '@types/turndown':
+        specifier: ^5.0.5
+        version: 5.0.5
       '@visx/axis':
         specifier: ^3.12.0
         version: 3.12.0(react@19.1.0)
@@ -469,7 +472,7 @@ importers:
         version: 3.2.6
       openai:
         specifier: ^5.9.0
-        version: 5.9.0(ws@8.18.2)(zod@3.24.4)
+        version: 5.9.0(ws@8.18.2)(zod@3.25.76)
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@18.3.21)(react@19.1.0)
@@ -488,6 +491,9 @@ importers:
       remark-rehype:
         specifier: ^11.1.2
         version: 11.1.2
+      turndown:
+        specifier: ^7.2.1
+        version: 7.2.1
       xstate:
         specifier: ^5.18.2
         version: 5.19.3
@@ -1854,6 +1860,9 @@ packages:
   '@microsoft/tsdoc@0.15.1':
     resolution: {integrity: sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==}
 
+  '@mixmark-io/domino@2.2.0':
+    resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
+
   '@modelcontextprotocol/sdk@1.12.1':
     resolution: {integrity: sha512-KG1CZhZfWg+u8pxeM/mByJDScJSrjjxLc8fwQqbsS8xCjBmQfMNEBTotYdNanKekepnfRI85GtgQlctLFpcYPw==}
     engines: {node: '>=18'}
@@ -2568,6 +2577,9 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/turndown@5.0.5':
+    resolution: {integrity: sha512-TL2IgGgc7B5j78rIccBtlYAnkuv8nUQqhQc+DSYV5j9Be9XOcm/SKOVRuA47xAVI3680Tk9B1d8flK2GWT2+4w==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -6067,6 +6079,9 @@ packages:
     resolution: {integrity: sha512-iHuaNcq5GZZnr3XDZNuu2LSyCzAOPwDuo5Qt+q64DfsTP1i3T2bKfxJhni2ZQxsvAoxRbuUK5QetJki4qc5aYA==}
     hasBin: true
 
+  turndown@7.2.1:
+    resolution: {integrity: sha512-7YiPJw6rLClQL3oUKN3KgMaXeJJ2lAyZItclgKDurqnH61so4k4IH/qwmMva0zpuJc/FhRExBBnk7EbeFANlgQ==}
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -8259,14 +8274,14 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
 
-  '@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.24.4))':
+  '@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.25.76))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.3.55(openai@5.9.0(ws@8.18.2)(zod@3.24.4))
+      langsmith: 0.3.55(openai@5.9.0(ws@8.18.2)(zod@3.25.76))
       mustache: 4.2.0
       p-queue: 6.6.2
       p-retry: 4.6.2
@@ -8279,9 +8294,9 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/openai@0.6.7(@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.24.4)))(ws@8.18.2)':
+  '@langchain/openai@0.6.7(@langchain/core@0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.25.76)))(ws@8.18.2)':
     dependencies:
-      '@langchain/core': 0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.24.4))
+      '@langchain/core': 0.3.68(openai@5.9.0(ws@8.18.2)(zod@3.25.76))
       js-tiktoken: 1.0.21
       openai: 5.12.2(ws@8.18.2)(zod@3.25.76)
       zod: 3.25.76
@@ -8331,6 +8346,8 @@ snapshots:
 
   '@microsoft/tsdoc@0.15.1': {}
 
+  '@mixmark-io/domino@2.2.0': {}
+
   '@modelcontextprotocol/sdk@1.12.1':
     dependencies:
       ajv: 6.12.6
@@ -8342,8 +8359,8 @@ snapshots:
       express-rate-limit: 7.5.0(express@5.1.0)
       pkce-challenge: 5.0.0
       raw-body: 3.0.0
-      zod: 3.24.4
-      zod-to-json-schema: 3.24.5(zod@3.24.4)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
 
@@ -8972,6 +8989,8 @@ snapshots:
 
   '@types/trusted-types@2.0.7':
     optional: true
+
+  '@types/turndown@5.0.5': {}
 
   '@types/unist@2.0.11': {}
 
@@ -11523,7 +11542,7 @@ snapshots:
 
   kolorist@1.8.0: {}
 
-  langsmith@0.3.55(openai@5.9.0(ws@8.18.2)(zod@3.24.4)):
+  langsmith@0.3.55(openai@5.9.0(ws@8.18.2)(zod@3.25.76)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
@@ -11533,7 +11552,7 @@ snapshots:
       semver: 7.7.2
       uuid: 10.0.0
     optionalDependencies:
-      openai: 5.9.0(ws@8.18.2)(zod@3.24.4)
+      openai: 5.9.0(ws@8.18.2)(zod@3.25.76)
 
   language-subtag-registry@0.3.23: {}
 
@@ -12263,10 +12282,10 @@ snapshots:
       ws: 8.18.2
       zod: 3.25.76
 
-  openai@5.9.0(ws@8.18.2)(zod@3.24.4):
+  openai@5.9.0(ws@8.18.2)(zod@3.25.76):
     optionalDependencies:
       ws: 8.18.2
-      zod: 3.24.4
+      zod: 3.25.76
 
   optionator@0.9.4:
     dependencies:
@@ -13427,6 +13446,10 @@ snapshots:
       turbo-linux-arm64: 2.5.3
       turbo-windows-64: 2.5.3
       turbo-windows-arm64: 2.5.3
+
+  turndown@7.2.1:
+    dependencies:
+      '@mixmark-io/domino': 2.2.0
 
   type-check@0.4.0:
     dependencies:
