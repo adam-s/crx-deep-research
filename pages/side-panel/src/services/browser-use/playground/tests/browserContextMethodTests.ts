@@ -32,7 +32,7 @@ export class TestProgress {
  */
 export async function testGetCurrentPageMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.getCurrentPage() method...');
 
@@ -46,7 +46,7 @@ export async function testGetCurrentPageMethod(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping getCurrentPage() tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping getCurrentPage() tests - Chrome APIs not available in test environment'
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -162,7 +162,7 @@ export async function testGetCurrentPageMethod(
  */
 export async function testCloseMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.close() method...');
 
@@ -220,7 +220,7 @@ export async function testCloseMethod(
 
     if (browserContext.pages.length !== 0) {
       throw new Error(
-        `Expected pages array to be empty after close(), got ${browserContext.pages.length} pages`,
+        `Expected pages array to be empty after close(), got ${browserContext.pages.length} pages`
       );
     }
 
@@ -253,7 +253,7 @@ export async function testCloseMethod(
     // State should remain CLOSED
     if ((browserContext.session.state as BrowserContextState) !== BrowserContextState.CLOSED) {
       throw new Error(
-        `Expected state to remain CLOSED after second close(), got ${browserContext.session.state}`,
+        `Expected state to remain CLOSED after second close(), got ${browserContext.session.state}`
       );
     }
 
@@ -284,7 +284,7 @@ export async function testCloseMethod(
       (uninitializedContext.session.state as BrowserContextState) !== BrowserContextState.CREATED
     ) {
       throw new Error(
-        `Expected CREATED state for new context, got ${uninitializedContext.session.state}`,
+        `Expected CREATED state for new context, got ${uninitializedContext.session.state}`
       );
     }
 
@@ -296,7 +296,7 @@ export async function testCloseMethod(
       (uninitializedContext.session.state as BrowserContextState) !== BrowserContextState.CLOSED
     ) {
       throw new Error(
-        `Expected CLOSED state after closing uninitialized context, got ${uninitializedContext.session.state}`,
+        `Expected CLOSED state after closing uninitialized context, got ${uninitializedContext.session.state}`
       );
     }
 
@@ -363,7 +363,7 @@ export async function testCloseMethod(
  */
 export async function testStopLoadingMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.stopLoading() method...');
   try {
@@ -375,7 +375,7 @@ export async function testStopLoadingMethod(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping stopLoading() tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping stopLoading() tests - Chrome APIs not available in test environment'
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -438,7 +438,7 @@ export async function testStopLoadingMethod(
       (uninitializedContext.session.state as BrowserContextState) !== BrowserContextState.ACTIVE
     ) {
       throw new Error(
-        `Expected context to be ACTIVE after stopLoading(), got ${uninitializedContext.session.state}`,
+        `Expected context to be ACTIVE after stopLoading(), got ${uninitializedContext.session.state}`
       );
     }
 
@@ -527,7 +527,7 @@ export async function testStopLoadingMethod(
  */
 export async function testGetStateMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.getState() method...');
 
@@ -609,7 +609,7 @@ export async function testGetStateMethod(
  */
 export async function testMethodInteractions(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext method interactions...');
 
@@ -622,7 +622,7 @@ export async function testMethodInteractions(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping method interaction tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping method interaction tests - Chrome APIs not available in test environment'
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -787,7 +787,7 @@ export async function testMethodInteractions(
  */
 export async function testCreateNewTabMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.createNewTab() method...');
 
@@ -799,7 +799,7 @@ export async function testCreateNewTabMethod(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping createNewTab() tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping createNewTab() tests - Chrome APIs not available in test environment'
       );
       return;
     }
@@ -837,7 +837,7 @@ export async function testCreateNewTabMethod(
       });
     } else {
       throw new Error(
-        `Test 1 failed: Expected more than ${initialPages} pages, got ${afterCreatePages}`,
+        `Test 1 failed: Expected more than ${initialPages} pages, got ${afterCreatePages}`
       );
     } // Test 2: Create new tab with allowed URL
     progress.log('Test 2: Creating new tab with allowed URL...');
@@ -850,14 +850,14 @@ export async function testCreateNewTabMethod(
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error('createNewTab with URL timed out after 15 seconds')),
-            15000,
-          ),
+            15000
+          )
         ),
       ]);
     } catch (error) {
       if (error instanceof Error && error.message.includes('timed out')) {
         progress.log(
-          '⚠️ Test 2 warning: createNewTab with URL timed out, checking if tab was created...',
+          '⚠️ Test 2 warning: createNewTab with URL timed out, checking if tab was created...'
         );
         // Still check if the tab was created even if navigation timed out
       } else {
@@ -882,7 +882,7 @@ export async function testCreateNewTabMethod(
       });
     } else {
       throw new Error(
-        `Test 2 failed: Expected more than ${beforeUrlPages} pages, got ${afterUrlPages}`,
+        `Test 2 failed: Expected more than ${beforeUrlPages} pages, got ${afterUrlPages}`
       );
     }
 
@@ -905,7 +905,7 @@ export async function testCreateNewTabMethod(
         });
       } else {
         throw new Error(
-          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
@@ -951,7 +951,7 @@ export async function testCreateNewTabMethod(
  */
 export async function testSwitchToTabMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.switchToTab() method...');
 
@@ -963,7 +963,7 @@ export async function testSwitchToTabMethod(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping switchToTab() tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping switchToTab() tests - Chrome APIs not available in test environment'
       );
       return;
     }
@@ -1040,7 +1040,7 @@ export async function testSwitchToTabMethod(
         });
       } else {
         throw new Error(
-          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+          `Test 3 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
@@ -1061,7 +1061,7 @@ export async function testSwitchToTabMethod(
         });
       } else {
         throw new Error(
-          `Test 4 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+          `Test 4 failed: Unexpected error: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
@@ -1107,7 +1107,7 @@ export async function testSwitchToTabMethod(
  */
 export async function testCloseCurrentTabMethod(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.closeCurrentTab() method...');
 
@@ -1119,7 +1119,7 @@ export async function testCloseCurrentTabMethod(
     } catch (error) {
       // Fallback: skip the test if Chrome APIs are not available
       progress.log(
-        '⚠️ Skipping closeCurrentTab() tests - Chrome APIs not available in test environment',
+        '⚠️ Skipping closeCurrentTab() tests - Chrome APIs not available in test environment'
       );
       return;
     }
@@ -1167,7 +1167,7 @@ export async function testCloseCurrentTabMethod(
     const currentPageAfterSwitch = await browserContext.getCurrentPage();
     if (currentPageAfterSwitch.tabId !== testTab1Id) {
       throw new Error(
-        `Failed to switch to test tab 1. Expected ${testTab1Id}, got ${currentPageAfterSwitch.tabId}`,
+        `Failed to switch to test tab 1. Expected ${testTab1Id}, got ${currentPageAfterSwitch.tabId}`
       );
     }
     progress.log(`Successfully switched to test tab 1 (${testTab1Id}) before closing it`);
@@ -1183,13 +1183,15 @@ export async function testCloseCurrentTabMethod(
     // Verify we're about to close the right tab (should be testTab1Id)
     if (currentTabIdBefore !== testTab1Id) {
       throw new Error(
-        `Expected to close test tab ${testTab1Id}, but current tab is ${currentTabIdBefore}`,
+        `Expected to close test tab ${testTab1Id}, but current tab is ${currentTabIdBefore}`
       );
     }
 
     progress.log(
-      `Before close: BrowserContext pages: ${browserContextPagesBeforeClose}, BrowserWindow pages: ${browserWindowPagesBeforeClose}, Chrome tabs: ${chromeTabsBeforeClose.length}`,
+      `Before close: BrowserContext pages: ${browserContextPagesBeforeClose},` +
+        ` BrowserWindow pages: ${browserWindowPagesBeforeClose},`
     );
+    progress.log(`Chrome tabs: ${chromeTabsBeforeClose.length}`);
     progress.log(`About to close test tab 1 (tabId: ${testTab1Id})`);
 
     // Close the current tab (which is our test tab 1)
@@ -1207,8 +1209,10 @@ export async function testCloseCurrentTabMethod(
     const currentTabIdAfter = currentPageAfter.tabId;
 
     progress.log(
-      `After close: BrowserContext pages: ${browserContextPagesAfterClose}, BrowserWindow pages: ${browserWindowPagesAfterClose}, Chrome tabs: ${chromeTabsAfterClose.length}`,
+      `After close: BrowserContext pages: ${browserContextPagesAfterClose},` +
+        ` BrowserWindow pages: ${browserWindowPagesAfterClose}`
     );
+    progress.log(`Chrome tabs after close: ${chromeTabsAfterClose.length}`);
 
     // Verify the closed tab is indeed gone
     const closedTabStillExists = chromeTabsAfterClose.some(tab => tab.id === testTab1Id);
@@ -1223,19 +1227,22 @@ export async function testCloseCurrentTabMethod(
 
     if (browserContextPagesAfterClose !== expectedBrowserContextPages) {
       throw new Error(
-        `BrowserContext pages: Expected ${expectedBrowserContextPages} after close, got ${browserContextPagesAfterClose}`,
+        'BrowserContext pages: Expected ' +
+          expectedBrowserContextPages +
+          ' after close, got ' +
+          browserContextPagesAfterClose
       );
     }
 
     if (browserWindowPagesAfterClose !== expectedBrowserWindowPages) {
       throw new Error(
-        `BrowserWindow pages: Expected ${expectedBrowserWindowPages} after close, got ${browserWindowPagesAfterClose}`,
+        `BrowserWindow pages: Expected ${expectedBrowserWindowPages} after close, got ${browserWindowPagesAfterClose}`
       );
     }
 
     if (chromeTabsAfterClose.length !== expectedChromeTabs) {
       throw new Error(
-        `Chrome tabs: Expected ${expectedChromeTabs} after close, got ${chromeTabsAfterClose.length}`,
+        `Chrome tabs: Expected ${expectedChromeTabs} after close, got ${chromeTabsAfterClose.length}`
       );
     }
 
@@ -1292,7 +1299,7 @@ export async function testCloseCurrentTabMethod(
     const currentPageBeforeSecondClose = await browserContext.getCurrentPage();
     if (currentPageBeforeSecondClose.tabId !== testTab2Id) {
       throw new Error(
-        `Failed to switch to test tab 2. Expected ${testTab2Id}, got ${currentPageBeforeSecondClose.tabId}`,
+        `Failed to switch to test tab 2. Expected ${testTab2Id}, got ${currentPageBeforeSecondClose.tabId}`
       );
     }
 
@@ -1320,7 +1327,7 @@ export async function testCloseCurrentTabMethod(
     await Promise.race([
       tabRemovedPromise,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout waiting for tab to be removed')), 5000),
+        setTimeout(() => reject(new Error('Timeout waiting for tab to be removed')), 5000)
       ),
     ]);
 
@@ -1334,7 +1341,7 @@ export async function testCloseCurrentTabMethod(
 
     if (tabsAfterSecondClose.length !== tabsBeforeSecondClose.length - 1) {
       throw new Error(
-        `Expected ${tabsBeforeSecondClose.length - 1} tabs after close, got ${tabsAfterSecondClose.length}`,
+        `Expected ${tabsBeforeSecondClose.length - 1} tabs after close, got ${tabsAfterSecondClose.length}`
       );
     }
 
@@ -1372,7 +1379,7 @@ export async function testCloseCurrentTabMethod(
  */
 export async function runBrowserContextMethodTests(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🚀 Starting Browser Context Method Tests...');
 

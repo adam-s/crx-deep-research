@@ -182,7 +182,6 @@ export class DOMService {
       viewportExpansion: viewportExpansionValue,
       debugMode: process.env && process.env['NODE_ENV'] === 'development',
     };
-
     const domTreeResult = await this._page.evaluate((buildArgs: BuildDomTreeArgs) => {
       if (typeof window.__cordyceps_buildDomTree !== 'function') {
         throw new Error(

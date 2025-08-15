@@ -67,7 +67,6 @@ export class LocatorTest extends PlaygroundTest {
       // Get the ariaSnapshotForAI first   // Get the ariaSnapshotForAI first
       const snapshot = await page.snapshotForAI();
       progress.log('Snapshot for AI created successfully.');
-
       console.log('Aria snapshot for AI \n', snapshot);
       progress.log('Creating and testing a basic locator');
       // Create a locator for the body element
@@ -78,9 +77,12 @@ export class LocatorTest extends PlaygroundTest {
       progress.log('Testing boundingBox method');
       const boundingBox = await bodyLocator.boundingBox();
       if (boundingBox) {
-        progress.log(
-          `BoundingBox retrieved: x=${boundingBox.x}, y=${boundingBox.y}, width=${boundingBox.width}, height=${boundingBox.height}`,
-        );
+        {
+          const { x, y, width, height } = boundingBox;
+          const bboxMsg =
+            `BoundingBox retrieved: x=${x}, y=${y}, ` + `width=${width}, height=${height}`;
+          progress.log(bboxMsg);
+        }
         this.context.events.emit({
           timestamp: Date.now(),
           severity: Severity.Success,
@@ -250,7 +252,7 @@ export class LocatorTest extends PlaygroundTest {
 
       // Test ariaSnapshot functionality across all layers
       progress.log(
-        'Testing ariaSnapshot functionality across ElementHandle, Locator, and Frame layers',
+        'Testing ariaSnapshot functionality across ElementHandle, Locator, and Frame layers'
       );
       await testAriaSnapshotFunctionality(page, progress, this.context);
 
@@ -260,13 +262,13 @@ export class LocatorTest extends PlaygroundTest {
 
       // Test selectOption functionality across all layers
       progress.log(
-        'Testing selectOption functionality across ElementHandle, Locator, Frame, and Page',
+        'Testing selectOption functionality across ElementHandle, Locator, Frame, and Page'
       );
       await testSelectOptionFunctionality(page, progress, this.context);
 
       // Test setInputFiles functionality across all layers
       progress.log(
-        'Testing setInputFiles functionality across ElementHandle, Locator, Frame, and Page',
+        'Testing setInputFiles functionality across ElementHandle, Locator, Frame, and Page'
       );
       await testSetInputFilesFunctionality(page, progress, this.context);
 
@@ -276,7 +278,7 @@ export class LocatorTest extends PlaygroundTest {
 
       // Test download functionality using server fixtures
       progress.log(
-        'Testing download functionality with server fixtures (Playwright-compatible API)',
+        'Testing download functionality with server fixtures (Playwright-compatible API)'
       );
       try {
         const downloadProgressController = new ProgressController(20000); // 20 second timeout for downloads
@@ -370,7 +372,7 @@ export class LocatorTest extends PlaygroundTest {
 
       // Test Active Tab Management functionality (after all navigation and form tests)
       progress.log(
-        'Testing Active Tab Management functionality (BrowserWindow, cache, bringToFront)',
+        'Testing Active Tab Management functionality (BrowserWindow, cache, bringToFront)'
       );
       try {
         await testActiveTabManagementFunctionality(page, progress, this.context);
@@ -382,7 +384,7 @@ export class LocatorTest extends PlaygroundTest {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         progress.log(
-          `Active Tab Management functionality test failed (non-fatal): ${errorMessage}`,
+          `Active Tab Management functionality test failed (non-fatal): ${errorMessage}`
         );
         this.context.events.emit({
           timestamp: Date.now(),

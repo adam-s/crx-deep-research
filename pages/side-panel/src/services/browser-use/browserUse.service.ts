@@ -2,7 +2,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { BrowserWindow } from '../cordyceps/browserWindow';
 import { ILogService } from '@shared/services/log.service';
 import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
-import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
+import { SidePanelAppStorageSchema, StorageKeys } from '@shared/storage/types/storage.types';
+import { run as runBrowserUseExample } from './example';
 import {
   IConversationServiceToken,
   type IConversationService,
@@ -32,7 +33,7 @@ export class BrowserUseService implements IBrowserUseService {
   constructor(
     @ILogService private readonly _logService: ILogService,
     @ILocalAsyncStorage private readonly _storage: ILocalAsyncStorage<SidePanelAppStorageSchema>,
-    @IConversationServiceToken private readonly _conversationService: IConversationService,
+    @IConversationServiceToken private readonly _conversationService: IConversationService
   ) {
     this._logService.info('BrowserUseService is running');
     // Initialize promise before async initialization - follows FrameManager pattern
@@ -71,14 +72,26 @@ export class BrowserUseService implements IBrowserUseService {
 
     try {
       // Run conversation service tests first
-      await this._testConversationService();
+      // await this._testConversationService();
 
-      // Then run the main example
+      // Then run the main example using the example runner and OpenAI key from storage
       this._logService.info('Running browser use agent...');
+      // Get the initialized BrowserWindow
+      const browser = await this.getBrowser();
 
-      // For now, just log that we would run the browser agent
-      // since we don't have the BrowserUseAgent implementation here
-      this._logService.info('Browser use agent would run here');
+      // Retrieve OpenAI API key from storage
+      const openAiKey = (await this._storage.get(StorageKeys.OPEN_AI_API_KEY)) as
+        | string
+        | undefined;
+      if (!openAiKey) {
+        this._logService.error(
+          'OpenAI API key not found in storage. Cannot run browser-use example.'
+        );
+        throw new Error('OpenAI API key missing in storage');
+      }
+
+      // Run the example runner with the browser and API key
+      await runBrowserUseExample(browser, openAiKey as string);
 
       this._logService.info('Browser use example completed successfully');
     } catch (error) {
@@ -114,7 +127,7 @@ export class BrowserUseService implements IBrowserUseService {
       // Test 3: Get conversation
       const conversation = await this._conversationService.getConversation(conversationId);
       this._logService.info(
-        `✅ Retrieved conversation with ${conversation?.messages.length || 0} messages`,
+        `✅ Retrieved conversation with ${conversation?.messages.length || 0} messages`
       );
 
       // Test 4: List conversations

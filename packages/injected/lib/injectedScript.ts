@@ -121,7 +121,7 @@ interface WebKitLegacyDeviceOrientationEvent extends DeviceOrientationEvent {
     alpha: number,
     beta: number,
     gamma: number,
-    absolute: boolean,
+    absolute: boolean
   ) => void;
 }
 
@@ -133,7 +133,7 @@ interface WebKitLegacyDeviceMotionEvent extends DeviceMotionEvent {
     acceleration: DeviceMotionEventAcceleration,
     accelerationIncludingGravity: DeviceMotionEventAcceleration,
     rotationRate: DeviceMotionEventRotationRate,
-    interval: number,
+    interval: number
   ) => void;
 }
 
@@ -380,7 +380,7 @@ export class InjectedScript {
     visitAllSelectorParts(result, part => {
       if (!this._engines.has(part.name)) {
         throw this.createStacklessError(
-          `Unknown engine "${part.name}" while parsing selector ${selector}`,
+          `Unknown engine "${part.name}" while parsing selector ${selector}`
         );
       }
     });
@@ -418,7 +418,7 @@ export class InjectedScript {
   private _queryLayoutSelector(
     elements: Set<Element>,
     part: ParsedSelectorPart,
-    originalRoot: Node,
+    originalRoot: Node
   ): Set<Element> {
     const name = part.name as LayoutSelectorName;
     const body = part.body as NestedSelectorBody;
@@ -436,7 +436,7 @@ export class InjectedScript {
 
   ariaSnapshot(
     node: Node,
-    options?: { mode?: 'raw' | 'regex'; forAI?: boolean; refPrefix?: string },
+    options?: { mode?: 'raw' | 'regex'; forAI?: boolean; refPrefix?: string }
   ): string {
     if (node.nodeType !== Node.ELEMENT_NODE) {
       throw this.createStacklessError('Can only capture aria snapshot of Element nodes.');
@@ -480,7 +480,7 @@ export class InjectedScript {
     if (selector.capture !== undefined) {
       // We should have handled the capture above.
       throw this.createStacklessError(
-        'Internal error: there should not be a capture in the selector.',
+        'Internal error: there should not be a capture in the selector.'
       );
     }
 
@@ -532,7 +532,7 @@ export class InjectedScript {
     for (const element of result) {
       if (!('nodeName' in element)) {
         throw this.createStacklessError(
-          `Expected a Node but got ${Object.prototype.toString.call(element)}`,
+          `Expected a Node but got ${Object.prototype.toString.call(element)}`
         );
       }
     }
@@ -548,7 +548,7 @@ export class InjectedScript {
       queryAll: (root: SelectorRoot, selector: string): Element[] => {
         return this._evaluator.query(
           { scope: root as Document | Element, pierceShadow: shadow },
-          toCSS(selector),
+          toCSS(selector)
         );
       },
     };
@@ -559,7 +559,7 @@ export class InjectedScript {
       queryAll: (root: SelectorRoot, body: any) => {
         return this._evaluator.query(
           { scope: root as Document | Element, pierceShadow: true },
-          body,
+          body
         );
       },
     };
@@ -593,7 +593,7 @@ export class InjectedScript {
       }
       const elements = this._evaluator._queryCSS(
         { scope: root as Document | Element, pierceShadow: shadow },
-        '*',
+        '*'
       );
       for (const element of elements) {
         appendElement(element);
@@ -637,11 +637,11 @@ export class InjectedScript {
         const { matcher } = createTextMatcher(selector, true);
         const allElements = this._evaluator._queryCSS(
           { scope: root as Document | Element, pierceShadow: true },
-          '*',
+          '*'
         );
         return allElements.filter(element => {
           return getElementLabels(this._evaluator._cacheText, element).some(label =>
-            matcher(label),
+            matcher(label)
           );
         });
       },
@@ -679,7 +679,7 @@ export class InjectedScript {
 
       const elements = this._evaluator._queryCSS(
         { scope: root as Document | Element, pierceShadow: true },
-        `[${name}]`,
+        `[${name}]`
       );
       return elements.filter(element => {
         const attributeValue = element.getAttribute(name);
@@ -800,7 +800,7 @@ export class InjectedScript {
   }
 
   describeIFrameStyle(
-    iframe: Element,
+    iframe: Element
   ): 'error:notconnected' | 'transformed' | { left: number; top: number } {
     if (!iframe.ownerDocument || !iframe.ownerDocument.defaultView) {
       return 'error:notconnected';
@@ -823,7 +823,7 @@ export class InjectedScript {
 
   retarget(
     node: Node,
-    behavior: 'none' | 'follow-label' | 'no-follow-label' | 'button-link',
+    behavior: 'none' | 'follow-label' | 'no-follow-label' | 'button-link'
   ): Element | null {
     let element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
     if (!element) {
@@ -843,7 +843,7 @@ export class InjectedScript {
     if (behavior === 'follow-label') {
       if (
         !element.matches(
-          'a, input, textarea, button, select, [role=link], [role=button], [role=checkbox], [role=radio]',
+          'a, input, textarea, button, select, [role=link], [role=button], [role=checkbox], [role=radio]'
         ) &&
         !(element as any).isContentEditable
       ) {
@@ -859,7 +859,7 @@ export class InjectedScript {
 
   async checkElementStates(
     node: Node,
-    states: ElementState[],
+    states: ElementState[]
   ): Promise<'error:notconnected' | { missingState: ElementState } | undefined> {
     if (states.includes('stable')) {
       const stableResult = await this._checkElementIsStable(node);
@@ -952,8 +952,83 @@ export class InjectedScript {
 
   _createAriaRefEngine() {
     const queryAll = (root: SelectorRoot, selector: string): Element[] => {
-      const result = this._lastAriaSnapshot?.elements?.get(selector);
-      return result && result.isConnected ? [result] : [];
+      // First try to find in the main document's aria snapshot
+      let result = this._lastAriaSnapshot?.elements?.get(selector);
+      if (result && result.isConnected) {
+        return [result];
+      }
+
+      // If selector starts with 'f' (frame reference), we need to search in iframe content
+      if (selector.startsWith('f')) {
+        // Extract frame identifier (e.g., 'f1' from 'f1e3', 'f2' from 'f2e2')
+        const frameMatch = selector.match(/^f(\d+)/);
+        if (frameMatch) {
+          const frameNumber = frameMatch[1];
+          const framePrefix = `f${frameNumber}`;
+
+          // Find all iframes in the document
+          const iframes = Array.from(this.document.querySelectorAll('iframe'));
+
+          // For each iframe, try to access its content document and search for the element
+          for (let i = 0; i < iframes.length; i++) {
+            const iframe = iframes[i];
+            try {
+              // Check if we can access the iframe's content (same-origin policy)
+              const iframeDoc = iframe.contentDocument;
+              if (!iframeDoc) {
+                continue;
+              }
+
+              // Generate aria tree for this iframe with the appropriate frame prefix
+              const iframeSnapshot = (() => {
+                try {
+                  const prevSnapshot = this._lastAriaSnapshot;
+                  // Generate snapshot for iframe content with frame prefix
+                  const tempSnapshot = this.ariaSnapshot(iframeDoc.documentElement, {
+                    forAI: true,
+                    refPrefix: framePrefix,
+                  });
+                  const newSnapshot = this._lastAriaSnapshot;
+                  this._lastAriaSnapshot = prevSnapshot; // Restore original
+                  return newSnapshot;
+                } catch (e) {
+                  return null;
+                }
+              })();
+
+              // Search in the iframe's element map
+              if (iframeSnapshot?.elements) {
+                result = iframeSnapshot.elements.get(selector);
+                if (result && result.isConnected) {
+                  return [result];
+                }
+              }
+
+              // Also try direct querySelector in iframe if aria snapshot doesn't work
+              // Convert aria ref to a more generic search
+              if (selector.includes('e')) {
+                const elementPart = selector.split('e')[1];
+                if (elementPart) {
+                  // Try to find elements with custom attributes that might match
+                  const candidates = Array.from(iframeDoc.querySelectorAll('*'));
+                  for (const candidate of candidates) {
+                    // Check if this element might be our target
+                    // This is a fallback when aria snapshot doesn't capture iframe content properly
+                    if ((candidate as any)._ariaRef?.ref === selector) {
+                      return [candidate];
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // Cross-origin iframe or other access issue, skip
+              continue;
+            }
+          }
+        }
+      }
+
+      return [];
     };
     return { queryAll };
   }
@@ -961,7 +1036,7 @@ export class InjectedScript {
   elementState(node: Node, state: ElementStateWithoutStable): ElementStateQueryResult {
     const element = this.retarget(
       node,
-      ['visible', 'hidden'].includes(state) ? 'none' : 'follow-label',
+      ['visible', 'hidden'].includes(state) ? 'none' : 'follow-label'
     );
     if (!element || !element.isConnected) {
       if (state === 'hidden') {
@@ -991,7 +1066,7 @@ export class InjectedScript {
       const readonly = getReadonly(element);
       if (readonly === 'error') {
         throw this.createStacklessError(
-          'Element is not an <input>, <textarea>, <select> or [contenteditable] and does not have a role allowing [aria-readonly]',
+          'Element is not an <input>, <textarea>, <select> or [contenteditable] and does not have a role allowing [aria-readonly]'
         );
       }
       return {
@@ -1030,7 +1105,7 @@ export class InjectedScript {
     optionsToSelect: (
       | Node
       | { valueOrLabel?: string; value?: string; label?: string; index?: number }
-    )[],
+    )[]
   ): string[] | 'error:notconnected' | 'error:optionsnotfound' | 'error:optionnotenabled' {
     const element = this.retarget(node, 'follow-label');
     if (!element) {
@@ -1048,7 +1123,7 @@ export class InjectedScript {
       const filter = (
         optionToSelect:
           | Node
-          | { valueOrLabel?: string; value?: string; label?: string; index?: number },
+          | { valueOrLabel?: string; value?: string; label?: string; index?: number }
       ) => {
         if (optionToSelect instanceof Node) {
           return option === optionToSelect;
@@ -1146,7 +1221,7 @@ export class InjectedScript {
       // Nothing to check here.
     } else if (!(element as HTMLElement).isContentEditable) {
       throw this.createStacklessError(
-        'Element is not an <input>, <textarea> or [contenteditable] element',
+        'Element is not an <input>, <textarea> or [contenteditable] element'
       );
     }
     this.selectText(element);
@@ -1237,7 +1312,7 @@ export class InjectedScript {
 
   setInputFiles(
     node: Node,
-    payloads: { name: string; mimeType: string; buffer: string; lastModifiedMs?: number }[],
+    payloads: { name: string; mimeType: string; buffer: string; lastModifiedMs?: number }[]
   ) {
     if (node.nodeType !== Node.ELEMENT_NODE) {
       return 'Node is not of type HTMLElement';
@@ -1266,6 +1341,7 @@ export class InjectedScript {
     input.files = dt.files;
     input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    return 'done';
   }
 
   expectHitTarget(hitPoint: { x: number; y: number }, targetElement: Element) {
@@ -1395,7 +1471,7 @@ export class InjectedScript {
     node: Node,
     action: 'hover' | 'tap' | 'mouse' | 'drag',
     hitPoint: { x: number; y: number } | undefined,
-    blockAllEvents: boolean,
+    blockAllEvents: boolean
   ): HitTargetInterceptionResult | 'error:notconnected' | string /* hitTargetDescription */ {
     const element = this.retarget(node, 'button-link');
     if (!element || !element.isConnected) {
@@ -1511,7 +1587,7 @@ export class InjectedScript {
               t.radiusX,
               t.radiusY,
               t.rotationAngle,
-              t.force,
+              t.force
             );
           };
           const createTouchList = (touches: any) => {
@@ -1528,13 +1604,13 @@ export class InjectedScript {
         } else {
           eventInit.target ??= node;
           eventInit.touches = eventInit.touches?.map((t: any) =>
-            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }),
+            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node })
           );
           eventInit.targetTouches = eventInit.targetTouches?.map((t: any) =>
-            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }),
+            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node })
           );
           eventInit.changedTouches = eventInit.changedTouches?.map((t: any) =>
-            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }),
+            t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node })
           );
           event = new TouchEvent(type, eventInit);
         }
@@ -1565,7 +1641,7 @@ export class InjectedScript {
             absolute: boolean;
           };
           event = this.document.createEvent(
-            'DeviceOrientationEvent',
+            'DeviceOrientationEvent'
           ) as WebKitLegacyDeviceOrientationEvent;
           event.initDeviceOrientationEvent(type, bubbles, cancelable, alpha, beta, gamma, absolute);
         }
@@ -1597,7 +1673,7 @@ export class InjectedScript {
             acceleration,
             accelerationIncludingGravity,
             rotationRate,
-            interval,
+            interval
           );
         }
         break;
@@ -1645,7 +1721,7 @@ export class InjectedScript {
     }
     const text = onlyText ? element.textContent || '' : children.length ? '\u2026' : '';
     return oneLine(
-      `<${element.nodeName.toLowerCase()}${attrText}>${trimStringWithEllipsis(text, 50)}</${element.nodeName.toLowerCase()}>`,
+      `<${element.nodeName.toLowerCase()}${attrText}>${trimStringWithEllipsis(text, 50)}</${element.nodeName.toLowerCase()}>`
     );
   }
 
@@ -1656,13 +1732,13 @@ export class InjectedScript {
     }));
     const lines = infos.map(
       (info, i) =>
-        `\n    ${i + 1}) ${info.preview} aka ${asLocator(this._sdkLanguage, info.selector)}`,
+        `\n    ${i + 1}) ${info.preview} aka ${asLocator(this._sdkLanguage, info.selector)}`
     );
     if (infos.length < matches.length) {
       lines.push('\n    ...');
     }
     return this.createStacklessError(
-      `strict mode violation: ${asLocator(this._sdkLanguage, stringifySelector(selector))} resolved to ${matches.length} elements:${lines.join('')}\n`,
+      `strict mode violation: ${asLocator(this._sdkLanguage, stringifySelector(selector))} resolved to ${matches.length} elements:${lines.join('')}\n`
     );
   }
 
@@ -1753,7 +1829,7 @@ export class InjectedScript {
 
     new MutationObserver(entries => {
       const newDocumentElement = entries.some(entry =>
-        Array.from(entry.addedNodes).includes(this.document.documentElement),
+        Array.from(entry.addedNodes).includes(this.document.documentElement)
       );
       if (!newDocumentElement) {
         return;
@@ -1789,7 +1865,7 @@ export class InjectedScript {
   async expect(
     element: Element | undefined,
     options: FrameExpectParams,
-    elements: Element[],
+    elements: Element[]
   ): Promise<{ matches: boolean; received?: any; missingReceived?: boolean }> {
     const isArray = options.expression === 'to.have.count' || options.expression.endsWith('.array');
     if (isArray) {
@@ -1834,7 +1910,7 @@ export class InjectedScript {
 
   private async expectSingleElement(
     element: Element,
-    options: FrameExpectParams,
+    options: FrameExpectParams
   ): Promise<{ matches: boolean; received?: any }> {
     const expression = options.expression;
 
@@ -1852,7 +1928,7 @@ export class InjectedScript {
         if (indeterminate) {
           if (checked !== undefined) {
             throw this.createStacklessError(
-              "Can't assert indeterminate and checked at the same time",
+              "Can't assert indeterminate and checked at the same time"
             );
           }
           result = this.elementState(element, 'indeterminate');
@@ -1982,7 +2058,7 @@ export class InjectedScript {
           matches: new ExpectedTextMatcher(options.expectedText[0]).matchesClassList(
             this,
             element.classList,
-            /* partial */ expression === 'to.contain.class',
+            /* partial */ expression === 'to.contain.class'
           ),
         };
       } else if (expression === 'to.have.css') {
@@ -2024,7 +2100,7 @@ export class InjectedScript {
 
   private expectArray(
     elements: Element[],
-    options: FrameExpectParams,
+    options: FrameExpectParams
   ): { matches: boolean; received?: any } {
     const expression = options.expression;
 
@@ -2049,7 +2125,7 @@ export class InjectedScript {
         options.expectedText,
         receivedClassLists,
         (matcher, r) =>
-          matcher.matchesClassList(this, r, /* partial */ expression === 'to.contain.class.array'),
+          matcher.matchesClassList(this, r, /* partial */ expression === 'to.contain.class.array')
       );
       return {
         received: received,
@@ -2062,7 +2138,7 @@ export class InjectedScript {
     }
 
     const received = elements.map(e =>
-      options.useInnerText ? (e as HTMLElement).innerText : elementText(new Map(), e).full,
+      options.useInnerText ? (e as HTMLElement).innerText : elementText(new Map(), e).full
     );
     // "To match an array" is "to contain an array" + "equal length"
     const lengthShouldMatch = expression !== 'to.contain.text.array';
@@ -2072,7 +2148,7 @@ export class InjectedScript {
     }
 
     const matches = this._matchSequentially(options.expectedText, received, (matcher, r) =>
-      matcher.matches(r),
+      matcher.matches(r)
     );
     return { received, matches };
   }
@@ -2080,7 +2156,7 @@ export class InjectedScript {
   private _matchSequentially<T>(
     expectedText: ExpectedTextValue[],
     received: T[],
-    matchFn: (matcher: ExpectedTextMatcher, received: T) => boolean,
+    matchFn: (matcher: ExpectedTextMatcher, received: T) => boolean
   ): boolean {
     const matchers = expectedText.map(e => new ExpectedTextMatcher(e));
     let mIndex = 0;
@@ -2118,7 +2194,7 @@ function cssUnquote(s: string): string {
 
 function createTextMatcher(
   selector: string,
-  internal: boolean,
+  internal: boolean
 ): { matcher: TextMatcher; kind: 'regex' | 'strict' | 'lax' } {
   if (selector[0] === '/' && selector.lastIndexOf('/') > 0) {
     const lastSlash = selector.lastIndexOf('/');
@@ -2219,12 +2295,12 @@ class ExpectedTextMatcher {
   matchesClassList(
     injectedScript: InjectedScript,
     classList: DOMTokenList,
-    partial: boolean,
+    partial: boolean
   ): boolean {
     if (partial) {
       if (this._regex) {
         throw injectedScript.createStacklessError(
-          'Partial matching does not support regular expressions. Please provide a string value.',
+          'Partial matching does not support regular expressions. Please provide a string value.'
         );
       }
       return this._string!.split(/\s+/g)

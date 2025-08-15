@@ -8,6 +8,7 @@
 import { BrowserContext, BrowserSession, BrowserContextState } from '../../browser/context';
 import { Severity } from '@src/utils/types';
 import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import { runSnapshotForAITest, TestProgress as SnapshotTestProgress } from './snapshotForAITest';
 
 /**
  * Simple progress tracker for testing
@@ -41,7 +42,7 @@ interface BrowserUseTestContext {
  */
 export async function testEnhancedCssSelectorForElement(
   progress: TestProgress,
-  context: BrowserUseTestContext,
+  context: BrowserUseTestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -145,7 +146,7 @@ export async function testEnhancedCssSelectorForElement(
       });
     } else {
       throw new Error(
-        `Test 4 failed: Expected selector to include data attributes, got: ${dataSelector}`,
+        `Test 4 failed: Expected selector to include data attributes, got: ${dataSelector}`
       );
     }
 
@@ -176,7 +177,7 @@ export async function testEnhancedCssSelectorForElement(
       });
     } else {
       throw new Error(
-        `Test 5 failed: Expected selector to include ARIA attributes, got: ${ariaSelector}`,
+        `Test 5 failed: Expected selector to include ARIA attributes, got: ${ariaSelector}`
       );
     }
 
@@ -207,7 +208,7 @@ export async function testEnhancedCssSelectorForElement(
       });
     } else {
       throw new Error(
-        `Test 6 failed: Expected selector to handle special characters, got: ${specialCharsSelector}`,
+        `Test 6 failed: Expected selector to handle special characters, got: ${specialCharsSelector}`
       );
     }
 
@@ -237,7 +238,7 @@ export async function testEnhancedCssSelectorForElement(
       });
     } else {
       throw new Error(
-        `Test 7 failed: Expected selector to include custom-element or span, got: ${fallbackSelector}`,
+        `Test 7 failed: Expected selector to include custom-element or span, got: ${fallbackSelector}`
       );
     }
 
@@ -255,7 +256,7 @@ export async function testEnhancedCssSelectorForElement(
 
     const noDynamicSelector = BrowserContext._enhancedCssSelectorForElement(
       elementForNoDynamic,
-      false,
+      false
     );
     progress.log(`No dynamic attributes selector result: "${noDynamicSelector}"`);
 
@@ -271,7 +272,7 @@ export async function testEnhancedCssSelectorForElement(
       });
     } else {
       throw new Error(
-        `Test 8 failed: Expected to exclude dynamic attributes, got: ${noDynamicSelector}`,
+        `Test 8 failed: Expected to exclude dynamic attributes, got: ${noDynamicSelector}`
       );
     }
 
@@ -311,7 +312,7 @@ export async function testEnhancedCssSelectorForElement(
  */
 export async function testBrowserSession(
   progress: TestProgress,
-  context: BrowserUseTestContext,
+  context: BrowserUseTestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -376,7 +377,7 @@ export async function testBrowserSession(
       });
     } else {
       throw new Error(
-        `Test 3 failed: Session end not working properly. Before: ${beforeState}, After: ${afterState}`,
+        `Test 3 failed: Session end not working properly. Before: ${beforeState}, After: ${afterState}`
       );
     }
 
@@ -450,7 +451,7 @@ export async function testBrowserSession(
  */
 export async function testXPathToCssConversion(
   progress: TestProgress,
-  context: BrowserUseTestContext,
+  context: BrowserUseTestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -579,7 +580,7 @@ export async function testXPathToCssConversion(
  */
 export async function testBrowserContextLifecycle(
   progress: TestProgress,
-  context: BrowserUseTestContext,
+  context: BrowserUseTestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -713,7 +714,7 @@ export async function testBrowserContextLifecycle(
  */
 export async function testBrowserContextState(
   progress: TestProgress,
-  context: BrowserUseTestContext,
+  context: BrowserUseTestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -834,14 +835,14 @@ export async function testBrowserContextState(
  * Comprehensive test runner for all browser-use context functionality
  */
 export async function runBrowserUseContextTests(
-  _service?: BrowserUsePlaygroundService,
+  _service?: BrowserUsePlaygroundService
 ): Promise<void> {
   const progress = new TestProgress('Browser-Use Context Tests');
   const context: BrowserUseTestContext = {
     events: {
       emit: event => {
         console.log(
-          `[${new Date(event.timestamp).toISOString()}] ${event.severity}: ${event.message}`,
+          `[${new Date(event.timestamp).toISOString()}] ${event.severity}: ${event.message}`
         );
         if (event.details) {
           console.log('Details:', event.details);
@@ -870,6 +871,12 @@ export async function runBrowserUseContextTests(
     await testBrowserContextLifecycle(progress, context);
     await testBrowserContextState(progress, context);
 
+    // Run snapshotForAI tests
+    progress.log('🔍 Running snapshotForAI tests...');
+    const snapshotProgress = new SnapshotTestProgress('snapshotForAI Test');
+    await runSnapshotForAITest(snapshotProgress, context.browserUseService);
+    progress.log('✅ snapshotForAI tests completed');
+
     progress.log('✅ All browser-use context tests completed successfully!');
 
     context.events.emit({
@@ -877,13 +884,14 @@ export async function runBrowserUseContextTests(
       severity: Severity.Success,
       message: 'All browser-use context tests completed successfully',
       details: {
-        totalTestSuites: 5,
+        totalTestSuites: 6,
         testSuites: [
           'Enhanced CSS Selector Generation',
           'Browser Session Management',
           'XPath to CSS Conversion',
           'Browser Context Lifecycle',
           'Browser Context State Management',
+          'SnapshotForAI Method',
         ],
       },
     });

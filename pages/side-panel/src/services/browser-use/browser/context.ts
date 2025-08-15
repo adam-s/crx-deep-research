@@ -12,7 +12,7 @@ import type {
   NavigateOptionsWithProgress,
   NavigationResponse,
 } from '@src/services/cordyceps/utilities/types';
-import { executeWithProgress } from '@src/services/cordyceps/core/progress';
+import { executeWithProgress, Progress } from '@src/services/cordyceps/core/progress';
 import { DOMService } from '../dom/service';
 import { DOMElementNode, SelectorMap } from '../dom/views';
 import { ElementForSelector, ElementNode } from '../dom/types';
@@ -2227,5 +2227,14 @@ export class BrowserContext {
     }
 
     return false;
+  }
+
+  /**
+   * Take a snapshot of the current page for AI processing
+   * Delegates to the page's snapshotForAI method
+   */
+  async snapshotForAI(options?: { progress?: Progress }): Promise<string> {
+    const page = await this.getCurrentPage();
+    return await page.snapshotForAI(options);
   }
 }

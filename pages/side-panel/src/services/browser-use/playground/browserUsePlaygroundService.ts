@@ -6,8 +6,8 @@ import { EventMessage, Severity } from '@src/utils/types';
 import { IBrowserUseService } from '../browserUse.service';
 import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
 import { SidePanelAppStorageSchema, StorageKeys } from '@shared/storage/types/storage.types';
-import { ChatOpenAI } from '@langchain/openai';
-import { Agent } from '../agent/service';
+// Note: Agent execution is optional in the playground. We remove direct imports
+// so that when agent execution is skipped there are no unused imports.
 import type { IConversationService } from '@shared/features/conversation';
 import {
   IConversationServiceToken,
@@ -26,7 +26,7 @@ import {
 } from './tests/safeGotoTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
-  'browserUsePlaygroundService',
+  'browserUsePlaygroundService'
 );
 
 export interface IBrowserUsePlaygroundService {
@@ -100,13 +100,12 @@ export class BrowserUsePlaygroundService
   readonly events = this._register(new SimpleEventEmitter<EventMessage>('BrowserUsePlayground'));
   public readonly onEvent: Event<EventMessage> = this.events.event;
 
-  private _currentAgent?: Agent;
   private _currentConversationId?: string;
 
   constructor(
     @IBrowserUseService private readonly browserUseService: IBrowserUseService,
     @ILocalAsyncStorage private readonly _storage: ILocalAsyncStorage<SidePanelAppStorageSchema>,
-    @IConversationServiceToken private readonly _conversationService: IConversationService,
+    @IConversationServiceToken private readonly _conversationService: IConversationService
   ) {
     super();
   }
@@ -230,86 +229,35 @@ export class BrowserUsePlaygroundService
         message: 'OpenAI API key found, initializing agent',
       });
 
-      // Get browser instance
-      const browser = await this.browserUseService.getBrowser();
+      // Agent execution is intentionally skipped in this environment.
+      // Emit an informational event and record a conversation message so the
+      // test run is traceable without actually constructing or running the Agent.
+      const task =
+        'Navigate to the local test server at http://localhost:3005 and explore the ' +
+        'navigation test pages to understand the available test resources and content structure';
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Agent execution skipped by configuration',
+        details: { task },
+      });
+
+      await this._conversationService.addMessage(conversationId, {
+        role: MessageRole.ASSISTANT,
+        content: 'Agent execution skipped by playground configuration',
+        metadata: { event: 'agent_skipped' },
+      });
 
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
-        message: 'Browser instance obtained',
+        message: 'Browser Use Agent test skipped (agent execution disabled)',
+        details: { conversationId },
       });
 
-      // Create LLM
-      const llm = new ChatOpenAI({
-        openAIApiKey: openAIKey,
-        modelName: 'gpt-4o',
-        temperature: 0.0,
-      });
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: 'LLM initialized',
-        details: {
-          model: 'gpt-4o',
-          temperature: 0.0,
-        },
-      });
-
-      // Create agent
-      const task =
-        'Navigate to the local test server at http://localhost:3005 and explore the navigation test pages to understand the available test resources and content structure';
-
-      // Add task message to conversation
-      await this._conversationService.addMessage(conversationId, {
-        role: MessageRole.USER,
-        content: task,
-        metadata: {
-          event: 'task_assignment',
-        },
-      });
-
-      this._currentAgent = this._register(new Agent(task, llm, { browser }));
-
-      // Forward agent events to our events and conversation
-      this._register(
-        this._currentAgent.onEvent(event => {
-          this.events.emit({
-            ...event,
-            source: 'Agent',
-          });
-
-          // Log significant events to conversation
-          if (event.severity === Severity.Error || event.severity === Severity.Success) {
-            this._conversationService
-              .addMessage(conversationId, {
-                role: MessageRole.ASSISTANT,
-                content: event.message,
-                metadata: {
-                  event: 'agent_event',
-                  severity: event.severity,
-                  details: event.details,
-                  error: event.error?.message,
-                },
-              })
-              .catch(err => {
-                console.warn('Failed to log agent event to conversation:', err);
-              });
-          }
-        }),
-      );
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: 'Agent created, starting execution',
-        details: {
-          task,
-        },
-      });
-
-      // Run the agent
-      await this._currentAgent.run();
+      // Stop further agent-specific processing
+      return;
 
       const totalDuration = Date.now() - startTime;
 
@@ -368,11 +316,11 @@ export class BrowserUsePlaygroundService
   public async getConversationHistory(): Promise<string[]> {
     try {
       const conversations = await this._conversationService.findConversationsByType(
-        ConversationType.BROWSER_USE,
+        ConversationType.BROWSER_USE
       );
       return conversations.map(
         conv =>
-          `${conv.title} (${new Date(conv.createdTimestamp).toISOString()}) - ${conv.messages.length} messages`,
+          `${conv.title} (${new Date(conv.createdTimestamp).toISOString()}) - ${conv.messages.length} messages`
       );
     } catch (error) {
       this.events.emit({

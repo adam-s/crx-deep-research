@@ -479,7 +479,9 @@ export class Page extends Disposable {
           } catch (scriptError) {
             // Fallback to chrome.tabs.goBack if content script injection fails
             console.warn(
-              `[Page.goBack] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goBack:`,
+              '[Page.goBack] Content script navigation failed for tab',
+              this.tabId,
+              'falling back to chrome.tabs.goBack:',
               scriptError
             );
             chrome.tabs.goBack(this.tabId);
@@ -541,7 +543,8 @@ export class Page extends Disposable {
           } catch (scriptError) {
             // Fallback to chrome.tabs.goForward if content script injection fails
             console.warn(
-              `[Page.goForward] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goForward:`,
+              `[Page.goForward] Content script navigation failed for tab ${this.tabId};`,
+              'Falling back to chrome.tabs.goForward',
               scriptError
             );
             chrome.tabs.goForward(this.tabId);
