@@ -1114,7 +1114,19 @@ export class Controller<Context = unknown> {
         });
 
         // Convert HTML to markdown
-        const content = turndownService.turndown(pageContent);
+        let content = turndownService.turndown(pageContent);
+
+        // CRITICAL: Truncate content to prevent 30k token limit overflow
+        const maxContentSize = 15000; // Conservative limit for extract_content
+        if (content.length > maxContentSize) {
+          console.log(
+            `⚠️ extract_content: Truncating page content from ${content.length} to ${maxContentSize} characters`
+          );
+          content =
+            content.substring(0, maxContentSize) +
+            '\n\n[... content truncated to fit token limit ...]';
+        }
+
         // Use the exact same prompt as Python
         const prompt =
           // eslint-disable-next-line max-len
@@ -1132,6 +1144,12 @@ export class Controller<Context = unknown> {
           const formattedPrompt = prompt
             .replace('{goal}', templateVars.goal)
             .replace('{page}', templateVars.page);
+
+          // DEBUG: Log extract_content request size
+          console.log(`📊 extract_content request size: ${formattedPrompt.length} characters`);
+          console.log(
+            `📊 extract_content estimated tokens: ~${Math.ceil(formattedPrompt.length * 1.3)} tokens`
+          );
 
           // In TypeScript, the LLM.invoke method expects an array of message objects
           const messages = [

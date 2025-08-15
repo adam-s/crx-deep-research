@@ -98,6 +98,7 @@ export interface IAgentSettings {
   pageExtractionLlm: BaseChatModel | null;
   plannerLlm: BaseChatModel | null;
   plannerInterval: number;
+  useSnapshotForAI: boolean;
 }
 
 export const AgentSettingsSchema = {
@@ -141,6 +142,7 @@ export const AgentSettingsSchema = {
     pageExtractionLlm: { type: ['object', 'null'], default: null },
     plannerLlm: { type: ['object', 'null'], default: null },
     plannerInterval: { type: 'number', default: 1 },
+    useSnapshotForAI: { type: 'boolean', default: false },
   },
   required: [
     'useVision',

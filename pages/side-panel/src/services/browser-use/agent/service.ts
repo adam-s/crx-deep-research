@@ -77,6 +77,7 @@ export interface AgentConstructorOptions<Context = unknown> {
   saveConversationPath?: string;
   useVisionForPlanner?: boolean;
   useVision?: boolean;
+  useSnapshotForAI?: boolean;
   registerExternalAgentStatusRaiseErrorCallback?: () => Promise<boolean>;
   registerNewStepCallback?: (
     state: BrowserState,
@@ -223,6 +224,7 @@ export class Agent<Context = unknown> {
       saveConversationPath,
       useVisionForPlanner = false,
       useVision = true,
+      useSnapshotForAI = false,
       registerExternalAgentStatusRaiseErrorCallback = async () => false,
       registerNewStepCallback = async () => Promise.resolve(),
       registerDoneCallback = async () => Promise.resolve(),
@@ -262,6 +264,7 @@ export class Agent<Context = unknown> {
     this.settings.pageExtractionLlm = finalPageExtractionLlm;
     this.settings.plannerLlm = plannerLlm || null;
     this.settings.plannerInterval = plannerInterval;
+    this.settings.useSnapshotForAI = useSnapshotForAI;
 
     // Initialize state
     this.state = injectedAgentState || new AgentState();
@@ -308,14 +311,16 @@ export class Agent<Context = unknown> {
         this.availableActions,
         this.settings.maxActionsPerStep,
         this.settings.overrideSystemMessage,
-        this.settings.extendSystemMessage
+        this.settings.extendSystemMessage,
+        this.settings.useSnapshotForAI
       ).getSystemMessage(),
       new MessageManagerSettings(
         this.settings.maxInputTokens,
         this.settings.includeAttributes,
         this.settings.messageContext,
         sensitiveData,
-        this.settings.availableFilePaths
+        this.settings.availableFilePaths,
+        this.settings.useSnapshotForAI
       ),
       this.state.messageManagerState
     );
@@ -473,11 +478,50 @@ export class Agent<Context = unknown> {
 
       await this._raiseIfStoppedOrPaused();
 
+      // Generate snapshot for AI if enabled
+      let snapshotForAI: string | undefined;
+      if (this.settings.useSnapshotForAI) {
+        try {
+          console.log('🤖 Generating AI snapshot using cordyceps snapshotForAI...');
+          snapshotForAI = await this.browserContext.snapshotForAI();
+          console.log(`✅ AI snapshot generated: ${snapshotForAI.length} characters`);
+
+          // EMERGENCY: Ultra-aggressive extraction for 130k→30k token problem
+          const maxSnapshotSize = 5000; // Extremely aggressive limit to fix 130k char issue
+          if (snapshotForAI.length > maxSnapshotSize) {
+            const originalLength = snapshotForAI.length;
+            snapshotForAI = this._extractRelevantContent(snapshotForAI, maxSnapshotSize);
+            console.log(
+              `⚠️ Smart extraction: ${originalLength} → ${snapshotForAI.length} characters`
+            );
+          }
+
+          // Log the content for debugging (now truncated)
+          console.log('📄 === AI SNAPSHOT CONTENT (TRUNCATED FOR POC) ===');
+          console.log(snapshotForAI);
+          console.log('📄 === END AI SNAPSHOT CONTENT ===');
+        } catch (error) {
+          console.warn('❌ Failed to generate AI snapshot, falling back to DOM elements:', error);
+          // Continue without snapshot - the AgentMessagePrompt will use traditional DOM elements
+        }
+      }
+
+      // DEBUG: Log the snapshot being passed to message manager
+      if (snapshotForAI) {
+        console.log(
+          `🔍 Snapshot being passed to message manager: ${snapshotForAI.length} characters`
+        );
+        console.log(`🔍 First 200 chars:`, snapshotForAI.substring(0, 200));
+      } else {
+        console.log(`🔍 No snapshot being passed to message manager`);
+      }
+
       this._messageManager.addStateMessage(
         state,
         this.state.lastResult,
         stepInfo,
-        this.settings.useVision
+        this.settings.useVision,
+        snapshotForAI
       );
 
       // Run planner at specified intervals if planner is configured
@@ -806,6 +850,23 @@ export class Agent<Context = unknown> {
     // In Python: try/except block
     // In Python: if self.tool_calling_method == 'raw':
     if (this.toolCallingMethod === 'raw') {
+      // Log request size before sending to OpenAI
+      const requestContent = inputMessages.map(msg => msg.content).join('\n');
+      const requestSize = requestContent.length;
+      console.log(`📊 OpenAI Request Size: ${requestSize} characters`);
+      console.log(`📊 Estimated tokens: ~${Math.ceil(requestSize * 1.3)} tokens`);
+
+      // DEBUG: Log each message to find the large one
+      inputMessages.forEach((msg, index) => {
+        const contentStr =
+          typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content || '');
+        const msgSize = contentStr.length;
+        console.log(`📋 Message ${index}: ${msgSize} characters (${msg.constructor.name})`);
+        if (msgSize > 50000) {
+          console.log(`⚠️ LARGE MESSAGE DETECTED! First 500 chars:`, contentStr.substring(0, 500));
+        }
+      });
+
       // In Python: output = self.llm.invoke(input_messages)
       const output = await this.llm.invoke(inputMessages);
 
@@ -827,6 +888,12 @@ export class Agent<Context = unknown> {
     }
     // In Python: elif self.tool_calling_method is None:
     else if (this.toolCallingMethod === undefined || this.toolCallingMethod === null) {
+      // Log request size before sending to OpenAI
+      const requestContent = inputMessages.map(msg => msg.content).join('\n');
+      const requestSize = requestContent.length;
+      console.log(`📊 OpenAI Request Size (structured): ${requestSize} characters`);
+      console.log(`📊 Estimated tokens: ~${Math.ceil(requestSize * 1.3)} tokens`);
+
       // In Python: structured_llm = self.llm.with_structured_output(self.AgentOutput, include_raw=True)
       const structuredLlm = this.llm.withStructuredOutput(this.AgentOutputSchema, {
         includeRaw: true,
@@ -838,6 +905,12 @@ export class Agent<Context = unknown> {
     }
     // In Python: else:
     else {
+      // Log request size before sending to OpenAI
+      const requestContent = inputMessages.map(msg => msg.content).join('\n');
+      const requestSize = requestContent.length;
+      console.log(`📊 OpenAI Request Size (${this.toolCallingMethod}): ${requestSize} characters`);
+      console.log(`📊 Estimated tokens: ~${Math.ceil(requestSize * 1.3)} tokens`);
+
       // In Python: structured_llm = self.llm.with_structured_output(...)
       const structuredLlm = this.llm.withStructuredOutput(this.AgentOutputSchema, {
         includeRaw: true,
@@ -1166,5 +1239,82 @@ export class Agent<Context = unknown> {
     } finally {
       // No browser lifecycle management in this build; contexts are closed externally if needed.
     }
+  }
+
+  /**
+   * Extract relevant content from large AI snapshots
+   * Prioritizes main content areas and interactive elements
+   */
+  private _extractRelevantContent(snapshot: string, maxSize: number): string {
+    // Strategy: Extract the most important sections for the current task
+    const lines = snapshot.split('\n');
+    const importantSections: string[] = [];
+    let currentSize = 0;
+
+    // Priority 1: Only essential interactive elements (first 15%)
+    const navigationSize = Math.floor(maxSize * 0.15);
+    let navContent = '';
+    for (const line of lines) {
+      // Only include lines with clickable elements or essential navigation
+      if (
+        (line.includes('[ref=') && (line.includes('button') || line.includes('link'))) ||
+        line.includes('search') ||
+        line.includes('combobox')
+      ) {
+        if (navContent.length + line.length < navigationSize) {
+          navContent += line + '\n';
+        } else {
+          break;
+        }
+      }
+    }
+    if (navContent) {
+      importantSections.push('=== ESSENTIAL CONTROLS ===\n' + navContent);
+      currentSize += navContent.length;
+    }
+
+    // Priority 2: Only high-value content (85% of remaining space)
+    const highValueKeywords = [
+      'heading',
+      'elephant',
+      'behavior',
+      'social',
+      'intelligence',
+      'communication',
+    ];
+
+    const mainContentLines: string[] = [];
+    const remainingSize = maxSize - currentSize - 200; // Reserve space for footer
+    let contentSize = 0;
+
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase();
+      // Much more selective - only lines with high-value keywords or essential actions
+      const isHighValue =
+        highValueKeywords.some(keyword => lowerLine.includes(keyword)) ||
+        (line.includes('[ref=') && lowerLine.includes('extract'));
+
+      if (isHighValue && contentSize + line.length < remainingSize) {
+        mainContentLines.push(line);
+        contentSize += line.length + 1; // +1 for newline
+      }
+    }
+
+    if (mainContentLines.length > 0) {
+      importantSections.push('\n=== MAIN CONTENT ===\n' + mainContentLines.join('\n'));
+    }
+
+    // Combine all sections
+    let result = importantSections.join('\n');
+
+    // EMERGENCY: Extreme truncation to fix 130k→30k problem
+    const emergencyLimit = Math.min(maxSize, 3000); // Only 3k chars max!
+    if (result.length > emergencyLimit) {
+      result =
+        result.substring(0, emergencyLimit - 100) +
+        '\n\n[... EMERGENCY TRUNCATION for 130k char problem ...]';
+    }
+
+    return result;
   }
 }

@@ -18,6 +18,7 @@ export class MessageManagerSettings {
   messageContext: string | null = null;
   sensitiveData: Record<string, string> | null = null;
   availableFilePaths: string[] | null = null;
+  useSnapshotForAI: boolean = false;
 
   /**
    * Constructor to initialize settings
@@ -28,13 +29,15 @@ export class MessageManagerSettings {
     includeAttributes?: string[],
     messageContext?: string | null,
     sensitiveData?: Record<string, string> | null,
-    availableFilePaths?: string[] | null
+    availableFilePaths?: string[] | null,
+    useSnapshotForAI?: boolean
   ) {
     if (maxInputTokens !== undefined) this.maxInputTokens = maxInputTokens;
     if (includeAttributes !== undefined) this.includeAttributes = includeAttributes;
     if (messageContext !== undefined) this.messageContext = messageContext;
     if (sensitiveData !== undefined) this.sensitiveData = sensitiveData;
     if (availableFilePaths !== undefined) this.availableFilePaths = availableFilePaths;
+    if (useSnapshotForAI !== undefined) this.useSnapshotForAI = useSnapshotForAI;
   }
 }
 
@@ -137,7 +140,8 @@ export class MessageManager {
     state: BrowserState,
     result: ActionResult[] | null = null,
     stepInfo: AgentStepInfo | null = null,
-    useVision = true
+    useVision = true,
+    snapshotForAI?: string
   ): void {
     /**
      * Add browser state as human message
@@ -171,7 +175,9 @@ export class MessageManager {
       state,
       result,
       this.settings.includeAttributes || [],
-      stepInfo
+      stepInfo,
+      this.settings.useSnapshotForAI,
+      snapshotForAI
     ).getUserMessage(useVision);
     this._addMessageWithTokens(stateMessage);
   }

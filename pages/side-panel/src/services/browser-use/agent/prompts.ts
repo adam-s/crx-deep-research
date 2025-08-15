@@ -28,7 +28,8 @@ export class SystemPrompt extends BasePrompt {
     availableActions: string,
     maxActionsPerStep: number = 10,
     overrideSystemMessage?: string,
-    extendSystemMessage?: string
+    extendSystemMessage?: string,
+    useSnapshotForAI: boolean = false
   ) {
     super();
 
@@ -37,6 +38,33 @@ export class SystemPrompt extends BasePrompt {
       return;
     }
 
+    const elementInteractionInstructions = useSnapshotForAI
+      ? `# Element Interaction
+When using AI snapshots with ARIA references:
+- Elements are provided in YAML format with [ref=e123] references
+- Extract the NUMBER from [ref=e123] to use as the index (e.g., 123 from [ref=e123])
+- Use click_element with the extracted number: {"click_element": {"index": 123}}
+- Frame elements have references like [ref=f1e5] for iframe content
+- Only elements with [ref=eXXX] are interactive
+- Elements without references provide context only
+
+Example AI Snapshot format:
+- button "Submit" [ref=e42] → use index 42
+- textbox "Username" [ref=e15] → use index 15
+- iframe [ref=e20]:
+    - button "Login" [ref=f1e5] → use index 5 (from frame reference)`
+      : `# Element Interaction
+Interactive Elements Format:
+[index]<type>text</type>
+- index: Numeric identifier for interaction  
+- type: HTML element type (button, input, etc.)
+- text: Element description
+Example:
+[33]<button>Submit Form</button>
+
+- Only elements with numeric indexes in [] are interactive
+- elements without [] provide only context`;
+
     this.prompt = `You are an AI agent designed to automate browser tasks. Your goal is to accomplish the ultimate task following the rules.
 
 # Input Format
@@ -44,16 +72,7 @@ Task
 Previous steps
 Current URL
 Open Tabs
-Interactive Elements
-[index]<type>text</type>
-- index: Numeric identifier for interaction
-- type: HTML element type (button, input, etc.)
-- text: Element description
-Example:
-[33]<button>Submit Form</button>
-
-- Only elements with numeric indexes in [] are interactive
-- elements without [] provide only context
+${elementInteractionInstructions}
 
 # Response Rules
 1. RESPONSE FORMAT: You must ALWAYS respond with valid JSON in this exact format:
@@ -73,8 +92,11 @@ Common action sequences:
 - only use multiple actions if it makes sense.
 
 3. ELEMENT INTERACTION:
-- Only use indexes of the interactive elements
-- Elements marked with "[]Non-interactive text" are non-interactive
+${
+  useSnapshotForAI
+    ? '- Use ARIA reference numbers from [ref=eXXX] for element interaction\n- Extract the number from [ref=e123] and use it as the index parameter'
+    : '- Only use indexes of the interactive elements\n- Elements marked with "[]Non-interactive text" are non-interactive'
+}
 
 4. NAVIGATION & ERROR HANDLING:
 - If no suitable elements exist, use other functions to complete the task
@@ -95,7 +117,11 @@ Common action sequences:
 
 6. VISUAL CONTEXT:
 - When an image is provided, use it to understand the page layout
-- Bounding boxes with labels on their top right corner correspond to element indexes
+${
+  useSnapshotForAI
+    ? '- ARIA references in snapshots correspond to interactive elements\n- Cross-reference visual elements with snapshot ARIA references'
+    : '- Bounding boxes with labels on their top right corner correspond to element indexes'
+}
 
 7. Form filling:
 - If you fill an input field and your action sequence is interrupted, most often something changed e.g. suggestions popped up under the field.
@@ -105,6 +131,8 @@ Common action sequences:
 
 9. Extraction:
 - If your task is to find information - call extract_content on the specific pages to get and store the information.
+- For research tasks, use extract_content with specific goals like "elephant behavior information" to gather detailed content.
+- When on Wikipedia or other informational sites, extract comprehensive content before proceeding.
 
 You can take the following actions:
 ${availableActions}`;
@@ -154,46 +182,66 @@ export class AgentMessagePrompt {
   private result: ActionResult[] | null;
   private includeAttributes: string[];
   private stepInfo: AgentStepInfo | null;
+  private useSnapshotForAI: boolean;
+  private snapshotForAI?: string;
 
   constructor(
     state: BrowserState,
     result: ActionResult[] | null = null,
     includeAttributes: string[] = [],
-    stepInfo: AgentStepInfo | null = null
+    stepInfo: AgentStepInfo | null = null,
+    useSnapshotForAI: boolean = false,
+    snapshotForAI?: string
   ) {
     this.state = state;
     this.result = result;
     this.includeAttributes = includeAttributes;
     this.stepInfo = stepInfo;
+    this.useSnapshotForAI = useSnapshotForAI;
+    this.snapshotForAI = snapshotForAI;
   }
 
   /**
    * Get the user message for the state
    */
   getUserMessage(useVision: boolean = true): HumanMessage {
-    // Use the clickableElementsToString method to get a filtered representation of the DOM tree
-    // This is the key difference that keeps token counts manageable
-    const elementsText =
-      this.state.elementTree?.clickableElementsToString(this.includeAttributes) || '';
-
-    const hasContentAbove = (this.state.pixelsAbove || 0) > 0;
-    const hasContentBelow = (this.state.pixelsBelow || 0) > 0;
-
+    // Use either snapshotForAI or traditional DOM element representation
     let formattedElementsText = '';
-    if (elementsText !== '') {
-      if (hasContentAbove) {
-        formattedElementsText = `... ${this.state.pixelsAbove} pixels above - scroll or extract content to see more ...\n${elementsText}`;
-      } else {
-        formattedElementsText = `[Start of page]\n${elementsText}`;
-      }
 
-      if (hasContentBelow) {
-        formattedElementsText = `${formattedElementsText}\n... ${this.state.pixelsBelow} pixels below - scroll or extract content to see more ...`;
-      } else {
-        formattedElementsText = `${formattedElementsText}\n[End of page]`;
-      }
+    console.log(
+      `🔍 AgentMessagePrompt: useSnapshotForAI=${this.useSnapshotForAI}, hasSnapshot=${!!this.snapshotForAI}`
+    );
+
+    if (this.useSnapshotForAI && this.snapshotForAI) {
+      // Use YAML snapshot with ARIA references for AI
+      formattedElementsText = `AI Snapshot (YAML format with ARIA references):\n${this.snapshotForAI}`;
+      console.log(`🔍 Using AI snapshot: ${this.snapshotForAI.length} characters`);
     } else {
-      formattedElementsText = 'empty page';
+      // Use the traditional clickableElementsToString method
+      const elementsText =
+        this.state.elementTree?.clickableElementsToString?.(this.includeAttributes) ||
+        'No interactive elements available (protected page or failed DOM parsing)';
+
+      console.log(`🔍 Using traditional DOM: ${elementsText.length} characters`);
+
+      const hasContentAbove = (this.state.pixelsAbove || 0) > 0;
+      const hasContentBelow = (this.state.pixelsBelow || 0) > 0;
+
+      if (elementsText !== '') {
+        if (hasContentAbove) {
+          formattedElementsText = `... ${this.state.pixelsAbove} pixels above - scroll or extract content to see more ...\n${elementsText}`;
+        } else {
+          formattedElementsText = `[Start of page]\n${elementsText}`;
+        }
+
+        if (hasContentBelow) {
+          formattedElementsText = `${formattedElementsText}\n... ${this.state.pixelsBelow} pixels below - scroll or extract content to see more ...`;
+        } else {
+          formattedElementsText = `${formattedElementsText}\n[End of page]`;
+        }
+      } else {
+        formattedElementsText = 'empty page';
+      }
     }
 
     let stepInfoDescription = '';
@@ -214,6 +262,11 @@ export class AgentMessagePrompt {
 
     stepInfoDescription += `Current date and time: ${timeStr}`;
 
+    const elementFormatDescription =
+      this.useSnapshotForAI && this.snapshotForAI
+        ? 'Interactive elements with ARIA references (use [ref=e123] format to interact):'
+        : 'Interactive elements from top layer of the current page inside the viewport:';
+
     let stateDescription = `
 [Task history memory ends]
 [Current state starts here]
@@ -221,7 +274,7 @@ The following is one-time information - if you need to remember it write it to m
 Current url: ${this.state.url}
 Available tabs:
 ${JSON.stringify(this.state.tabs)}
-Interactive elements from top layer of the current page inside the viewport:
+${elementFormatDescription}
 ${formattedElementsText}
 ${stepInfoDescription}
 `;

@@ -30,6 +30,8 @@ export class BrowserContextConfig {
   public saveDownloadsPath: string | null;
   /** Milliseconds to wait between automated actions (e.g. clicks, inputs) */
   public waitBetweenActions: number;
+  /** Whether to use AI snapshot instead of traditional DOM parsing and screenshots */
+  public useSnapshotForAI: boolean;
 
   constructor(init?: Partial<BrowserContextConfig>) {
     this.maximumWaitPageLoadTime = init?.maximumWaitPageLoadTime ?? 5; // seconds
@@ -38,7 +40,8 @@ export class BrowserContextConfig {
     this.highlightElements = init?.highlightElements ?? true;
     this.viewportExpansion = init?.viewportExpansion ?? 500;
     this.saveDownloadsPath = init?.saveDownloadsPath ?? null;
-    this.waitBetweenActions = init?.waitBetweenActions ?? 500; // milliseconds
+    this.waitBetweenActions = init?.waitBetweenActions ?? 1; // milliseconds
+    this.useSnapshotForAI = init?.useSnapshotForAI ?? false;
   }
 }
 
@@ -977,6 +980,28 @@ export class BrowserContext {
       // Get the current page
       const page = await this.getCurrentPage();
 
+      // Check if this is a protected URL that we can't access
+      const currentUrl = page.url();
+      if (currentUrl.startsWith('chrome://') || currentUrl.startsWith('chrome-extension://')) {
+        console.log(`⚠️ Cannot access protected URL: ${currentUrl} - returning minimal state`);
+
+        // Return minimal state for protected URLs
+        const tabs = await this._getTabsInfo();
+        const state = new BrowserState(
+          currentUrl,
+          await page.title().catch(() => 'Protected Page'),
+          tabs,
+          undefined, // No screenshot
+          0, // pixelsAbove
+          0, // pixelsBelow
+          [], // browserErrors
+          undefined, // No element tree
+          undefined, // No root element
+          {} // Empty selector map
+        );
+        return state;
+      }
+
       // Test if page is still accessible
       try {
         // Run a minimal evaluate to ensure the page is responsive
@@ -987,7 +1012,53 @@ export class BrowserContext {
         // Continue without failing - page might still be usable for screenshots/other operations
       }
 
-      // Remove highlights
+      // When using AI snapshots, skip traditional DOM parsing and screenshots
+      if (this.config.useSnapshotForAI) {
+        console.log('📸 Using AI snapshot mode - skipping screenshots and DOM highlighting');
+
+        // Generate AI snapshot to extract ARIA references
+        let selectorMap: SelectorMap = {};
+        try {
+          const aiSnapshot = await this.snapshotForAI();
+          selectorMap = this._buildSelectorMapFromSnapshot(aiSnapshot);
+          console.log(
+            `🗺️ Built selector map from AI snapshot: ${Object.keys(selectorMap).length} elements`
+          );
+        } catch (error) {
+          console.warn('⚠️ Failed to build selector map from AI snapshot:', error);
+        }
+
+        // Get scroll info
+        const [pixelsAbove, pixelsBelow] = await this._getScrollInfo(page);
+
+        // Get tabs info
+        const tabs = await this._getTabsInfo();
+
+        // Create minimal state with selector map from AI snapshot
+        const state = new BrowserState(
+          page.url(),
+          await page.title(),
+          tabs,
+          undefined, // No screenshot when using AI snapshots
+          pixelsAbove,
+          pixelsBelow,
+          [], // browserErrors
+          undefined, // No element tree when using AI snapshots
+          undefined, // No root element when using AI snapshots
+          selectorMap // Selector map built from AI snapshot ARIA references
+        );
+
+        // Store the current state for future reference
+        this.currentState = state;
+
+        // Explicitly update the session's cachedState here
+        const session = await this.getSession();
+        session.cachedState = state;
+        return state;
+      }
+
+      // Traditional path: Remove highlights, parse DOM, take screenshots
+      console.log('📷 Using traditional mode - taking screenshots and highlighting elements');
       await this.removeHighlights();
 
       // Get clickable elements
@@ -1965,6 +2036,13 @@ export class BrowserContext {
 
     const page = this.pages[pageId];
 
+    // Check if we're already on the target tab
+    const currentPage = await this.getCurrentPage();
+    if (currentPage.tabId === page.tabId) {
+      console.log(`Already on tab ${pageId} (tabId: ${page.tabId}) - skipping switch`);
+      return;
+    }
+
     // Check if the tab's URL is allowed before switching
     const pageUrl = page.url();
     if (pageUrl && !this._isUrlAllowed(pageUrl)) {
@@ -2236,5 +2314,68 @@ export class BrowserContext {
   async snapshotForAI(options?: { progress?: Progress }): Promise<string> {
     const page = await this.getCurrentPage();
     return await page.snapshotForAI(options);
+  }
+
+  /**
+   * Build a selector map from AI snapshot ARIA references
+   * Parses snapshot content to extract [ref=e123] references and creates minimal DOM elements
+   */
+  private _buildSelectorMapFromSnapshot(snapshot: string): SelectorMap {
+    const selectorMap: SelectorMap = {};
+
+    // Regular expression to match ARIA references like [ref=e123] or [ref=f1e5]
+    const ariaRefRegex = /\[ref=([ef]\d+e?\d*)\]/g;
+
+    let match;
+    while ((match = ariaRefRegex.exec(snapshot)) !== null) {
+      const fullRef = match[1]; // e.g., "e123" or "f1e5"
+
+      // Extract the numeric part for the selector map key
+      let numericIndex: string;
+
+      if (fullRef.startsWith('e')) {
+        // Simple element reference: e123 -> 123
+        numericIndex = fullRef.substring(1);
+      } else if (fullRef.startsWith('f')) {
+        // Frame element reference: f1e5 -> 5 (element ID within frame)
+        const frameMatch = fullRef.match(/f\d+e(\d+)/);
+        if (frameMatch) {
+          numericIndex = frameMatch[1];
+        } else {
+          continue; // Skip invalid frame references
+        }
+      } else {
+        continue; // Skip unknown reference formats
+      }
+
+      // Don't create duplicate entries
+      if (numericIndex in selectorMap) {
+        continue;
+      }
+
+      // Create a minimal DOM element node for this ARIA reference
+      // The key is to use the aria-ref selector format that cordyceps understands
+      const minimalElement: DOMElementNode = new DOMElementNode(
+        'element', // tag - we don't know the actual tag
+        `aria-ref=${fullRef}`, // xpath - use ARIA reference as selector that cordyceps can resolve
+        {}, // attributes - empty object
+        [], // children
+        false, // isVisible
+        true, // isInteractive - mark as interactive since it has an ARIA ref
+        false, // isTopElement
+        false, // isInViewport
+        false, // hasShadowRoot
+        parseInt(numericIndex), // highlightIndex - use the numeric index
+        undefined, // parent
+        undefined, // viewportInfo
+        null, // pageCoordinates
+        null // viewportCoordinates
+      );
+
+      // Add to selector map using numeric index as key
+      selectorMap[numericIndex] = minimalElement;
+    }
+
+    return selectorMap;
   }
 }

@@ -71,6 +71,7 @@ export class AgentSettings implements IAgentSettings {
   pageExtractionLlm: BaseChatModel | null = null;
   plannerLlm: BaseChatModel | null = null;
   plannerInterval: number = 1; // Run planner every N steps
+  useSnapshotForAI: boolean = false;
 
   static schema = AgentSettingsSchema;
 

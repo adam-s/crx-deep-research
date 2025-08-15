@@ -1,0 +1,223 @@
+- generic [ref=e2]:
+    - heading "Cordyceps Example Domain - Enhanced Testing Page" [level=1] [ref=e3]
+    - paragraph [ref=e4]: This enhanced domain is for use in Cordyceps testing. It includes various interactive elements to test automation capabilities including iframes, shadow DOM, and form controls.
+    - generic [ref=e5]:
+        - strong [ref=e6]: 'Test page note:'
+        - text: This page is used to test
+        - strong [ref=e7]: '@packages/playwright-testing'
+        - text: . You can see the test examples in
+        - strong [ref=e8]: tests/locator
+        - text: folder.
+    - generic [ref=e9]:
+        - heading "Drag and Drop Testing" [level=2] [ref=e10]
+        - generic [ref=e11]:
+            - heading "Basic Drag and Drop" [level=3] [ref=e12]
+            - generic [ref=e13]:
+                - generic [ref=e14]:
+                    - heading "Draggable Items" [level=4] [ref=e15]
+                    - generic [ref=e16]:
+                        - generic [ref=e17]: Item 1
+                        - generic [ref=e18]: Item 2
+                        - generic [ref=e19]: Item 3
+                - generic [ref=e20]:
+                    - heading "Drop Zones" [level=4] [ref=e21]
+                    - generic [ref=e22]: Drop items here (Zone 1)
+                    - generic [ref=e23]: Drop items here (Zone 2)
+        - generic [ref=e24]:
+            - heading "Sortable List" [level=3] [ref=e25]
+            - generic [ref=e26]:
+                - generic [ref=e27]: Alpha
+                - generic [ref=e28]: Beta
+                - generic [ref=e29]: Gamma
+                - generic [ref=e30]: Delta
+        - generic [ref=e31]:
+            - heading "Drag Targets" [level=3] [ref=e32]
+            - generic [ref=e33]:
+                - generic [ref=e34]: Target A
+                - generic [ref=e35]: Target B
+                - generic [ref=e36]: Target C
+    - generic [ref=e37]:
+        - heading "Interactive Controls" [level=3] [ref=e38]
+        - generic [ref=e39]:
+            - checkbox "Enable test feature" [ref=e40]
+            - text: Enable test feature
+        - generic [ref=e41]:
+            - checkbox "Advanced mode" [checked] [ref=e42]
+            - text: Advanced mode
+        - button "Perform Action" [ref=e45] [cursor=pointer]
+        - button "Toggle First Checkbox" [ref=e46] [cursor=pointer]
+        - button "Log Status" [ref=e47] [cursor=pointer]
+        - button "Disabled Action" [disabled] [ref=e48] [cursor=pointer]
+    - generic [ref=e49]:
+        - heading "🎯 Form Elements Testing" [level=3] [ref=e50]
+        - generic [ref=e51]:
+            - generic [ref=e52]:
+                - heading "Text Inputs" [level=4] [ref=e53]
+                - generic [ref=e54]: 'Text Input:'
+                - textbox "Text Input:" [ref=e56]
+                - generic [ref=e58]: 'Email Input:'
+                - textbox "Email Input:" [ref=e60]
+                - generic [ref=e62]: 'Password Input:'
+                - textbox "Password Input:" [ref=e64]
+                - generic [ref=e66]: 'Search Input:'
+                - searchbox "Search Input:" [ref=e68]
+            - generic [ref=e69]:
+                - heading "Number and Range Inputs" [level=4] [ref=e70]
+                - generic [ref=e71]: 'Number Input:'
+                - spinbutton "Number Input:" [ref=e73]: '42'
+                - generic [ref=e75]:
+                    - text: 'Range Input:'
+                    - generic [ref=e76]: '50'
+                - 'slider "Range Input: 50" [ref=e78]': '50'
+            - generic [ref=e79]:
+                - heading "Date and Time Inputs" [level=4] [ref=e80]
+                - generic [ref=e81]: 'Date Input:'
+                - textbox "Date Input:" [ref=e83]
+                - generic [ref=e85]: 'Time Input:'
+                - textbox "Time Input:" [ref=e87]
+                - generic [ref=e89]: 'DateTime-Local Input:'
+                - textbox "DateTime-Local Input:" [ref=e91]
+            - generic [ref=e92]:
+                - heading "Checkboxes and Radio Buttons" [level=4] [ref=e93]
+                - group "Checkbox Options" [ref=e94]:
+                    - generic [ref=e95]: Checkbox Options
+                    - generic [ref=e96]:
+                        - checkbox "Feature 1" [ref=e97]
+                        - text: Feature 1
+                    - generic [ref=e99]:
+                        - checkbox "Feature 2 (checked)" [checked] [ref=e100]
+                        - text: Feature 2 (checked)
+                    - generic [ref=e102]:
+                        - checkbox "Feature 3" [ref=e103]
+                        - text: Feature 3
+                - group "Radio Button Options" [ref=e104]:
+                    - generic [ref=e105]: Radio Button Options
+                    - generic [ref=e106]:
+                        - radio "Small" [ref=e107]
+                        - text: Small
+                    - generic [ref=e109]:
+                        - radio "Medium (selected)" [checked] [ref=e110]
+                        - text: Medium (selected)
+                    - generic [ref=e112]:
+                        - radio "Large" [ref=e113]
+                        - text: Large
+            - generic [ref=e114]:
+                - heading "Select Elements" [level=4] [ref=e115]
+                - generic [ref=e116]: 'Single Select:'
+                - combobox "Single Select:" [ref=e118]:
+                    - option "Choose an option..."
+                    - option "Option 1"
+                    - option "Option 2 (selected)" [selected]
+                    - option "Option 3"
+                    - option "Option 4"
+                - generic [ref=e125]: 'Multiple Select (Ctrl+click for multiple):'
+                - listbox "Multiple Select (Ctrl+click for multiple):" [ref=e127]:
+                    - option "Item 1 (selected)" [selected] [ref=e128]
+                    - option "Item 2" [ref=e129]
+                    - option "Item 3 (selected)" [selected] [ref=e130]
+                    - option "Item 4" [ref=e131]
+                    - option "Item 5" [ref=e132]
+            - generic [ref=e133]:
+                - heading "Textarea" [level=4] [ref=e134]
+                - generic [ref=e135]: 'Message:'
+                - textbox "Message:" [ref=e137]: Default textarea content...
+            - generic [ref=e138]:
+                - heading "📁 File Input Testing" [level=4] [ref=e139]
+                - generic [ref=e140]: 'Single File (Text/JSON/HTML):'
+                - button "Single File (Text/JSON/HTML):" [ref=e142]
+                - generic [ref=e144]: 'Multiple Files:'
+                - button "Multiple Files:" [ref=e146]
+                - generic [ref=e148]: 'Image Files Only:'
+                - button "Image Files Only:" [ref=e150]
+                - generic [ref=e152]: 'Directory Upload:'
+                - button "Directory Upload:" [ref=e154]
+                - generic [ref=e156]: 'Disabled File Input:'
+                - button "Disabled File Input:" [disabled] [ref=e158]
+                - generic [ref=e160]: 'Any File Type:'
+                - button "Any File Type:" [ref=e162]
+                - generic [ref=e164]: 'Required File Input:'
+                - button "Required File Input:" [ref=e166]
+                - generic [ref=e167]:
+                    - button "Enable Disabled Input" [ref=e168] [cursor=pointer]
+                    - button "Show File Status" [ref=e169] [cursor=pointer]
+                    - button "Clear All Files" [ref=e170] [cursor=pointer]
+                    - button "Trigger Hidden Input" [ref=e171] [cursor=pointer]
+            - generic [ref=e172]:
+                - heading "📥 Download Testing" [level=4] [ref=e173]
+                - paragraph [ref=e174]: Test Cordyceps download functionality with server-served files.
+                - generic [ref=e175]:
+                    - strong [ref=e176]: 'Cordyceps Download Tests:'
+                    - button "Download Text File" [ref=e178] [cursor=pointer]
+                    - button "Download CSV File" [ref=e179] [cursor=pointer]
+                    - button "Download PNG Image" [ref=e180] [cursor=pointer]
+                - generic [ref=e181]:
+                    - button "Show Download Status" [ref=e182] [cursor=pointer]
+                    - button "Clear Download Log" [ref=e183] [cursor=pointer]
+            - generic [ref=e184]:
+                - heading "Color and URL Inputs" [level=4] [ref=e185]
+                - generic [ref=e186]: 'Color Picker:'
+                - textbox "Color Picker:" [ref=e188]: '#38488f'
+                - generic [ref=e190]: 'URL Input:'
+                - textbox "URL Input:" [ref=e192]
+            - generic [ref=e193]:
+                - button "Submit Form" [ref=e194] [cursor=pointer]
+                - button "Reset Form" [ref=e195] [cursor=pointer]
+                - button "Validate Form" [ref=e196] [cursor=pointer]
+                - button "Fill Sample Data" [ref=e197] [cursor=pointer]
+    - generic [ref=e199]:
+        - heading "🌟 Shadow DOM Element" [level=4] [ref=e200]
+        - paragraph [ref=e201]: This content is inside a shadow DOM and isolated from the main document!
+        - button "Click Me (Shadow)" [ref=e202] [cursor=pointer]
+        - generic [ref=e204]:
+            - checkbox "Shadow Checkbox" [ref=e205]
+            - text: Shadow Checkbox
+    - generic [ref=e206]:
+        - heading "Embedded Iframes" [level=3] [ref=e207]
+        - 'heading "Iframe 1: Simple Content" [level=4] [ref=e208]'
+        - iframe [ref=e209]:
+            - generic [ref=f1e2]:
+                - heading "🖼️ Iframe 1 Content" [level=3] [ref=f1e3]
+                - paragraph [ref=f1e4]: This is the first iframe with simple interactive content.
+                - generic [ref=f1e5]:
+                    - checkbox "Iframe 1 Checkbox" [ref=f1e6]
+                    - text: Iframe 1 Checkbox
+                - button "Iframe 1 Button" [ref=f1e8] [cursor=pointer]
+                - paragraph [ref=f1e9]: 'Status: Ready'
+                - generic [ref=f1e10]:
+                    - heading "Sibling Iframes" [level=4] [ref=f1e11]
+                    - iframe [ref=f1e12]:
+                        - paragraph [ref=f2e2]: Sibling Frame 1
+                    - iframe [ref=f1e13]:
+                        - paragraph [ref=f3e2]: Sibling Frame 2
+        - 'heading "Iframe 2: Content with Nested Iframe" [level=4] [ref=e210]'
+        - iframe [ref=e211]:
+            - generic [ref=f4e2]:
+                - heading "🖼️ Iframe 2 with Nested Content" [level=3] [ref=f4e3]
+                - paragraph [ref=f4e4]: This iframe contains another nested iframe inside it!
+                - generic [ref=f4e5]:
+                    - checkbox "Iframe 2 Checkbox (pre-checked)" [checked] [ref=f4e6]
+                    - text: Iframe 2 Checkbox (pre-checked)
+                - button "Iframe 2 Button" [ref=f4e8] [cursor=pointer]
+                - generic [ref=f4e9]:
+                    - heading "📦 Nested Iframe:" [level=4] [ref=f4e10]
+                    - iframe [ref=f4e11]:
+                        - generic [ref=f5e2]:
+                            - heading "🎯 Nested Iframe Content" [level=4] [ref=f5e3]
+                            - paragraph [ref=f5e4]: This is deeply nested inside Iframe 2!
+                            - generic [ref=f5e5]:
+                                - checkbox "Deep Checkbox" [ref=f5e6]
+                                - text: Deep Checkbox
+                            - button "Deep Action" [ref=f5e8] [cursor=pointer]
+                            - paragraph [ref=f5e9]: Deep Level Ready
+                - paragraph [ref=f4e12]: 'Status: Ready with nested content'
+    - paragraph [ref=e212]:
+        - link "More information about example domains..." [ref=e213] [cursor=pointer]:
+            - /url: https://www.iana.org/domains/example
+    - generic [ref=e214]:
+        - strong [ref=e215]: '🔍 For Cordyceps Testing:'
+        - text: Use selectors like
+        - code [ref=e216]: '#test-checkbox'
+        - text: ','
+        - code [ref=e217]: '#action-button'
+        - text: ', or'
+        - code [ref=e218]: iframe[title="First embedded iframe"]
