@@ -981,42 +981,47 @@ export async function testSwitchToTabMethod(
     const initialPages = browserContext.pages.length;
     progress.log(`Initial pages count: ${initialPages}`);
 
-    // Create a couple of test tabs
+    // Create test tabs and track their indices
     await browserContext.createNewTab('http://localhost:3005');
-    await browserContext.createNewTab(); // New tab without URL
+    const afterFirstTab = browserContext.pages.length;
+    const localhostTabIndex = afterFirstTab - 1; // Index of the localhost tab we just created
 
+    await browserContext.createNewTab(); // New tab without URL
     const finalPages = browserContext.pages.length;
+    const newTabIndex = finalPages - 1; // Index of the new tab we just created
+
     progress.log(`Pages count after creating test tabs: ${finalPages}`);
+    progress.log(`Created localhost tab at index: ${localhostTabIndex}`);
+    progress.log(`Created new tab at index: ${newTabIndex}`);
 
     if (finalPages < initialPages + 2) {
       throw new Error(`Expected at least ${initialPages + 2} pages, got ${finalPages}`);
     }
 
-    // Test 1: Switch to a valid tab by pageId
+    // Test 1: Switch to a valid tab by pageId (switch to the new tab we created)
     progress.log('Test 1: Switching to valid tab by pageId...');
 
-    const targetPageId = finalPages - 1; // Switch to the last created tab
-    await browserContext.switchToTab(targetPageId);
+    await browserContext.switchToTab(newTabIndex);
 
     progress.log('✅ Test 1 passed: Successfully switched to valid tab');
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
       message: 'switchToTab() valid tab test passed',
-      details: { targetPageId, totalPages: finalPages },
+      details: { targetPageId: newTabIndex, totalPages: finalPages },
     });
 
-    // Test 2: Switch to the first tab (should be localhost:3005)
-    progress.log('Test 2: Switching to first tab with URL...');
+    // Test 2: Switch to the localhost tab we created
+    progress.log('Test 2: Switching to localhost tab...');
 
-    await browserContext.switchToTab(initialPages); // First created tab (localhost:3005)
+    await browserContext.switchToTab(localhostTabIndex);
 
-    progress.log('✅ Test 2 passed: Successfully switched to first tab with URL');
+    progress.log('✅ Test 2 passed: Successfully switched to localhost tab');
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
       message: 'switchToTab() URL tab test passed',
-      details: { targetPageId: initialPages, totalPages: finalPages },
+      details: { targetPageId: localhostTabIndex, totalPages: finalPages },
     });
 
     // Test 3: Try to switch to invalid pageId (should throw error)
@@ -1098,6 +1103,271 @@ export async function testSwitchToTabMethod(
 }
 
 /**
+ * Test closeCurrentTab() method functionality
+ */
+export async function testCloseCurrentTabMethod(
+  progress: TestProgress,
+  context: BrowserUsePlaygroundService,
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.closeCurrentTab() method...');
+
+  try {
+    // Get the current window ID to ensure we have a valid browser window
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      progress.log(`Using Chrome window ID: ${currentWindow.id}`);
+    } catch (error) {
+      // Fallback: skip the test if Chrome APIs are not available
+      progress.log(
+        '⚠️ Skipping closeCurrentTab() tests - Chrome APIs not available in test environment',
+      );
+      return;
+    }
+
+    // Create BrowserWindow and BrowserContext for testing
+    const browserWindow = await BrowserWindow.create();
+    const browserContext = new BrowserContext(browserWindow, {
+      allowedDomains: ['localhost', '127.0.0.1'], // Allow localhost for testing
+    });
+
+    progress.log('✅ Created BrowserContext for closeCurrentTab() testing');
+
+    // Initialize the context
+    await browserContext.enter();
+    const initialPages = browserContext.pages.length;
+    progress.log(`Initial pages count: ${initialPages}`);
+
+    // Create specific test tabs that we'll manage
+    progress.log('Creating test tabs...');
+    await browserContext.createNewTab('http://localhost:3005');
+    const testTab1Page = await browserContext.getCurrentPage();
+    const testTab1Id = testTab1Page.tabId;
+    progress.log(`Created test tab 1 with ID: ${testTab1Id}`);
+
+    await browserContext.createNewTab(); // New tab without URL
+    const testTab2Page = await browserContext.getCurrentPage();
+    const testTab2Id = testTab2Page.tabId;
+    progress.log(`Created test tab 2 with ID: ${testTab2Id}`);
+
+    const afterCreatePages = browserContext.pages.length;
+    progress.log(`Pages count after creating test tabs: ${afterCreatePages}`);
+
+    if (afterCreatePages < initialPages + 2) {
+      throw new Error(`Expected at least ${initialPages + 2} pages, got ${afterCreatePages}`);
+    }
+
+    // Test 1: Close one of our test tabs (switch to test tab 1 first, then close it)
+    progress.log('Test 1: Closing one of our test tabs...');
+
+    // Switch to test tab 1 to make sure we're closing our own tab
+    await chrome.tabs.update(testTab1Id, { active: true });
+    await new Promise(resolve => setTimeout(resolve, 100)); // Wait for tab switch
+
+    // Verify we're on the right tab
+    const currentPageAfterSwitch = await browserContext.getCurrentPage();
+    if (currentPageAfterSwitch.tabId !== testTab1Id) {
+      throw new Error(
+        `Failed to switch to test tab 1. Expected ${testTab1Id}, got ${currentPageAfterSwitch.tabId}`,
+      );
+    }
+    progress.log(`Successfully switched to test tab 1 (${testTab1Id}) before closing it`);
+
+    // Count tabs using multiple sources for accuracy
+    const browserContextPagesBeforeClose = browserContext.pages.length;
+    const browserWindowPagesBeforeClose = browserWindow.pages().length;
+    const chromeTabsBeforeClose = await chrome.tabs.query({ windowId: browserWindow.windowId });
+
+    const currentPageBefore = await browserContext.getCurrentPage();
+    const currentTabIdBefore = currentPageBefore.tabId;
+
+    // Verify we're about to close the right tab (should be testTab1Id)
+    if (currentTabIdBefore !== testTab1Id) {
+      throw new Error(
+        `Expected to close test tab ${testTab1Id}, but current tab is ${currentTabIdBefore}`,
+      );
+    }
+
+    progress.log(
+      `Before close: BrowserContext pages: ${browserContextPagesBeforeClose}, BrowserWindow pages: ${browserWindowPagesBeforeClose}, Chrome tabs: ${chromeTabsBeforeClose.length}`,
+    );
+    progress.log(`About to close test tab 1 (tabId: ${testTab1Id})`);
+
+    // Close the current tab (which is our test tab 1)
+    await browserContext.closeCurrentTab();
+
+    // Wait a moment for cleanup to complete
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Count tabs after closing using multiple sources
+    const browserContextPagesAfterClose = browserContext.pages.length;
+    const browserWindowPagesAfterClose = browserWindow.pages().length;
+    const chromeTabsAfterClose = await chrome.tabs.query({ windowId: browserWindow.windowId });
+
+    const currentPageAfter = await browserContext.getCurrentPage();
+    const currentTabIdAfter = currentPageAfter.tabId;
+
+    progress.log(
+      `After close: BrowserContext pages: ${browserContextPagesAfterClose}, BrowserWindow pages: ${browserWindowPagesAfterClose}, Chrome tabs: ${chromeTabsAfterClose.length}`,
+    );
+
+    // Verify the closed tab is indeed gone
+    const closedTabStillExists = chromeTabsAfterClose.some(tab => tab.id === testTab1Id);
+    if (closedTabStillExists) {
+      throw new Error(`Test tab ${testTab1Id} should have been closed but still exists`);
+    }
+
+    // Verify tab was closed by checking all sources
+    const expectedBrowserContextPages = browserContextPagesBeforeClose - 1;
+    const expectedBrowserWindowPages = browserWindowPagesBeforeClose - 1;
+    const expectedChromeTabs = chromeTabsBeforeClose.length - 1;
+
+    if (browserContextPagesAfterClose !== expectedBrowserContextPages) {
+      throw new Error(
+        `BrowserContext pages: Expected ${expectedBrowserContextPages} after close, got ${browserContextPagesAfterClose}`,
+      );
+    }
+
+    if (browserWindowPagesAfterClose !== expectedBrowserWindowPages) {
+      throw new Error(
+        `BrowserWindow pages: Expected ${expectedBrowserWindowPages} after close, got ${browserWindowPagesAfterClose}`,
+      );
+    }
+
+    if (chromeTabsAfterClose.length !== expectedChromeTabs) {
+      throw new Error(
+        `Chrome tabs: Expected ${expectedChromeTabs} after close, got ${chromeTabsAfterClose.length}`,
+      );
+    }
+
+    // Verify we switched to a different tab
+    if (currentTabIdAfter === currentTabIdBefore) {
+      throw new Error('Current tab ID should have changed after closing the current tab');
+    }
+
+    progress.log('✅ Test 1 passed: Successfully closed current tab and switched to another');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'closeCurrentTab() multiple tabs test passed',
+      details: {
+        before: {
+          browserContextPages: browserContextPagesBeforeClose,
+          browserWindowPages: browserWindowPagesBeforeClose,
+          chromeTabs: chromeTabsBeforeClose.length,
+        },
+        after: {
+          browserContextPages: browserContextPagesAfterClose,
+          browserWindowPages: browserWindowPagesAfterClose,
+          chromeTabs: chromeTabsAfterClose.length,
+        },
+        closedTabId: currentTabIdBefore,
+        newCurrentTabId: currentTabIdAfter,
+      },
+    });
+
+    // Test 2: Test state management during tab closing
+    progress.log('Test 2: Testing state management during tab closing...');
+
+    const isActive = browserContext.isActive();
+    if (!isActive) {
+      throw new Error('BrowserContext should remain active after closing a tab');
+    }
+
+    progress.log('✅ Test 2 passed: BrowserContext maintains active state during tab closing');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'closeCurrentTab() state management test passed',
+      details: { activeState: isActive, remainingTabs: browserContext.pages.length },
+    });
+
+    // Test 3: Test closing our second test tab (testTab2)
+    progress.log('Test 3: Testing closeCurrentTab() with our second test tab...');
+
+    // Switch to test tab 2 to close it
+    await chrome.tabs.update(testTab2Id, { active: true });
+    await new Promise(resolve => setTimeout(resolve, 100)); // Wait for tab switch
+
+    // Verify we're on the right tab
+    const currentPageBeforeSecondClose = await browserContext.getCurrentPage();
+    if (currentPageBeforeSecondClose.tabId !== testTab2Id) {
+      throw new Error(
+        `Failed to switch to test tab 2. Expected ${testTab2Id}, got ${currentPageBeforeSecondClose.tabId}`,
+      );
+    }
+
+    const tabsBeforeSecondClose = await chrome.tabs.query({ windowId: browserWindow.windowId });
+    progress.log(`Before closing test tab 2: ${tabsBeforeSecondClose.length} tabs`);
+
+    // Create a promise that resolves when the tab is actually removed
+    const tabRemovedPromise = new Promise<void>(resolve => {
+      const checkTabRemoved = async () => {
+        const tabs = await chrome.tabs.query({ windowId: browserWindow.windowId });
+        const tabStillExists = tabs.some(tab => tab.id === testTab2Id);
+        if (!tabStillExists) {
+          resolve();
+        } else {
+          setTimeout(checkTabRemoved, 50); // Check again in 50ms
+        }
+      };
+      checkTabRemoved();
+    });
+
+    // Close the current tab (test tab 2)
+    await browserContext.closeCurrentTab();
+
+    // Wait for the tab to actually be removed
+    await Promise.race([
+      tabRemovedPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout waiting for tab to be removed')), 5000),
+      ),
+    ]);
+
+    // Verify the tab was actually closed
+    const tabsAfterSecondClose = await chrome.tabs.query({ windowId: browserWindow.windowId });
+    const testTab2StillExists = tabsAfterSecondClose.some(tab => tab.id === testTab2Id);
+
+    if (testTab2StillExists) {
+      throw new Error(`Test tab 2 (${testTab2Id}) should have been closed but still exists`);
+    }
+
+    if (tabsAfterSecondClose.length !== tabsBeforeSecondClose.length - 1) {
+      throw new Error(
+        `Expected ${tabsBeforeSecondClose.length - 1} tabs after close, got ${tabsAfterSecondClose.length}`,
+      );
+    }
+
+    progress.log('✅ Test 3 passed: Successfully closed second test tab');
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: 'closeCurrentTab() second tab test passed',
+      details: {
+        closedTabId: testTab2Id,
+        tabsRemaining: tabsAfterSecondClose.length,
+      },
+    });
+
+    progress.log('✅ All closeCurrentTab() method tests completed successfully');
+
+    // Clean up
+    browserWindow.dispose();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ closeCurrentTab() method test failed: ${errorMessage}`);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: 'closeCurrentTab() method test failed',
+      details: { error: errorMessage },
+    });
+    throw error;
+  }
+}
+
+/**
  * Main test runner for browser context method tests
  */
 export async function runBrowserContextMethodTests(
@@ -1114,6 +1384,8 @@ export async function runBrowserContextMethodTests(
     await testMethodInteractions(progress, context);
     await testGetStateMethod(progress, context);
     await testCreateNewTabMethod(progress, context);
+    await testSwitchToTabMethod(progress, context);
+    await testCloseCurrentTabMethod(progress, context);
 
     progress.log('✅ All browser context method tests completed successfully!');
 
@@ -1122,7 +1394,7 @@ export async function runBrowserContextMethodTests(
       severity: Severity.Success,
       message: 'All browser context method tests completed successfully',
       details: {
-        totalTestSuites: 6,
+        totalTestSuites: 8,
         testSuites: [
           'getCurrentPage() Method Tests',
           'close() Method Tests',
@@ -1130,6 +1402,8 @@ export async function runBrowserContextMethodTests(
           'Method Interaction Tests',
           'getState() Method Tests',
           'createNewTab() Method Tests',
+          'switchToTab() Method Tests',
+          'closeCurrentTab() Method Tests',
         ],
       },
     });

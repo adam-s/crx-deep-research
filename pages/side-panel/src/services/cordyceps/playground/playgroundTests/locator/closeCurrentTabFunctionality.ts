@@ -17,7 +17,7 @@ export async function testCloseCurrentTabFunctionality(
   progress.log('🧪 Testing closeCurrentTab() functionality...');
 
   try {
-    // Get the current browser window for testing
+    // Option A: Use real BrowserWindow for integration testing
     const browserWindow = await BrowserWindow.create();
 
     // Create a browser-use context for testing closeCurrentTab
@@ -33,6 +33,9 @@ export async function testCloseCurrentTabFunctionality(
 
     // Create additional tabs for testing
     progress.log('Creating additional tabs for closeCurrentTab testing...');
+
+    // Instead of creating many tabs that could cause infinite loops,
+    // create just 2 additional tabs for controlled testing
     await browserContext.createNewTab('http://localhost:3005/');
     await browserContext.createNewTab(); // Empty tab
 
@@ -119,9 +122,27 @@ export async function testCloseCurrentTabFunctionality(
     // Close tabs until only one remains
     while (browserContext.pages.length > 1) {
       const remainingBefore = browserContext.pages.length;
+      const currentPageBefore = await browserContext.getCurrentPage();
+      const currentTabIdBefore = currentPageBefore.tabId;
+
+      progress.log(`About to close tab ${currentTabIdBefore}, ${remainingBefore} tabs total`);
+
       await browserContext.closeCurrentTab();
+
+      // Force a refresh of the pages array to ensure it's up to date
+      const currentPage = await browserContext.getCurrentPage();
       const remainingAfter = browserContext.pages.length;
+
       progress.log(`Closed tab: ${remainingBefore} → ${remainingAfter} tabs remaining`);
+      progress.log(`Current tab is now: ${currentPage.tabId}`);
+
+      // Safety check: if pages length didn't decrease, break to avoid infinite loop
+      if (remainingAfter >= remainingBefore) {
+        progress.log(
+          `⚠️ Tab count didn't decrease (${remainingBefore} → ${remainingAfter}), breaking loop`,
+        );
+        break;
+      }
     }
 
     if (browserContext.pages.length !== 1) {

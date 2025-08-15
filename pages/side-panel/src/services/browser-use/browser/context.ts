@@ -404,10 +404,11 @@ export class BrowserContext {
 
     // Get the current active page from the browser window
     const currentPage = await this.browserWindow.getCurrentPage();
-    // Update our pages array to reflect the current state
-    if (!this.pages.includes(currentPage)) {
-      this.pages = [currentPage];
-    }
+
+    // Always keep our pages array in sync with the BrowserWindow's pages
+    // This ensures we don't get stale or contaminated page references
+    this.pages = this.browserWindow.pages();
+
     return currentPage;
   }
 
@@ -1854,7 +1855,7 @@ export class BrowserContext {
     try {
       // 10 ms timeout
       await page.goBack({ timeout: 200, waitUntil: 'domcontentloaded' });
-      await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit to ensure navigation
+      await new Promise(resolve => setTimeout(resolve, 200)); // Wait a bit to ensure navigation
 
       // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
     } catch (e: unknown) {
@@ -1870,7 +1871,7 @@ export class BrowserContext {
     const page = await this.getCurrentPage();
     try {
       await page.goForward({ timeout: 200, waitUntil: 'domcontentloaded' });
-      await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit to ensure navigation
+      await new Promise(resolve => setTimeout(resolve, 200)); // Wait a bit to ensure navigation
       // We might want to add this back in later: await this._waitForPageAndFramesLoad({ timeoutOverwrite: 1 });
     } catch (e: unknown) {
       // Continue even if it's not fully loaded, because we wait later for the page to load
@@ -1995,7 +1996,74 @@ export class BrowserContext {
     }
   }
 
-  closeCurrentTab() {}
+  /**
+   * Close the current tab
+   * Chrome extension-compatible version that works with Cordyceps system
+   */
+  async closeCurrentTab(): Promise<void> {
+    // Ensure we're in an active state
+    if (this.session.state !== BrowserContextState.ACTIVE) {
+      await this.enter();
+    }
+
+    const page = await this.getCurrentPage();
+    const tabId = page.tabId;
+
+    console.log(`Closing current tab (tabId: ${tabId})`);
+
+    try {
+      // Count tabs before closing for validation
+      const allTabsBefore = await chrome.tabs.query({ windowId: this.browserWindow.windowId });
+      const browserWindowPagesBefore = this.browserWindow.pages();
+
+      console.log(
+        `Before close: ${allTabsBefore.length} total tabs, ${browserWindowPagesBefore.length} BrowserWindow pages`,
+      );
+
+      // Close the Cordyceps Page - this now handles both cleanup and Chrome tab removal
+      page.close();
+
+      // Wait a brief moment for the tab removal to be processed by the system
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get remaining pages from BrowserWindow (source of truth after cleanup)
+      const remainingPages = this.browserWindow.pages();
+      const allTabsAfter = await chrome.tabs.query({ windowId: this.browserWindow.windowId });
+
+      console.log(
+        `After close: ${allTabsAfter.length} total tabs, ${remainingPages.length} BrowserWindow pages`,
+      );
+
+      if (remainingPages.length > 0) {
+        // Switch to the first available tab
+        const firstPage = remainingPages[0];
+        console.log(
+          `Switching to first available tab (tabId: ${firstPage.tabId}) after closing current tab`,
+        );
+
+        // Use chrome.tabs.update to activate the tab
+        await chrome.tabs.update(firstPage.tabId, { active: true });
+
+        // Update our pages array explicitly to ensure synchronization
+        this.pages = this.browserWindow.pages();
+
+        // Also call getCurrentPage to ensure proper state management
+        await this.getCurrentPage();
+      } else {
+        // No tabs left - the browser context should be closed
+        console.log(`No tabs remaining after closing current tab`);
+        this.pages = [];
+        await this.close();
+      }
+
+      // Log final state for debugging
+      console.log(`closeCurrentTab completed: ${this.pages.length} pages remaining`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to close current tab:`, errorMessage);
+      throw new Error(`Failed to close current tab: ${errorMessage}`);
+    }
+  }
 
   /**
    * Get the current page HTML content

@@ -287,6 +287,7 @@ export class Page extends Disposable {
   /**
    * Explicitly close this page and clean up all resources.
    * This provides a clear API for ownership and helps in testing.
+   * Also removes the actual Chrome tab.
    */
   close(): void {
     console.log(`🚪 Explicitly closing Page for tab ${this.tabId}`);
@@ -301,6 +302,11 @@ export class Page extends Disposable {
 
     // Fire close event before disposing (similar to Playwright's _onClose)
     this._onClose.fire(this);
+
+    // Close the actual Chrome tab - this is the responsibility of Page.close()
+    chrome.tabs.remove(this.tabId).catch(error => {
+      console.warn(`⚠️ Failed to remove Chrome tab ${this.tabId}:`, error);
+    });
 
     // Now dispose of resources
     this.dispose();
@@ -445,11 +451,30 @@ export class Page extends Disposable {
           });
 
         try {
-          // chrome.tabs.goBack is synchronous, just call it directly
-          console.log(`[Page.goBack] Calling chrome.tabs.goBack for tab ${this.tabId}`);
-          chrome.tabs.goBack(this.tabId);
+          // Use content script injection to navigate back in JavaScript history
+          // This matches the navigation method used in Frame.goto() with window.location.assign()
           console.log(
-            `[Page.goBack] chrome.tabs.goBack completed for tab ${this.tabId}, waiting for navigation...`,
+            `[Page.goBack] Calling window.history.back() via content script for tab ${this.tabId}`,
+          );
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: this.tabId, allFrames: false },
+              world: 'MAIN',
+              func: () => {
+                // Use window.history.back() to navigate back in JavaScript history
+                window.history.back();
+              },
+            });
+          } catch (scriptError) {
+            // Fallback to chrome.tabs.goBack if content script injection fails
+            console.warn(
+              `[Page.goBack] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goBack:`,
+              scriptError,
+            );
+            chrome.tabs.goBack(this.tabId);
+          }
+          console.log(
+            `[Page.goBack] Navigation completed for tab ${this.tabId}, waiting for navigation...`,
           );
           const response = await waitPromise;
           console.log(
@@ -488,11 +513,30 @@ export class Page extends Disposable {
           });
 
         try {
-          // chrome.tabs.goForward is synchronous, just call it directly
-          console.log(`[Page.goForward] Calling chrome.tabs.goForward for tab ${this.tabId}`);
-          chrome.tabs.goForward(this.tabId);
+          // Use content script injection to navigate forward in JavaScript history
+          // This matches the navigation method used in Frame.goto() with window.location.assign()
           console.log(
-            `[Page.goForward] chrome.tabs.goForward completed for tab ${this.tabId}, waiting for navigation...`,
+            `[Page.goForward] Calling window.history.forward() via content script for tab ${this.tabId}`,
+          );
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: this.tabId, allFrames: false },
+              world: 'MAIN',
+              func: () => {
+                // Use window.history.forward() to navigate forward in JavaScript history
+                window.history.forward();
+              },
+            });
+          } catch (scriptError) {
+            // Fallback to chrome.tabs.goForward if content script injection fails
+            console.warn(
+              `[Page.goForward] Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.goForward:`,
+              scriptError,
+            );
+            chrome.tabs.goForward(this.tabId);
+          }
+          console.log(
+            `[Page.goForward] Navigation completed for tab ${this.tabId}, waiting for navigation...`,
           );
           const response = await waitPromise;
           console.log(

@@ -917,9 +917,29 @@ export class Frame extends Disposable {
       });
       p.cleanupWhenAborted(() => disposable.dispose());
 
-      // Initiate navigation directly via chrome.tabs.update
-      p.log(`Frame ${this.frameId} navigating to "${url}"`);
-      chrome.tabs.update(this.tabId, { url });
+      // Initiate navigation using content script injection to create proper browser history
+      // chrome.tabs.update() does NOT create browser history entries, but window.location.assign() does
+      p.log(`Frame ${this.frameId} navigating to "${url}" (with history)`);
+
+      try {
+        // Use content script injection to navigate with proper history
+        await chrome.scripting.executeScript({
+          target: { tabId: this.tabId, allFrames: false },
+          world: 'MAIN',
+          func: (targetUrl: string) => {
+            // Use window.location.assign() to create a proper history entry
+            window.location.assign(targetUrl);
+          },
+          args: [url],
+        });
+      } catch (error) {
+        // Fallback to chrome.tabs.update if content script injection fails
+        console.warn(
+          `Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.update:`,
+          error,
+        );
+        chrome.tabs.update(this.tabId, { url });
+      }
 
       // Wait for navigation to complete with the requested lifecycle
       const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
