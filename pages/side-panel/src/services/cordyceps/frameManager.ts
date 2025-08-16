@@ -37,7 +37,7 @@ class SignalBarrier {
     // Ensure cleanup if frame gets detached or page gets closed
     LongStandingScope.raceMultiple(
       [frame.frameManager.page.openScope, frame._detachedScope],
-      Promise.resolve(), // Immediate resolution since we handle cleanup via event subscription
+      Promise.resolve() // Immediate resolution since we handle cleanup via event subscription
     )
       .catch(() => {})
       .finally(() => {
@@ -76,7 +76,7 @@ export class FrameManager extends Disposable {
   dispose(): void {
     console.log(`🗑️ Disposing FrameManager for tab ${this.page.tabId}`);
     console.log(
-      `🗑️ FrameManager disposing ${this._frames.size} frames: [${Array.from(this._frames.keys()).join(', ')}]`,
+      `🗑️ FrameManager disposing ${this._frames.size} frames: [${Array.from(this._frames.keys()).join(', ')}]`
     );
 
     super.dispose();
@@ -125,7 +125,7 @@ export class FrameManager extends Disposable {
     // Reset main frame if it exists
     if (this._mainFrame) {
       console.log(
-        `🗑️ FrameManager clearing child frames from main frame ${this._mainFrame.frameId}`,
+        `🗑️ FrameManager clearing child frames from main frame ${this._mainFrame.frameId}`
       );
       // Clear all child frames from main frame
       this._mainFrame.clearChildFrames();
@@ -143,7 +143,7 @@ export class FrameManager extends Disposable {
   public frameAttached(
     frameId: number,
     parentFrameId: number | null | undefined,
-    url?: string,
+    url?: string
   ): Frame {
     // Check if frame already exists
     const existingFrame = this._frames.get(frameId);
@@ -163,7 +163,7 @@ export class FrameManager extends Disposable {
       return this._attachMainFrame(frameId, url);
     }
     console.log(
-      `📍 Attaching child frame ${frameId} with parent ${parentFrameId} for tab ${this.page.tabId}`,
+      `📍 Attaching child frame ${frameId} with parent ${parentFrameId} for tab ${this.page.tabId}`
     );
     return this._attachChildFrame(frameId, parentFrameId, url);
   }
@@ -181,6 +181,9 @@ export class FrameManager extends Disposable {
     // Create execution context immediately for main frame
     this.page.createExecutionContext(this._mainFrame);
 
+    // If we're on an already-loaded page, mark the load event as fired
+    this._mainFrame._markAlreadyLoadedPage();
+
     return this._mainFrame;
   }
 
@@ -190,7 +193,7 @@ export class FrameManager extends Disposable {
     // If parent frame doesn't exist, this could be due to timing issues or API inconsistencies
     if (parentFrame === undefined) {
       throw new Error(
-        `Parent frame ${parentFrameId} not found when attaching child frame ${frameId}`,
+        `Parent frame ${parentFrameId} not found when attaching child frame ${frameId}`
       );
     }
 
@@ -214,7 +217,7 @@ export class FrameManager extends Disposable {
   async waitForSignalsCreatedBy<T>(
     progress: Progress,
     waitAfter: boolean,
-    action: () => Promise<T>,
+    action: () => Promise<T>
   ): Promise<T> {
     if (!waitAfter) return action();
     const barrier = new SignalBarrier(progress);
@@ -257,7 +260,7 @@ export class FrameManager extends Disposable {
     url: string,
     name: string,
     documentId: string,
-    initial: boolean,
+    initial: boolean
   ) {
     const frame = this._frames.get(frameId)!;
     this.removeChildFramesRecursively(frame);
@@ -337,7 +340,7 @@ export class FrameManager extends Disposable {
       frame.name(),
       frame.pendingDocument(),
       error,
-      isPublic,
+      isPublic
     );
   }
 }

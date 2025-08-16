@@ -284,6 +284,8 @@ export class Frame extends Disposable {
     string,
     { url: string; gotoPromise: Promise<NavigationResponse | null> }
   >(); // documentId -> data
+  private _navigationTrackerDisposable: { dispose(): void } | null = null;
+  private _webNavigationDisposables: Array<{ dispose(): void }> = [];
 
   constructor(
     frameId: number,
@@ -318,8 +320,21 @@ export class Frame extends Disposable {
     }
 
     console.log(
-      `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${parentFrame?.frameId ?? 'none'} - URL: ${url ?? 'no url'}`
+      `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${
+        parentFrame?.frameId ?? 'none'
+      } - URL: ${url ?? 'no url'}`
     );
+
+    // Debug: Log frame creation details for Event Bridge debugging
+    console.log(`🔍 Frame ${frameId} Event Bridge Debug:`, {
+      frameId: frameId,
+      tabId: this.tabId,
+      parentFrameId: parentFrame?.frameId ?? null,
+      url: url ?? 'no url',
+    });
+
+    // Set up NavigationTracker event bridge for lifecycle synchronization
+    this._setupNavigationTrackerBridge();
   }
 
   // #region START nav
@@ -463,11 +478,23 @@ export class Frame extends Disposable {
   }
 
   _onLifecycleEvent(event: RegularLifecycleEvent) {
+    console.log(`🔗 Frame ${this.frameId}: _onLifecycleEvent called with "${event}"`);
+    console.log(
+      `🔗 Frame ${this.frameId}: Previous lifecycle events:`,
+      Array.from(this._firedLifecycleEvents)
+    );
+
     if (this._firedLifecycleEvents.has(event)) {
+      console.log(`🔗 Frame ${this.frameId}: Event "${event}" already fired, skipping`);
       return;
     }
     this._firedLifecycleEvents.add(event);
     this._fireAddLifecycle(event);
+    console.log(
+      `🔗 Frame ${this.frameId}: Updated lifecycle events:`,
+      Array.from(this._firedLifecycleEvents)
+    );
+
     if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
       console.log('api', `  "${event}" event fired`);
     try {
@@ -595,7 +622,8 @@ export class Frame extends Disposable {
   ): Promise<NavigationResponse | null> {
     const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
     console.log(
-      `[Frame._waitForNavigation] Starting frame ${this.frameId}, tab ${this.tabId}, requiresNewDocument: ${requiresNewDocument}, waitUntil: "${waitUntil}", options:`,
+      `[Frame._waitForNavigation] Starting frame ${this.frameId}, tab ${this.tabId}, ` +
+        `requiresNewDocument: ${requiresNewDocument}, waitUntil: "${waitUntil}", options:`,
       options
     );
 
@@ -669,7 +697,8 @@ export class Frame extends Disposable {
         this.onAddLifecycle,
         (e: LifecycleEvent) => {
           console.log(
-            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`
+            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: ` +
+              `"${e}", waiting for: "${waitUntil}"`
           );
           return e === waitUntil;
         },
@@ -718,9 +747,13 @@ export class Frame extends Disposable {
       `[Frame._waitForLoadState] Current fired lifecycle events for frame ${this.frameId}:`,
       Array.from(this._firedLifecycleEvents)
     );
+    console.log(
+      `🔍 Frame ${this.frameId}: _waitForLoadState debug - waiting for "${waitUntil}", current events:`,
+      Array.from(this._firedLifecycleEvents)
+    );
     if (!this._firedLifecycleEvents.has(waitUntil)) {
       console.log(
-        `[Frame._waitForLoadState] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`
+        `[Frame._waitForLoadState] Waiting for lifecycle event $$$$$$ "${waitUntil}" for frame ${this.frameId}`
       );
       // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
       await progress.race(
@@ -729,7 +762,8 @@ export class Frame extends Disposable {
           this.onAddLifecycle,
           (e: LifecycleEvent) => {
             console.log(
-              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: "${e}", waiting for: "${waitUntil}"`
+              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: ` +
+                `"${e}", waiting for: "${waitUntil}"`
             );
             return e === waitUntil;
           },
@@ -1053,6 +1087,24 @@ export class Frame extends Disposable {
 
   dispose(): void {
     console.log(`🗑️ Disposing Frame ${this.frameId} in tab ${this.tabId}`);
+
+    // Clean up NavigationTracker bridge
+    if (this._navigationTrackerDisposable) {
+      console.log(`🗑️ Frame ${this.frameId} disposing NavigationTracker bridge`);
+      this._navigationTrackerDisposable.dispose();
+      this._navigationTrackerDisposable = null;
+    }
+
+    // Clean up web navigation listeners
+    if (this._webNavigationDisposables.length > 0) {
+      console.log(
+        `🗑️ Frame ${this.frameId} disposing ${this._webNavigationDisposables.length} webNavigation listeners`
+      );
+      for (const disposable of this._webNavigationDisposables) {
+        disposable.dispose();
+      }
+      this._webNavigationDisposables = [];
+    }
 
     // Log child frames that will be disposed
     if (this._childFrames.size > 0) {
@@ -2015,6 +2067,230 @@ export class Frame extends Disposable {
       throw new Error(
         'Unable to retrieve content because the page is navigating and changing the content.'
       );
+    }
+  }
+
+  /**
+   * Set up the NavigationTracker event bridge to synchronize chrome.webNavigation
+   * lifecycle events with Frame's _firedLifecycleEvents. This ensures that
+   * click-triggered navigation properly updates Frame lifecycle state.
+   */
+  private _setupNavigationTrackerBridge(): void {
+    const navigationTracker = getNavigationTracker();
+
+    // Subscribe to NavigationTracker events for this specific frame
+    this._navigationTrackerDisposable = navigationTracker.onInternalNavigation(navEvent => {
+      console.log(`🔍 Frame ${this.frameId}: NavigationTracker event received:`, {
+        tabId: navEvent.tabId,
+        frameId: navEvent.frameId,
+        url: navEvent.url,
+        newDocument: navEvent.newDocument,
+        myTabId: this.tabId,
+        myFrameId: this.frameId,
+        matches: navEvent.tabId === this.tabId && navEvent.frameId === this.frameId,
+      });
+
+      // Only handle events for this specific frame
+      if (navEvent.tabId !== this.tabId || navEvent.frameId !== this.frameId) {
+        console.log(`🔍 Frame ${this.frameId}: Ignoring event - not for this frame`);
+        return;
+      }
+
+      console.log(
+        `🔗 Frame ${this.frameId}: NavigationTracker bridge received navigation to ${navEvent.url}`
+      );
+
+      // Update frame URL if provided
+      if (navEvent.url && navEvent.url !== this._url) {
+        this.setUrl(navEvent.url);
+        console.log(`🔗 Frame ${this.frameId}: URL updated to ${navEvent.url}`);
+      }
+
+      // Fire navigation event through Frame's event system
+      this._fireInternalNavigation(
+        navEvent.url,
+        '', // frame name not available from NavigationTracker
+        navEvent.newDocument
+          ? {
+              documentId: navEvent.newDocument.documentId,
+              request: undefined,
+            }
+          : undefined,
+        undefined, // no error
+        true // isPublic
+      );
+
+      // Synchronize lifecycle events by checking NavigationTracker's internal state
+      // This is the key bridge: when NavigationTracker marks lifecycle events,
+      // we also mark them in Frame's _firedLifecycleEvents
+      this._syncLifecycleFromNavigationTracker(navEvent);
+    });
+
+    // Set up direct chrome.webNavigation listeners for more precise lifecycle tracking
+    this._setupWebNavigationLifecycleBridge();
+
+    console.log(
+      `🔗 Frame ${this.frameId}: NavigationTracker event bridge established for tab ${this.tabId}`
+    );
+    console.log(
+      `🔍 Frame ${this.frameId}: Event Bridge setup complete - listening for tabId: ${this.tabId}, ` +
+        `frameId: ${this.frameId}`
+    );
+  }
+
+  /**
+   * Set up direct chrome.webNavigation listeners to ensure Frame lifecycle events
+   * are properly synchronized with browser navigation events. This provides more
+   * reliable lifecycle tracking than inferring from NavigationTracker.
+   */
+  private _setupWebNavigationLifecycleBridge(): void {
+    // Listen for DOMContentLoaded events
+    const onDOMContentLoaded = (
+      details: chrome.webNavigation.WebNavigationFramedCallbackDetails
+    ) => {
+      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onDOMContentLoaded received:`, {
+        tabId: details.tabId,
+        frameId: details.frameId,
+        url: details.url,
+        myTabId: this.tabId,
+        myFrameId: this.frameId,
+        matches: details.tabId === this.tabId && details.frameId === this.frameId,
+      });
+
+      if (details.tabId === this.tabId && details.frameId === this.frameId) {
+        console.log(`🔗 Frame ${this.frameId}: DOMContentLoaded event from chrome.webNavigation`);
+        if (!this._firedLifecycleEvents.has('domcontentloaded')) {
+          this._onLifecycleEvent('domcontentloaded');
+        }
+      }
+    };
+
+    // Listen for Completed (load) events
+    const onCompleted = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) => {
+      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onCompleted received:`, {
+        tabId: details.tabId,
+        frameId: details.frameId,
+        url: details.url,
+        myTabId: this.tabId,
+        myFrameId: this.frameId,
+        matches: details.tabId === this.tabId && details.frameId === this.frameId,
+      });
+
+      if (details.tabId === this.tabId && details.frameId === this.frameId) {
+        console.log(`🔗 Frame ${this.frameId}: Load event from chrome.webNavigation`);
+        if (!this._firedLifecycleEvents.has('load')) {
+          this._onLifecycleEvent('load');
+        }
+      }
+    };
+
+    // Listen for Committed events
+    const onCommitted = (details: chrome.webNavigation.WebNavigationTransitionCallbackDetails) => {
+      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onCommitted received:`, {
+        tabId: details.tabId,
+        frameId: details.frameId,
+        url: details.url,
+        documentId: details.documentId,
+        transitionType: details.transitionType,
+        myTabId: this.tabId,
+        myFrameId: this.frameId,
+        matches: details.tabId === this.tabId && details.frameId === this.frameId,
+      });
+
+      if (details.tabId === this.tabId && details.frameId === this.frameId) {
+        console.log(`🔗 Frame ${this.frameId}: Commit event from chrome.webNavigation`);
+        if (!this._firedLifecycleEvents.has('commit')) {
+          this._onLifecycleEvent('commit');
+        }
+      }
+    };
+
+    // Add listeners to chrome.webNavigation
+    chrome.webNavigation.onDOMContentLoaded.addListener(onDOMContentLoaded);
+    chrome.webNavigation.onCompleted.addListener(onCompleted);
+    chrome.webNavigation.onCommitted.addListener(onCommitted);
+
+    // Store disposables for cleanup
+    this._webNavigationDisposables.push(
+      { dispose: () => chrome.webNavigation.onDOMContentLoaded.removeListener(onDOMContentLoaded) },
+      { dispose: () => chrome.webNavigation.onCompleted.removeListener(onCompleted) },
+      { dispose: () => chrome.webNavigation.onCommitted.removeListener(onCommitted) }
+    );
+
+    console.log(
+      `🔗 Frame ${this.frameId}: Direct chrome.webNavigation lifecycle listeners established`
+    );
+  }
+
+  /**
+   * Mark lifecycle events for an already-loaded page
+   * This is called when the frame is created on a page that's already fully loaded
+   */
+  public _markAlreadyLoadedPage(): void {
+    // Check if we're on a regular HTTP(S) page (not chrome:// or about:blank)
+    if (this._url && this._url.startsWith('http') && this._url !== 'about:blank') {
+      console.log(
+        `🔗 Frame ${this.frameId}: Detected already-loaded page, marking lifecycle events`
+      );
+
+      // Mark standard lifecycle events as already fired
+      const lifecycleEvents: ('domcontentloaded' | 'load' | 'commit')[] = [
+        'domcontentloaded',
+        'load',
+        'commit',
+      ];
+
+      for (const event of lifecycleEvents) {
+        if (!this._firedLifecycleEvents.has(event)) {
+          console.log(
+            `🔗 Frame ${this.frameId}: Marking '${event}' as already fired for already-loaded page`
+          );
+          this._onLifecycleEvent(event);
+        }
+      }
+    }
+  }
+
+  /**
+   * Synchronize lifecycle events from NavigationTracker to Frame's _firedLifecycleEvents.
+   * This method bridges the gap between chrome.webNavigation events and Frame lifecycle.
+   */
+  private _syncLifecycleFromNavigationTracker(navEvent: {
+    url: string;
+    newDocument?: { documentId: string };
+  }): void {
+    // Since NavigationTracker tracks lifecycle internally, we need to check its state
+    // For navigation events, we can infer certain lifecycle states:
+
+    if (navEvent.newDocument) {
+      // New document navigation - clear existing lifecycle and start fresh
+      console.log(`🔗 Frame ${this.frameId}: New document navigation detected, clearing lifecycle`);
+      this._onClearLifecycle();
+    }
+
+    // Always mark 'commit' for any navigation event from NavigationTracker
+    if (!this._firedLifecycleEvents.has('commit')) {
+      console.log(
+        `🔗 Frame ${this.frameId}: Marking 'commit' lifecycle event from NavigationTracker`
+      );
+      this._onLifecycleEvent('commit');
+    }
+
+    // For navigation completion, we need to check if the page has actually loaded
+    // We'll use a heuristic: if this is not a new document navigation and the URL
+    // is HTTP(S), we can assume DOMContentLoaded and load have likely fired
+    if (!navEvent.newDocument && this._url?.startsWith('http')) {
+      // Same-document navigation or completed navigation - mark standard lifecycle events
+      const lifecycleEvents: ('domcontentloaded' | 'load')[] = ['domcontentloaded', 'load'];
+
+      for (const event of lifecycleEvents) {
+        if (!this._firedLifecycleEvents.has(event)) {
+          console.log(
+            `🔗 Frame ${this.frameId}: Marking '${event}' lifecycle event from NavigationTracker`
+          );
+          this._onLifecycleEvent(event);
+        }
+      }
     }
   }
 }

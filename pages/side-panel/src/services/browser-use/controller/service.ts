@@ -54,14 +54,23 @@ export class Controller<Context = unknown> {
     /**
      * Execute an action
      */
+    console.log(`[Controller.execute ######]`, {
+      action,
+      hasContext: !!context,
+      hasSensitiveData: !!sensitiveData,
+      availableFilePaths: availableFilePaths?.length || 0,
+    });
     // Extract the action name and parameters just like Python's model_dump
     const actionData =
       action && typeof action === 'object' ? (action as Record<string, unknown>) : {};
+    console.log(`[Controller.execute.actionData ######]`, { actionData });
 
     for (const actionName of Object.keys(actionData)) {
       const params = actionData[actionName] as Record<string, unknown>;
+      console.log(`[Controller.execute.loop ######]`, { actionName, params });
 
       if (params !== null && params !== undefined) {
+        console.log(`[Controller.execute.params_valid ######]`, { actionName });
         // Execute the action
         const result = await this.executeAction(
           actionName,
@@ -74,7 +83,12 @@ export class Controller<Context = unknown> {
         );
 
         // Match Python's type checking and return logic
+        console.log(`[Controller.execute.result_type ######]`, {
+          resultType: typeof result,
+          isActionResult: result instanceof ActionResult,
+        });
         if (typeof result === 'string') {
+          console.log(`[Controller.execute.string_result ######]`, { result });
           return new ActionResult({
             isDone: false,
             success: true,
@@ -83,8 +97,13 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } else if (result instanceof ActionResult) {
+          console.log(`[Controller.execute.action_result ######]`, {
+            isDone: result.isDone,
+            success: result.success,
+          });
           return result;
         } else if (result === null || result === undefined) {
+          console.log(`[Controller.execute.null_result ######]`);
           return new ActionResult({
             isDone: false,
             success: true,
@@ -93,6 +112,7 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } else {
+          console.log(`[Controller.execute.invalid_result ######]`, { result });
           throw new Error(`Invalid action result type: ${typeof result} of ${result}`);
         }
       }
@@ -118,6 +138,12 @@ export class Controller<Context = unknown> {
     availableFilePaths?: string[],
     context?: Context
   ): Promise<ActionResult> {
+    console.log(`[Controller.executeAction ######]`, {
+      actionName,
+      params,
+      hasBrowser: !!browser,
+      hasLlm: !!pageExtractionLlm,
+    });
     if (!actionName) {
       return new ActionResult({
         isDone: false,
@@ -134,6 +160,14 @@ export class Controller<Context = unknown> {
       !this.registry.registry.actions ||
       !(actionName in this.registry.registry.actions)
     ) {
+      console.log(`[Controller.executeAction.not_found ######]`, {
+        hasRegistry: !!this.registry,
+        hasRegistryRegistry: !!this.registry?.registry,
+        hasActions: !!this.registry?.registry?.actions,
+        actionInRegistry: this.registry?.registry?.actions
+          ? actionName in this.registry.registry.actions
+          : false,
+      });
       return new ActionResult({
         isDone: false,
         success: false,
@@ -147,8 +181,14 @@ export class Controller<Context = unknown> {
       const registeredAction = this.registry.registry.actions[actionName] as RegisteredAction<
         Record<string, unknown>
       >;
+      console.log(`[Controller.executeAction.registered_action ######]`, {
+        hasRegisteredAction: !!registeredAction,
+        hasFunction: !!registeredAction?.function,
+        functionType: typeof registeredAction?.function,
+      });
 
       if (registeredAction && typeof registeredAction.function === 'function') {
+        console.log(`[Controller.executeAction.calling_function ######]`, { actionName });
         // Call the function with the context of 'this'
         return (await registeredAction.function.call(this, params, {
           browser,
@@ -158,9 +198,11 @@ export class Controller<Context = unknown> {
           context,
         })) as ActionResult;
       } else {
+        console.log(`[Controller.executeAction.invalid_function ######]`, { actionName });
         throw new Error(`Action ${actionName} does not have a valid function implementation`);
       }
     } catch (e) {
+      console.log(`[Controller.executeAction.error ######]`, { actionName, error: String(e) });
       console.error(`Error executing action ${actionName}:`, e);
       return new ActionResult({
         isDone: false,
@@ -186,6 +228,11 @@ export class Controller<Context = unknown> {
     /**
      * Execute an action
      */
+    console.log(`[Controller.act ######]`, {
+      action,
+      hasContext: !!context,
+      hasSensitiveData: !!sensitiveData,
+    });
     // Match Python's model_dump method
     if (!action) {
       return new ActionResult({
@@ -206,8 +253,10 @@ export class Controller<Context = unknown> {
 
     for (const actionName of Object.keys(actionData)) {
       const params = actionData[actionName];
+      console.log(`[Controller.act.loop ######]`, { actionName, params });
 
       if (params !== null && params !== undefined) {
+        console.log(`[Controller.act.executing ######]`, { actionName });
         // Execute the action
         const result = await this.registry.executeAction(
           actionName,
@@ -218,9 +267,15 @@ export class Controller<Context = unknown> {
           availableFilePaths,
           context
         );
+        console.log(`[Controller.act.result ######]`, {
+          actionName,
+          resultType: typeof result,
+          isActionResult: result instanceof ActionResult,
+        });
 
         // Match Python's type checking and return logic
         if (typeof result === 'string') {
+          console.log(`[Controller.act.string_result ######]`, { result });
           return new ActionResult({
             extractedContent: result,
             isDone: false,
@@ -229,8 +284,13 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } else if (result instanceof ActionResult) {
+          console.log(`[Controller.act.action_result ######]`, {
+            isDone: result.isDone,
+            success: result.success,
+          });
           return result;
         } else if (result === null || result === undefined) {
+          console.log(`[Controller.act.null_result ######]`);
           return new ActionResult({
             isDone: false,
             success: true,
@@ -239,6 +299,7 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } else {
+          console.log(`[Controller.act.invalid_result ######]`, { result });
           throw new Error(`Invalid action result type: ${typeof result} of ${result}`);
         }
       }
@@ -257,12 +318,17 @@ export class Controller<Context = unknown> {
    * Initialize the controller with optional excluded actions and output model
    */
   constructor(excludeActions: string[] = [], outputModel?: unknown) {
+    console.log(`[Controller.constructor ######]`, {
+      excludeActions,
+      hasOutputModel: !!outputModel,
+    });
     this.registry = new Registry<Context>(excludeActions);
 
     /**
      * Register all default browser actions
      */
     if (outputModel) {
+      console.log(`[Controller.constructor.with_output_model ######]`);
       // Create a wrapper for the output model
       class ExtendedOutputModel extends ActionModel {
         success: boolean = true;
@@ -284,6 +350,7 @@ export class Controller<Context = unknown> {
       // Register the done action with output model
       this.registerDoneActionWithModel(ExtendedOutputModel as new () => ActionModel);
     } else {
+      console.log(`[Controller.constructor.standard_done ######]`);
       // Register the standard done action
       this.registerDoneAction();
     }
@@ -296,6 +363,9 @@ export class Controller<Context = unknown> {
    * Register the done action with a custom output model
    */
   private registerDoneActionWithModel(ExtendedOutputModel: new () => ActionModel): void {
+    console.log(`[Controller.registerDoneActionWithModel ######]`, {
+      modelName: ExtendedOutputModel.name,
+    });
     this.registry.action(
       // eslint-disable-next-line max-len
       'Complete task - with return text and if the task is finished (success=True) or not yet completely finished (success=False), because last step is reached',
@@ -331,6 +401,7 @@ export class Controller<Context = unknown> {
    * Register the standard done action
    */
   private registerDoneAction(): void {
+    console.log(`[Controller.registerDoneAction ######]`);
     this.registry.action(
       // eslint-disable-next-line max-len
       'Complete task - with return text and if the task is finished (success=True) or not yet completely finished (success=False), because last step is reached',
@@ -368,6 +439,7 @@ export class Controller<Context = unknown> {
   }
 
   private registerBasicActions(): void {
+    console.log(`[Controller.registerBasicActions ######]`);
     // Search Google action
     this.registry.action(
       // eslint-disable-next-line max-len
@@ -378,6 +450,9 @@ export class Controller<Context = unknown> {
         params: SearchGoogleAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.search_google ######]`, {
+          query: params.query,
+        });
         const page = await browser.getCurrentPage();
         await page.goto(`https://www.google.com/search?q=${params.query}&udm=14`);
         await page.waitForLoadState();
@@ -402,6 +477,9 @@ export class Controller<Context = unknown> {
         params: GoToUrlAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.go_to_url ######]`, {
+          url: params.url,
+        });
         const page = await browser.getCurrentPage();
 
         console.info(`Navigating to ${params.url}...`);
@@ -455,6 +533,7 @@ export class Controller<Context = unknown> {
         _: NoParamsAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.go_back ######]`);
         await browser.goBack();
         const msg = '🔙 Navigated back';
         console.info(msg);
@@ -474,6 +553,9 @@ export class Controller<Context = unknown> {
     // Wait action
     this.registry.action('Wait for x seconds default 3', WaitAction)(this, 'wait', {
       value: async function (params: WaitAction): Promise<ActionResult> {
+        console.log(`[Controller.wait ######]`, {
+          seconds: params.seconds,
+        });
         // Get seconds from params, default to 3 if not specified
         const seconds = params.seconds || 3;
 
@@ -502,9 +584,15 @@ export class Controller<Context = unknown> {
         params: ScrollToTextAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.scroll_to_text ######]`, {
+          text: params.text,
+        });
         try {
           // Get text directly from params
           const textToFind = params.text;
+          console.log(`[Controller.scroll_to_text.text_to_find ######]`, {
+            textToFind,
+          });
 
           // Match Python implementation exactly
           const page = await browser.getCurrentPage();
@@ -514,14 +602,30 @@ export class Controller<Context = unknown> {
             page.locator(`text=${textToFind}`),
             page.locator(`//*[contains(text(), '${textToFind}')]`),
           ];
+          console.log(`[Controller.scroll_to_text.locators_created ######]`, {
+            locatorCount: locators.length,
+          });
 
-          for (const locator of locators) {
+          for (const [index, locator] of locators.entries()) {
             try {
+              console.log(`[Controller.scroll_to_text.trying_locator ######]`, {
+                index,
+                strategy: index === 0 ? 'getByText' : index === 1 ? 'text=' : 'xpath',
+              });
               // First check if element exists and is visible
-              if ((await locator.count()) > 0 && (await locator.first().isVisible())) {
+              const count = await locator.count();
+              const isVisible = count > 0 ? await locator.first().isVisible() : false;
+              console.log(`[Controller.scroll_to_text.locator_check ######]`, {
+                index,
+                count,
+                isVisible,
+              });
+              if (count > 0 && isVisible) {
+                console.log(`[Controller.scroll_to_text.scrolling ######]`, { index });
                 await locator.first().scrollIntoViewIfNeeded();
                 await page.waitForTimeout(500); // Wait for scroll to complete
                 const msg = `🔍 Scrolled to text: ${textToFind}`;
+                console.log(`[Controller.scroll_to_text.success ######]`, { msg });
                 console.info(msg);
                 return new ActionResult({
                   isDone: false,
@@ -532,11 +636,16 @@ export class Controller<Context = unknown> {
                 });
               }
             } catch (e) {
+              console.log(`[Controller.scroll_to_text.locator_error ######]`, {
+                index,
+                error: String(e),
+              });
               continue;
             }
           }
 
           const msg = `Text '${textToFind}' not found or not visible on page`;
+          console.log(`[Controller.scroll_to_text.not_found ######]`, { msg });
           console.info(msg);
           return new ActionResult({
             isDone: false,
@@ -547,6 +656,10 @@ export class Controller<Context = unknown> {
           });
         } catch (e) {
           const msg = `Failed to scroll to text '${params.text}': ${e}`;
+          console.log(`[Controller.scroll_to_text.catch_error ######]`, {
+            error: String(e),
+            text: params.text,
+          });
           console.error(msg);
           return new ActionResult({
             isDone: false,
@@ -568,34 +681,61 @@ export class Controller<Context = unknown> {
         params: ClickElementAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.click_element ######]`, {
+          index: params.index,
+        });
         // Check if the index is defined
         if (params.index === undefined) {
+          console.log(`[Controller.click_element.undefined_index ######]`);
           throw new Error('Failed to click element with index undefined');
         }
+        console.log(`[Controller.click_element.index_valid ######]`, { index: params.index });
 
         const session = await browser.getSession();
+        console.log(`[Controller.click_element.session ######]`, {
+          hasSession: !!session,
+          hasCachedState: !!session?.cachedState,
+        });
 
         if (session.cachedState) {
           if (session.cachedState.selectorMap) {
+            console.log(`[Controller.click_element.has_selector_map ######]`);
             9;
           }
         }
 
         const selectorMap = await browser.getSelectorMap();
+        console.log(`[Controller.click_element.selector_map ######]`, {
+          selectorMapKeys: Object.keys(selectorMap).length,
+        });
 
         // Convert the index to string to match how it's stored in the selector map
         const indexKey = params.index.toString();
+        console.log(`[Controller.click_element.index_key ######]`, { indexKey });
 
         if (!(indexKey in selectorMap)) {
+          console.log(`[Controller.click_element.index_not_found ######]`, {
+            indexKey,
+            availableKeys: Object.keys(selectorMap),
+          });
           throw new Error(
             `Element with index ${params.index} does not exist - retry or use alternative actions`
           );
         }
+        console.log(`[Controller.click_element.index_found ######]`, { indexKey });
 
         // Get element descriptor directly from selector map using getDomElementByIndex
         // This matches Python implementation's approach exactly
         const elementNode = await browser.getDomElementByIndex(params.index);
+        console.log(`[Controller.click_element.element_node ######]`, {
+          hasElementNode: !!elementNode,
+          tagName: elementNode?.tagName,
+          xpath: elementNode?.xpath,
+        });
         if (!elementNode) {
+          console.log(`[Controller.click_element.element_node_not_found ######]`, {
+            index: params.index,
+          });
           throw new Error(`Element with index ${params.index} not found`);
         }
 
@@ -605,14 +745,25 @@ export class Controller<Context = unknown> {
         try {
           // Get the current page count from the browser window
           initialPages = browser.browserWindow.pages().length;
+          console.log(`[Controller.click_element.initial_pages ######]`, {
+            initialPages,
+          });
         } catch (e) {
+          console.log(`[Controller.click_element.page_count_error ######]`, {
+            error: String(e),
+          });
           console.warn('Could not get initial page count:', e);
         }
 
         // Check if element is a file uploader
-        if (await browser.isFileUploader(elementNode)) {
+        const isFileUploader = await browser.isFileUploader(elementNode);
+        console.log(`[Controller.click_element.file_uploader_check ######]`, {
+          isFileUploader,
+        });
+        if (isFileUploader) {
           // eslint-disable-next-line max-len
           const msg = `Index ${params.index} - has an element which opens file upload dialog. To upload files please use a specific function to upload files`;
+          console.log(`[Controller.click_element.file_uploader_detected ######]`, { msg });
           console.info(msg);
           return new ActionResult({
             isDone: true,
@@ -626,11 +777,20 @@ export class Controller<Context = unknown> {
         let msg: string;
 
         try {
+          console.log(`[Controller.click_element.attempting_click ######]`);
           const downloadPath = await browser._clickElementNode(elementNode);
+          console.log(`[Controller.click_element.click_result ######]`, {
+            hasDownloadPath: !!downloadPath,
+            downloadPath,
+          });
           if (downloadPath) {
             msg = `💾 Downloaded file to ${downloadPath}`;
+            console.log(`[Controller.click_element.download_detected ######]`, {
+              downloadPath,
+            });
           } else {
             msg = `🖱️ Clicked button with index ${params.index}: ${elementNode.getAllTextTillNextClickableElement(2)}`;
+            console.log(`[Controller.click_element.normal_click ######]`, { msg });
           }
 
           console.info(msg);
@@ -640,12 +800,23 @@ export class Controller<Context = unknown> {
           try {
             // Get the current page count from the browser window
             currentPageCount = browser.browserWindow.pages().length;
+            console.log(`[Controller.click_element.current_pages ######]`, {
+              currentPageCount,
+              initialPages,
+            });
           } catch (e) {
+            console.log(`[Controller.click_element.page_count_error2 ######]`, {
+              error: String(e),
+            });
             console.warn('Could not get current page count:', e);
           }
 
           if (currentPageCount > initialPages) {
             const newTabMsg = 'New tab opened - switching to it';
+            console.log(`[Controller.click_element.new_tab_detected ######]`, {
+              currentPageCount,
+              initialPages,
+            });
             msg += ` - ${newTabMsg}`;
             console.info(newTabMsg);
             await browser.switchToTab(-1);
@@ -661,6 +832,10 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } catch (e) {
+          console.log(`[Controller.click_element.click_error ######]`, {
+            error: String(e),
+            index: params.index,
+          });
           console.warn(
             `Element not clickable with index ${params.index} - most likely the page changed`
           );
@@ -690,6 +865,11 @@ export class Controller<Context = unknown> {
             hasSensitiveData = false,
           }: { browser: BrowserContext; hasSensitiveData?: boolean }
         ): Promise<ActionResult> {
+          console.log(`[Controller.input_text ######]`, {
+            index: params.index,
+            textLength: params.text?.length || 0,
+            hasSensitiveData,
+          });
           // Check if the index is defined
           if (params.index === undefined) {
             throw new Error('Failed to input text into index undefined');
@@ -732,6 +912,9 @@ export class Controller<Context = unknown> {
         params: SwitchTabAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.switch_tab ######]`, {
+          pageId: params.pageId,
+        });
         await browser.switchToTab(params.pageId);
         // Wait for tab to be ready
         const page = await browser.getCurrentPage();
@@ -757,6 +940,9 @@ export class Controller<Context = unknown> {
         params: OpenTabAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.open_tab ######]`, {
+          url: params.url,
+        });
         await browser.createNewTab(params.url);
         const msg = `🔗 Opened new tab with ${params.url}`;
         console.info(msg);
@@ -782,21 +968,32 @@ export class Controller<Context = unknown> {
         params: ScrollAction | { amount?: number },
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.scroll_down ######]`, {
+          params,
+          paramsType: typeof params,
+        });
         const page = await browser.getCurrentPage();
         let amount: number | undefined;
 
         // Handle both direct ScrollAction and object with empty properties
         if (params && typeof params === 'object') {
+          console.log(`[Controller.scroll_down.params_check ######]`, {
+            hasAmount: 'amount' in params,
+            amountType: typeof (params as { amount?: number }).amount,
+          });
           if ('amount' in params && typeof params.amount === 'number') {
             amount = params.amount;
+            console.log(`[Controller.scroll_down.amount_set ######]`, { amount });
           }
         }
 
         if (amount !== undefined) {
+          console.log(`[Controller.scroll_down.with_amount ######]`, { amount });
           await page.evaluate((amount: number) => {
             window.scrollBy(0, amount);
           }, amount);
         } else {
+          console.log(`[Controller.scroll_down.default_scroll ######]`);
           await page.evaluate(() => {
             window.scrollBy(0, window.innerHeight);
           });
@@ -828,21 +1025,32 @@ export class Controller<Context = unknown> {
         params: ScrollAction | { amount?: number },
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.scroll_up ######]`, {
+          params,
+          paramsType: typeof params,
+        });
         const page = await browser.getCurrentPage();
         let amount: number | undefined;
 
         // Handle both direct ScrollAction and object with empty properties
         if (params && typeof params === 'object') {
+          console.log(`[Controller.scroll_up.params_check ######]`, {
+            hasAmount: 'amount' in params,
+            amountType: typeof (params as { amount?: number }).amount,
+          });
           if ('amount' in params && typeof params.amount === 'number') {
             amount = params.amount;
+            console.log(`[Controller.scroll_up.amount_set ######]`, { amount });
           }
         }
 
         if (amount !== undefined) {
+          console.log(`[Controller.scroll_up.with_amount ######]`, { amount });
           await page.evaluate((amount: number) => {
             window.scrollBy(0, -amount);
           }, amount);
         } else {
+          console.log(`[Controller.scroll_up.default_scroll ######]`);
           await page.evaluate(() => {
             window.scrollBy(0, -window.innerHeight);
           });
@@ -875,6 +1083,9 @@ export class Controller<Context = unknown> {
         params: SendKeysAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.send_keys ######]`, {
+          keys: params.keys,
+        });
         const page = await browser.getCurrentPage();
 
         try {
@@ -883,19 +1094,39 @@ export class Controller<Context = unknown> {
             press?: (selector: string, key: string) => Promise<void>;
           };
           const keys = params.keys as string | string[];
+          console.log(`[Controller.send_keys.keys_prep ######]`, {
+            keys,
+            keysType: typeof keys,
+            isArray: Array.isArray(keys),
+            hasPress: typeof pageWithKeyboard.press === 'function',
+          });
 
           if (typeof pageWithKeyboard.press === 'function') {
+            console.log(`[Controller.send_keys.using_native_press ######]`);
             // keyboard.press expects a single key string (e.g. 'Escape' or 'Control+o')
             if (Array.isArray(keys)) {
+              console.log(`[Controller.send_keys.array_keys ######]`, {
+                keyCount: keys.length,
+              });
               // If given an array of keys, send them one at a time
-              for (const key of keys) await pageWithKeyboard.press!('body', key);
+              for (const key of keys) {
+                console.log(`[Controller.send_keys.pressing_key ######]`, { key });
+                await pageWithKeyboard.press!('body', key);
+              }
             } else {
+              console.log(`[Controller.send_keys.single_key ######]`, { keys });
               await pageWithKeyboard.press!('body', keys);
             }
           } else {
+            console.log(`[Controller.send_keys.using_keyboard_events ######]`);
             // Last resort: dispatch a KeyboardEvent in the page context
             const singleKeys: string[] = Array.isArray(keys) ? keys : [keys];
+            console.log(`[Controller.send_keys.single_keys ######]`, {
+              singleKeys,
+              keyCount: singleKeys.length,
+            });
             for (const k of singleKeys) {
+              console.log(`[Controller.send_keys.dispatching_event ######]`, { key: k });
               await page.evaluate((key: string) => {
                 const ev = new KeyboardEvent('keydown', { key });
                 (document.activeElement || document.body).dispatchEvent(ev);
@@ -905,12 +1136,21 @@ export class Controller<Context = unknown> {
             }
           }
         } catch (e) {
+          console.log(`[Controller.send_keys.error ######]`, {
+            error: String(e),
+            isUnknownKey: String(e).includes('Unknown key'),
+          });
           if (String(e).includes('Unknown key')) {
+            console.log(`[Controller.send_keys.unknown_key_fallback ######]`);
             // If Playwright-style keyboard failed with Unknown key and keys is an array, try each individually
             const keys = params.keys as unknown;
             if (Array.isArray(keys)) {
+              console.log(`[Controller.send_keys.fallback_array ######]`, {
+                keyCount: keys.length,
+              });
               for (const key of keys) {
                 try {
+                  console.log(`[Controller.send_keys.fallback_key ######]`, { key });
                   const pageWithKeyboard = page as unknown as {
                     keyboard?: { press?: (keys: string) => Promise<void> };
                     press?: (selector: string, key: string) => Promise<void>;
@@ -919,10 +1159,13 @@ export class Controller<Context = unknown> {
                     pageWithKeyboard.keyboard &&
                     typeof pageWithKeyboard.keyboard.press === 'function'
                   ) {
+                    console.log(`[Controller.send_keys.using_keyboard_press ######]`);
                     await pageWithKeyboard.keyboard.press!(key);
                   } else if (typeof pageWithKeyboard.press === 'function') {
+                    console.log(`[Controller.send_keys.using_page_press ######]`);
                     await pageWithKeyboard.press('body', key);
                   } else {
+                    console.log(`[Controller.send_keys.using_evaluate ######]`);
                     await page.evaluate((k: string) => {
                       const ev = new KeyboardEvent('keydown', { key: k });
                       (document.activeElement || document.body).dispatchEvent(ev);
@@ -931,13 +1174,19 @@ export class Controller<Context = unknown> {
                     }, key);
                   }
                 } catch (inner) {
+                  console.log(`[Controller.send_keys.fallback_error ######]`, {
+                    key,
+                    error: String(inner),
+                  });
                   console.warn(`Failed to press fallback key '${key}': ${String(inner)}`);
                 }
               }
             } else {
+              console.log(`[Controller.send_keys.rethrowing_non_array ######]`);
               throw e;
             }
           } else {
+            console.log(`[Controller.send_keys.rethrowing_other_error ######]`);
             throw e;
           }
         }
@@ -969,17 +1218,34 @@ export class Controller<Context = unknown> {
           params: GetDropdownOptionsAction,
           { browser }: { browser: BrowserContext }
         ): Promise<ActionResult> {
+          console.log(`[Controller.get_dropdown_options ######]`, {
+            index: params.index,
+          });
           const page = await browser.getCurrentPage();
           const selectorMap = await browser.getSelectorMap();
+          console.log(`[Controller.get_dropdown_options.setup ######]`, {
+            selectorMapKeys: Object.keys(selectorMap).length,
+            frameCount: page.frames().length,
+          });
 
           const domElement = selectorMap[params.index];
+          console.log(`[Controller.get_dropdown_options.dom_element ######]`, {
+            hasDomElement: !!domElement,
+            xpath: domElement?.xpath,
+            tagName: domElement?.tagName,
+          });
 
           try {
             // Frame-aware approach
             const allOptions: string[] = [];
             let frameIndex = 0;
+            console.log(`[Controller.get_dropdown_options.starting_frames ######]`);
 
             for (const frame of page.frames()) {
+              console.log(`[Controller.get_dropdown_options.frame ######]`, {
+                frameIndex,
+                frameUrl: frame.url(),
+              });
               try {
                 // Strictly-typed page evaluation to narrow to HTMLSelectElement and return a shaped SelectInfo
                 interface DropdownOption {
@@ -1023,23 +1289,41 @@ export class Controller<Context = unknown> {
                 }, domElement.xpath);
 
                 if (selectInfo) {
+                  console.log(`[Controller.get_dropdown_options.select_info ######]`, {
+                    frameIndex,
+                    optionCount: selectInfo.options.length,
+                    selectId: selectInfo.id,
+                    selectName: selectInfo.name,
+                  });
                   const formattedOptions: string[] = [];
                   for (const opt of selectInfo.options) {
                     // Encoding ensures AI uses the exact string in select_dropdown_option
                     const encodedText = JSON.stringify(opt.text);
                     formattedOptions.push(`${opt.index}: text=${encodedText}`);
                   }
+                  console.log(`[Controller.get_dropdown_options.formatted_options ######]`, {
+                    formattedOptionsCount: formattedOptions.length,
+                  });
 
                   allOptions.push(...formattedOptions);
                   break;
                 }
               } catch (e) {
+                console.log(`[Controller.get_dropdown_options.frame_error ######]`, {
+                  frameIndex,
+                  error: String(e),
+                });
                 console.debug(`frame ${frameIndex} evaluation error: ${String(e)}`);
               }
               frameIndex++;
             }
 
+            console.log(`[Controller.get_dropdown_options.all_options ######]`, {
+              allOptionsCount: allOptions.length,
+              allOptions: allOptions.slice(0, 5), // Log first 5 for brevity
+            });
             if (allOptions.length === 0) {
+              console.log(`[Controller.get_dropdown_options.no_options ######]`);
               return new ActionResult({
                 isDone: false,
                 success: false,
@@ -1050,6 +1334,9 @@ export class Controller<Context = unknown> {
             }
 
             const msg = `Dropdown options for element ${params.index}:\n${allOptions.join('\n')}`;
+            console.log(`[Controller.get_dropdown_options.success ######]`, {
+              optionsCount: allOptions.length,
+            });
             console.info(msg);
 
             return new ActionResult({
@@ -1061,6 +1348,10 @@ export class Controller<Context = unknown> {
             });
           } catch (e) {
             const msg = `Error getting dropdown options: ${String(e)}`;
+            console.log(`[Controller.get_dropdown_options.catch_error ######]`, {
+              error: String(e),
+              index: params.index,
+            });
             console.error(msg);
 
             return new ActionResult({
@@ -1091,18 +1382,28 @@ export class Controller<Context = unknown> {
           pageExtractionLlm,
         }: { browser: BrowserContext; pageExtractionLlm?: PageExtractionLLM }
       ): Promise<ActionResult> {
+        console.log(`[Controller.extract_content ######]`, {
+          goal: params.value,
+          hasLlm: !!pageExtractionLlm,
+        });
         const goal = params.value;
+        console.log(`[Controller.extract_content.goal ######]`, { goal });
         const page = await browser.getCurrentPage();
         // Get the page content first - exactly like Python does
         const pageContent = await page.content();
+        console.log(`[Controller.extract_content.page_content ######]`, {
+          pageContentLength: pageContent.length,
+        });
 
         // Create turndown service (equivalent to Python's markdownify)
         const turndownService = new TurndownService();
+        console.log(`[Controller.extract_content.turndown_created ######]`);
 
         // Remove script, style, and other non-content tags
         // This matches the behavior of Python's markdownify
         // The .remove() method ensures these tags and their contents are completely removed
         turndownService.remove(['script', 'style', 'meta', 'link', 'noscript', 'img']);
+        console.log(`[Controller.extract_content.turndown_configured ######]`);
 
         // Remove link URLs, but keep the text
         turndownService.addRule('plainLink', {
@@ -1112,16 +1413,29 @@ export class Controller<Context = unknown> {
             return content; // no Markdown URL, just the text
           },
         });
+        console.log(`[Controller.extract_content.plain_link_rule_added ######]`);
 
         // Convert HTML to markdown
         let content = turndownService.turndown(pageContent);
+        console.log(`[Controller.extract_content.markdown_converted ######]`, {
+          markdownLength: content.length,
+        });
 
         // CRITICAL: Truncate content to prevent 30k token limit overflow
         const maxContentSize = 15000; // Conservative limit for extract_content
+        console.log(`[Controller.extract_content.content_size_check ######]`, {
+          contentLength: content.length,
+          maxContentSize,
+          needsTruncation: content.length > maxContentSize,
+        });
         if (content.length > maxContentSize) {
           console.log(
             `⚠️ extract_content: Truncating page content from ${content.length} to ${maxContentSize} characters`
           );
+          console.log(`[Controller.extract_content.truncating ######]`, {
+            originalLength: content.length,
+            truncatedLength: maxContentSize,
+          });
           content =
             content.substring(0, maxContentSize) +
             '\n\n[... content truncated to fit token limit ...]';
@@ -1133,17 +1447,25 @@ export class Controller<Context = unknown> {
           'Your task is to extract the content of the page. You will be given a page and a goal and you should extract all relevant information around this goal from the page. If the goal is vague, summarize the page. Respond in json format. Extraction goal: {goal}, Page: {page}';
 
         try {
+          console.log(`[Controller.extract_content.llm_processing ######]`);
           // In Python, this uses a PromptTemplate with input_variables=['goal', 'page']
           // Create a similar structure in TypeScript
           const templateVars = {
             goal: goal,
             page: content,
           };
+          console.log(`[Controller.extract_content.template_vars ######]`, {
+            goalLength: templateVars.goal.length,
+            pageLength: templateVars.page.length,
+          });
 
           // Format the prompt with the goal and content (similar to Python's template.format())
           const formattedPrompt = prompt
             .replace('{goal}', templateVars.goal)
             .replace('{page}', templateVars.page);
+          console.log(`[Controller.extract_content.prompt_formatted ######]`, {
+            promptLength: formattedPrompt.length,
+          });
 
           // DEBUG: Log extract_content request size
           console.log(`📊 extract_content request size: ${formattedPrompt.length} characters`);
@@ -1158,12 +1480,22 @@ export class Controller<Context = unknown> {
               content: formattedPrompt,
             },
           ];
+          console.log(`[Controller.extract_content.messages_created ######]`, {
+            messageCount: messages.length,
+          });
 
           // Invoke LLM with message array - equivalent to Python's page_extraction_llm.invoke(template.format(...))
+          console.log(`[Controller.extract_content.invoking_llm ######]`);
           const output = await pageExtractionLlm!.invoke(messages);
+          console.log(`[Controller.extract_content.llm_response ######]`, {
+            outputContentLength: output.content?.length || 0,
+          });
 
           // Use exact same format for message
           const msg = `📄 Extracted from page\n: ${output.content}\n`;
+          console.log(`[Controller.extract_content.success_message ######]`, {
+            msgLength: msg.length,
+          });
           console.info(msg);
 
           // Match Python implementation exactly:
@@ -1175,12 +1507,18 @@ export class Controller<Context = unknown> {
             error: '',
           });
         } catch (error) {
+          console.log(`[Controller.extract_content.llm_error ######]`, {
+            error: String(error),
+          });
           // Match Python's error handling exactly
           // In Python: logger.debug(f'Error extracting content: {e}')
           console.debug(`Error extracting content: ${error}`);
 
           // In Python: msg = f'📄 Extracted from page\n: {content}\n'
           const msg = `📄 Extracted from page\n: ${content}\n`;
+          console.log(`[Controller.extract_content.fallback_message ######]`, {
+            msgLength: msg.length,
+          });
           console.info(msg);
 
           // Match Python implementation exactly:
@@ -1209,6 +1547,10 @@ export class Controller<Context = unknown> {
         params: SelectDropdownOptionAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
+        console.log(`[Controller.select_dropdown_option ######]`, {
+          index: params.index,
+          text: params.text,
+        });
         const { index, text } = params;
         const page = await browser.getCurrentPage();
         // Get element descriptor directly from browser using getDomElementByIndex

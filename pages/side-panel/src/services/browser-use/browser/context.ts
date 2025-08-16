@@ -949,21 +949,44 @@ export class BrowserContext {
    * This is an exact implementation that matches the original Python code
    */
   async getState(): Promise<BrowserState> {
+    console.log(`[BrowserContext.getState ######]`);
     try {
       // Wait for page and frames to load
+      console.log(`[BrowserContext.getState.waiting_for_load ######]`);
       await this._waitForPageAndFramesLoad();
+      console.log(`[BrowserContext.getState.load_complete ######]`);
 
       // Update state and store it in the session's cachedState
+      console.log(`[BrowserContext.getState.updating_state ######]`);
       const state = await this._updateState();
+      console.log(`[BrowserContext.getState.state_updated ######]`, {
+        url: state.url,
+        title: state.title,
+        tabsCount: state.tabs.length,
+        hasScreenshot: !!state.screenshot,
+        selectorMapSize: Object.keys(state.selectorMap).length,
+        tabs: state.tabs,
+      });
 
       // Update the session's cachedState to match the current state
       // This follows the Python implementation pattern where session.cached_state = await self._update_state()
+      console.log(`[BrowserContext.getState.getting_session ######]`);
       const session = await this.getSession();
+      console.log(`[BrowserContext.getState.session_obtained ######]`, {
+        sessionExists: !!session,
+        hadCachedState: !!session.cachedState,
+      });
       session.cachedState = state;
+      console.log(`[BrowserContext.getState.cached_state_updated ######]`);
 
       // Return the state
+      console.log(`[BrowserContext.getState.returning_state ######]`);
       return state;
     } catch (error) {
+      console.log(`[BrowserContext.getState.error ######]`, {
+        error: String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       console.error(`[BrowserContext.getState] Error in getState():`, error);
       throw error;
     }
@@ -974,19 +997,39 @@ export class BrowserContext {
    * This matches the original Python implementation
    */
   async _updateState(focusElement: number = -1): Promise<BrowserState> {
-    // Starting _updateState
+    console.log(`[BrowserContext._updateState ######]`, {
+      focusElement,
+    });
 
     try {
       // Get the current page
+      console.log(`[BrowserContext._updateState.getting_page ######]`);
       const page = await this.getCurrentPage();
+      console.log(`[BrowserContext._updateState.got_page ######]`, {
+        tabId: page.tabId,
+        url: page.url(),
+      });
 
       // Check if this is a protected URL that we can't access
       const currentUrl = page.url();
+      console.log(`[BrowserContext._updateState.url_check ######]`, {
+        currentUrl,
+        isChrome: currentUrl.startsWith('chrome://'),
+        isChromeExtension: currentUrl.startsWith('chrome-extension://'),
+      });
       if (currentUrl.startsWith('chrome://') || currentUrl.startsWith('chrome-extension://')) {
         console.log(`⚠️ Cannot access protected URL: ${currentUrl} - returning minimal state`);
+        console.log(`[BrowserContext._updateState.protected_url ######]`, {
+          currentUrl,
+        });
 
         // Return minimal state for protected URLs
+        console.log(`[BrowserContext._updateState.getting_tabs_protected ######]`);
         const tabs = await this._getTabsInfo();
+        console.log(`[BrowserContext._updateState.tabs_protected ######]`, {
+          tabsCount: tabs.length,
+          tabs,
+        });
         const state = new BrowserState(
           currentUrl,
           await page.title().catch(() => 'Protected Page'),
@@ -999,42 +1042,72 @@ export class BrowserContext {
           undefined, // No root element
           {} // Empty selector map
         );
+        console.log(`[BrowserContext._updateState.protected_state_created ######]`);
         return state;
       }
 
       // Test if page is still accessible
+      console.log(`[BrowserContext._updateState.accessibility_test ######]`);
       try {
         // Run a minimal evaluate to ensure the page is responsive
         await page.evaluate(() => 1);
-        // Page accessibility test completed
+        console.log(`[BrowserContext._updateState.accessibility_success ######]`);
       } catch (error) {
-        // Page accessibility test failed, continuing anyway
+        console.log(`[BrowserContext._updateState.accessibility_error ######]`, {
+          error: String(error),
+        });
         // Continue without failing - page might still be usable for screenshots/other operations
       }
 
       // When using AI snapshots, skip traditional DOM parsing and screenshots
+      console.log(`[BrowserContext._updateState.mode_check ######]`, {
+        useSnapshotForAI: this.config.useSnapshotForAI,
+      });
       if (this.config.useSnapshotForAI) {
         console.log('📸 Using AI snapshot mode - skipping screenshots and DOM highlighting');
+        console.log(`[BrowserContext._updateState.ai_snapshot_mode ######]`);
 
         // Generate AI snapshot to extract ARIA references
         let selectorMap: SelectorMap = {};
         try {
+          console.log(`[BrowserContext._updateState.generating_snapshot ######]`);
           const aiSnapshot = await this.snapshotForAI();
+          console.log(`[BrowserContext._updateState.snapshot_generated ######]`, {
+            snapshotLength: aiSnapshot.length,
+          });
           selectorMap = this._buildSelectorMapFromSnapshot(aiSnapshot);
           console.log(
             `🗺️ Built selector map from AI snapshot: ${Object.keys(selectorMap).length} elements`
           );
+          console.log(`[BrowserContext._updateState.selector_map_built ######]`, {
+            selectorMapSize: Object.keys(selectorMap).length,
+            firstFewKeys: Object.keys(selectorMap).slice(0, 5),
+          });
         } catch (error) {
+          console.log(`[BrowserContext._updateState.snapshot_error ######]`, {
+            error: String(error),
+          });
           console.warn('⚠️ Failed to build selector map from AI snapshot:', error);
         }
 
         // Get scroll info
+        console.log(`[BrowserContext._updateState.getting_scroll_info ######]`);
         const [pixelsAbove, pixelsBelow] = await this._getScrollInfo(page);
+        console.log(`[BrowserContext._updateState.scroll_info ######]`, {
+          pixelsAbove,
+          pixelsBelow,
+        });
 
         // Get tabs info
+        console.log(`[BrowserContext._updateState.getting_tabs_info ######]`);
         const tabs = await this._getTabsInfo();
+        console.log(`[BrowserContext._updateState.tabs_info_received ######]`, {
+          tabsCount: tabs.length,
+          tabs,
+        });
 
         // Create minimal state with selector map from AI snapshot
+        console.log(`[BrowserContext._updateState.creating_state ######]`);
         const state = new BrowserState(
           page.url(),
           await page.title(),
@@ -1047,13 +1120,21 @@ export class BrowserContext {
           undefined, // No root element when using AI snapshots
           selectorMap // Selector map built from AI snapshot ARIA references
         );
+        console.log(`[BrowserContext._updateState.state_created ######]`, {
+          url: state.url,
+          title: state.title,
+          tabsCount: state.tabs.length,
+          selectorMapSize: Object.keys(state.selectorMap).length,
+        });
 
         // Store the current state for future reference
         this.currentState = state;
+        console.log(`[BrowserContext._updateState.state_stored ######]`);
 
         // Explicitly update the session's cachedState here
         const session = await this.getSession();
         session.cachedState = state;
+        console.log(`[BrowserContext._updateState.session_updated ######]`);
         return state;
       }
 
@@ -2022,36 +2103,58 @@ export class BrowserContext {
    * Chrome extension implementation - uses Cordyceps Page.bringToFront() API
    */
   async switchToTab(pageId: number): Promise<void> {
+    console.log(`[BrowserContext.switchToTab ######]`, {
+      requestedPageId: pageId,
+    });
     // Ensure we're in an active state
     if (this.session.state !== BrowserContextState.ACTIVE) {
+      console.log(`[BrowserContext.switchToTab.entering ######]`);
       await this.enter();
     }
 
+    console.log(`[BrowserContext.switchToTab.validation ######]`, {
+      pageId,
+      pagesLength: this.pages.length,
+      validRange: `0-${this.pages.length - 1}`,
+    });
     // Validate pageId is within bounds
     if (pageId < 0 || pageId >= this.pages.length) {
+      console.log(`[BrowserContext.switchToTab.invalid_pageId ######]`, {
+        pageId,
+        pagesLength: this.pages.length,
+      });
       throw new Error(
         `No tab found with page_id: ${pageId}. Available pages: 0-${this.pages.length - 1}`
       );
     }
 
     const page = this.pages[pageId];
-
-    // Check if we're already on the target tab
-    const currentPage = await this.getCurrentPage();
-    if (currentPage.tabId === page.tabId) {
-      console.log(`Already on tab ${pageId} (tabId: ${page.tabId}) - skipping switch`);
-      return;
-    }
+    console.log(`[BrowserContext.switchToTab.page_found ######]`, {
+      pageId,
+      tabId: page.tabId,
+      url: page.url(),
+    });
 
     // Check if the tab's URL is allowed before switching
     const pageUrl = page.url();
+    console.log(`[BrowserContext.switchToTab.url_check ######]`, {
+      pageUrl,
+      isAllowed: this._isUrlAllowed(pageUrl),
+    });
     if (pageUrl && !this._isUrlAllowed(pageUrl)) {
+      console.log(`[BrowserContext.switchToTab.url_not_allowed ######]`, {
+        pageUrl,
+      });
       throw new Error(`Cannot switch to tab with non-allowed URL: ${pageUrl}`);
     }
 
     try {
+      console.log(`[BrowserContext.switchToTab.bring_to_front ######]`, {
+        tabId: page.tabId,
+      });
       // Use Cordyceps Page.bringToFront() API instead of direct Chrome tabs API
       await page.bringToFront();
+      console.log(`[BrowserContext.switchToTab.brought_to_front ######]`);
 
       // Wait for the page to be ready after switching
       // Use timeout protection for Chrome internal pages
@@ -2059,25 +2162,45 @@ export class BrowserContext {
         console.log(
           `Switching to Chrome internal page (${pageUrl}) - using simplified load detection`
         );
+        console.log(`[BrowserContext.switchToTab.chrome_page ######]`, {
+          pageUrl,
+        });
         try {
           await Promise.race([
             page.waitForLoadState('domcontentloaded', { timeout: 3000 }),
             new Promise<void>(resolve => setTimeout(resolve, 2000)), // Max 2s wait
           ]);
+          console.log(`[BrowserContext.switchToTab.chrome_page_loaded ######]`);
         } catch (error) {
+          console.log(`[BrowserContext.switchToTab.chrome_load_error ######]`, {
+            error: String(error),
+          });
           console.warn(
             'Chrome internal page load check failed after switch, continuing anyway:',
             error
           );
         }
       } else {
+        console.log(`[BrowserContext.switchToTab.regular_page_wait ######]`, {
+          pageUrl,
+        });
         // For regular pages, wait for load state
         await page.waitForLoadState('load', { timeout: 10000 });
+        console.log(`[BrowserContext.switchToTab.regular_page_loaded ######]`);
       }
 
       console.log(`Successfully switched to tab ${pageId} (tabId: ${page.tabId})`);
+      console.log(`[BrowserContext.switchToTab.success ######]`, {
+        pageId,
+        tabId: page.tabId,
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`[BrowserContext.switchToTab.error ######]`, {
+        pageId,
+        tabId: page?.tabId,
+        error: errorMessage,
+      });
       console.error(`Failed to switch to tab ${pageId}:`, errorMessage);
       throw new Error(`Failed to switch to tab ${pageId}: ${errorMessage}`);
     }

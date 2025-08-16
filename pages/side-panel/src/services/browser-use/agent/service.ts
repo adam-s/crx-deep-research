@@ -482,27 +482,45 @@ export class Agent<Context = unknown> {
       let snapshotForAI: string | undefined;
       if (this.settings.useSnapshotForAI) {
         try {
-          console.log('🤖 Generating AI snapshot using cordyceps snapshotForAI...');
-          snapshotForAI = await this.browserContext.snapshotForAI();
-          console.log(`✅ AI snapshot generated: ${snapshotForAI.length} characters`);
+          // Check if we're on a restricted URL that doesn't allow script execution
+          const currentPage = await this.browserContext.getCurrentPage();
+          const currentUrl = currentPage.url();
+          const isRestrictedUrl =
+            currentUrl.startsWith('chrome://') ||
+            currentUrl.startsWith('chrome-extension://') ||
+            currentUrl.startsWith('about:') ||
+            currentUrl.startsWith('moz-extension://');
 
-          // EMERGENCY: Ultra-aggressive extraction for 130k→30k token problem
-          const maxSnapshotSize = 5000; // Extremely aggressive limit to fix 130k char issue
-          if (snapshotForAI.length > maxSnapshotSize) {
-            const originalLength = snapshotForAI.length;
-            snapshotForAI = this._extractRelevantContent(snapshotForAI, maxSnapshotSize);
-            console.log(
-              `⚠️ Smart extraction: ${originalLength} → ${snapshotForAI.length} characters`
+          if (isRestrictedUrl) {
+            console.warn(`🚫 Skipping AI snapshot on restricted URL: ${currentUrl}`);
+            console.warn(
+              '💡 Navigate to a regular website (like google.com) to enable AI snapshot features'
             );
-          }
+            snapshotForAI = undefined;
+          } else {
+            console.log('🤖 Generating AI snapshot using cordyceps snapshotForAI...');
+            snapshotForAI = await this.browserContext.snapshotForAI();
+            console.log(`✅ AI snapshot generated: ${snapshotForAI.length} characters`);
 
-          // Log the content for debugging (now truncated)
-          console.log('📄 === AI SNAPSHOT CONTENT (TRUNCATED FOR POC) ===');
-          console.log(snapshotForAI);
-          console.log('📄 === END AI SNAPSHOT CONTENT ===');
+            // Smart extraction to capture search results while managing token limits
+            const maxSnapshotSize = 15000; // Increased limit to capture search results properly
+            if (snapshotForAI.length > maxSnapshotSize) {
+              const originalLength = snapshotForAI.length;
+              snapshotForAI = this._extractRelevantContent(snapshotForAI, maxSnapshotSize);
+              console.log(
+                `⚠️ Smart extraction: ${originalLength} → ${snapshotForAI.length} characters`
+              );
+            }
+
+            // Log the content for debugging (now truncated)
+            console.log('📄 === AI SNAPSHOT CONTENT (TRUNCATED FOR POC) ===');
+            console.log(snapshotForAI);
+            console.log('📄 === END AI SNAPSHOT CONTENT ===');
+          }
         } catch (error) {
           console.warn('❌ Failed to generate AI snapshot, falling back to DOM elements:', error);
           // Continue without snapshot - the AgentMessagePrompt will use traditional DOM elements
+          snapshotForAI = undefined;
         }
       }
 
@@ -618,13 +636,9 @@ export class Agent<Context = unknown> {
       // Equivalent to Python's telemetry capturing
       // We're not implementing telemetry here as per Python code structure
 
-      // Avoid returning from a finally block because it can suppress exceptions;
-      // instead, only perform post-step work if result exists.
-      if (result) {
-        if (state) {
-          const metadata = new StepMetadata(this.state.nSteps, stepStartTime, stepEndTime, tokens);
-          this._makeHistoryItem(modelOutput, state, result, metadata);
-        }
+      if (result && state) {
+        const metadata = new StepMetadata(this.state.nSteps, stepStartTime, stepEndTime, tokens);
+        this._makeHistoryItem(modelOutput, state, result, metadata);
       }
     }
   }
@@ -632,10 +646,29 @@ export class Agent<Context = unknown> {
   /**
    * Handle all types of errors that can occur during a step
    */
-  /**
-   * Handle all types of errors that can occur during a step
-   */
   private async _handleStepError(error: Error): Promise<ActionResult[]> {
+    // Circuit breaker: Check for persistent network failures
+    if (this._isNetworkFailure(error)) {
+      this._networkFailureCount++;
+      console.warn(`🌐 Network failure ${this._networkFailureCount}/${this.MAX_NETWORK_FAILURES}`);
+
+      if (this._networkFailureCount >= this.MAX_NETWORK_FAILURES) {
+        const circuitBreakerMsg =
+          `Circuit breaker activated: ${this._networkFailureCount} consecutive network failures. ` +
+          `Stopping agent to prevent endless loop.`;
+        console.error(`🚨 ${circuitBreakerMsg}`);
+        this.state.stopped = true; // Stop the agent
+        return [
+          new ActionResult({
+            error: circuitBreakerMsg,
+            includeInMemory: true,
+          }),
+        ];
+      }
+    } else {
+      // Reset network failure count on non-network errors
+      this._networkFailureCount = 0;
+    }
     const includeTrace = true; // Equivalent to logger.isEnabledFor(logging.DEBUG) in Python
     let errorMsg = AgentError.formatError(error, includeTrace);
     const prefix = `❌ Result failed ${this.state.consecutiveFailures + 1}/${
@@ -771,6 +804,10 @@ export class Agent<Context = unknown> {
   // Equivalent to Python's re.compile(r'.*?</think>', re.DOTALL)
   private readonly STRAY_CLOSE_TAG = /[\s\S]*?<\/think>/g;
 
+  // Circuit breaker for persistent network failures
+  private _networkFailureCount = 0;
+  private readonly MAX_NETWORK_FAILURES = 3;
+
   /**
    * Remove think tags from text
    */
@@ -795,6 +832,27 @@ export class Agent<Context = unknown> {
     } else {
       return inputMessages;
     }
+  }
+
+  /**
+   * Check if an error is a network failure that should trigger circuit breaker
+   */
+  private _isNetworkFailure(error: Error): boolean {
+    const errorMessage = error.message.toLowerCase();
+    const errorName = error.name.toLowerCase();
+
+    // Check for network-related errors
+    return (
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('fetch') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('econnreset') ||
+      errorMessage.includes('enotfound') ||
+      errorName === 'timeouterror' ||
+      errorName === 'networkerror' ||
+      errorName === 'typeerror' // Often indicates fetch/network issues
+    );
   }
 
   /**
@@ -1012,8 +1070,34 @@ export class Agent<Context = unknown> {
             invoke: async (messages: Array<{ type: string; content: string }>) => {
               const converted = messages.map(m => new HumanMessage(String(m.content)));
               const resp = await this.llm.invoke(converted);
-              const maybeContent = resp as unknown as { content?: unknown };
-              return { content: String(maybeContent.content ?? '') };
+
+              // Handle different response formats
+              let content = '';
+              if (typeof resp === 'string') {
+                content = resp;
+              } else if (resp && typeof resp === 'object') {
+                // Try different possible content properties
+                if ('content' in resp && resp.content) {
+                  content = String(resp.content);
+                } else if ('text' in resp && resp.text) {
+                  content = String(resp.text);
+                } else if ('message' in resp && resp.message) {
+                  content = String(resp.message);
+                } else if ('response' in resp && resp.response) {
+                  content = String(resp.response);
+                } else {
+                  // Fallback: try to stringify the entire response
+                  content = JSON.stringify(resp);
+                }
+              }
+
+              console.log(`🔍 PageExtractionLLM adapter response:`, {
+                responseType: typeof resp,
+                contentLength: content.length,
+                contentPreview: content.substring(0, 100),
+              });
+
+              return { content };
             },
           };
 
@@ -1251,15 +1335,21 @@ export class Agent<Context = unknown> {
     const importantSections: string[] = [];
     let currentSize = 0;
 
-    // Priority 1: Only essential interactive elements (first 15%)
-    const navigationSize = Math.floor(maxSize * 0.15);
+    // Priority 1: Interactive elements and search results (first 80%)
+    const navigationSize = Math.floor(maxSize * 0.8);
     let navContent = '';
     for (const line of lines) {
-      // Only include lines with clickable elements or essential navigation
+      // Include ALL lines with ARIA references (clickable elements) plus search-related content
       if (
-        (line.includes('[ref=') && (line.includes('button') || line.includes('link'))) ||
+        line.includes('[ref=') ||
         line.includes('search') ||
-        line.includes('combobox')
+        line.includes('combobox') ||
+        line.includes('wikipedia') ||
+        line.includes('link') ||
+        line.includes('button') ||
+        line.includes('heading') ||
+        line.includes('list') ||
+        line.includes('listitem')
       ) {
         if (navContent.length + line.length < navigationSize) {
           navContent += line + '\n';
@@ -1273,14 +1363,17 @@ export class Agent<Context = unknown> {
       currentSize += navContent.length;
     }
 
-    // Priority 2: Only high-value content (85% of remaining space)
+    // Priority 2: High-value content (remaining space)
     const highValueKeywords = [
-      'heading',
       'elephant',
       'behavior',
       'social',
       'intelligence',
       'communication',
+      'family',
+      'herd',
+      'trunk',
+      'tusk',
     ];
 
     const mainContentLines: string[] = [];
@@ -1289,7 +1382,7 @@ export class Agent<Context = unknown> {
 
     for (const line of lines) {
       const lowerLine = line.toLowerCase();
-      // Much more selective - only lines with high-value keywords or essential actions
+      // Include lines with high-value keywords or essential actions
       const isHighValue =
         highValueKeywords.some(keyword => lowerLine.includes(keyword)) ||
         (line.includes('[ref=') && lowerLine.includes('extract'));
@@ -1307,12 +1400,12 @@ export class Agent<Context = unknown> {
     // Combine all sections
     let result = importantSections.join('\n');
 
-    // EMERGENCY: Extreme truncation to fix 130k→30k problem
-    const emergencyLimit = Math.min(maxSize, 3000); // Only 3k chars max!
-    if (result.length > emergencyLimit) {
+    // Final safety check - but much more generous limit
+    const safetyLimit = Math.min(maxSize, 12000); // Increased from 3k to 12k chars
+    if (result.length > safetyLimit) {
       result =
-        result.substring(0, emergencyLimit - 100) +
-        '\n\n[... EMERGENCY TRUNCATION for 130k char problem ...]';
+        result.substring(0, safetyLimit - 100) +
+        '\n\n[... CONTENT TRUNCATED for token management ...]';
     }
 
     return result;
