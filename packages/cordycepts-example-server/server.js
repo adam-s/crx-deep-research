@@ -43,7 +43,7 @@ app.use(
 
     next();
   },
-  express.static(path.join(PUBLIC_DIR, 'downloads')),
+  express.static(path.join(PUBLIC_DIR, 'downloads'))
 );
 
 // Define all HTML routes in one place
