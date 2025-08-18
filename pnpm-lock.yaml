@@ -164,6 +164,16 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.15.21)(jsdom@25.0.1)(lightningcss@1.30.1)(terser@5.40.0)
 
+  packages/cordycepts-example-server:
+    dependencies:
+      express:
+        specifier: ^4.18.2
+        version: 4.21.2
+    devDependencies:
+      nodemon:
+        specifier: ^3.0.1
+        version: 3.1.10
+
   packages/dev-utils:
     devDependencies:
       '@crx-deep-research/tsconfig':
@@ -352,16 +362,6 @@ importers:
       '@crx-deep-research/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
-
-  pages/example:
-    dependencies:
-      express:
-        specifier: ^4.18.2
-        version: 4.21.2
-    devDependencies:
-      nodemon:
-        specifier: ^3.0.1
-        version: 3.1.10
 
   pages/side-panel:
     dependencies:
