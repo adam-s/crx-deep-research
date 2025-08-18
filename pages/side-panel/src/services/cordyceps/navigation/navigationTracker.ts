@@ -20,7 +20,6 @@ interface FrameState {
   url: string;
   currentDocumentId?: string;
   lifecycle: Set<LifecycleEvent>;
-  idleTimer?: number;
 }
 
 /**
@@ -35,11 +34,7 @@ export class NavigationTracker {
   public readonly onInternalNavigation: Event<InternalNavigation> =
     this._onInternalNavigation.event;
 
-  private readonly _useNetworkIdle: boolean;
-
-  public constructor(opts?: { useNetworkIdle?: boolean }) {
-    this._useNetworkIdle = opts?.useNetworkIdle ?? false;
-
+  public constructor() {
     // Listen to chrome.webNavigation events (new-document navigation)
     chrome.webNavigation.onCommitted.addListener(this._onCommitted);
     chrome.webNavigation.onDOMContentLoaded.addListener(this._onDOMContentLoaded);
@@ -185,7 +180,6 @@ export class NavigationTracker {
     st.url = d.url;
     this._markLifecycle(st, 'load');
     console.log(`🔗 NavigationTracker: Marked load lifecycle for frame ${d.frameId}`);
-    if (this._useNetworkIdle) this._scheduleIdle(st);
   };
 
   private _setupNavigationMessageListener(): void {
@@ -248,13 +242,6 @@ export class NavigationTracker {
     st.lifecycle.add(ev);
   }
 
-  private _scheduleIdle(st: FrameState): void {
-    if (st.idleTimer) window.clearTimeout(st.idleTimer);
-    st.idleTimer = window.setTimeout(() => {
-      st.lifecycle.add('networkidle');
-    }, 500);
-  }
-
   private _ensure(k: FrameKey, tabId: number, frameId: number): FrameState {
     let st = this._frames.get(k);
     if (!st) {
@@ -269,7 +256,7 @@ export class NavigationTracker {
 let _singleton: NavigationTracker | undefined;
 export function getNavigationTracker(): NavigationTracker {
   if (!_singleton) {
-    _singleton = new NavigationTracker({ useNetworkIdle: true });
+    _singleton = new NavigationTracker();
   }
   return _singleton;
 }

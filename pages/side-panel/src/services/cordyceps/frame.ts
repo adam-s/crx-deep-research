@@ -56,11 +56,9 @@ import {
 import { parseURL } from './utilities/utils';
 import { FileTransferPortController } from './file-transfer/fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
-import { withAutoWait } from './navigation/autoWait';
 import { getNavigationTracker } from './navigation/navigationTracker';
 import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assert } from '@injected/isomorphic/assert';
 
 export type World = 'main' | 'utility';
 
@@ -263,7 +261,6 @@ export class Frame extends Disposable {
   _currentDocument: DocumentInfo;
   private _pendingDocument: DocumentInfo | undefined;
   private _raceAgainstEvaluationStallingEventsPromises = new Set<ManualPromise<unknown>>();
-  _inflightRequests = new Set<InstanceType<typeof Network.Request>>();
 
   private _parentFrame: Frame | null;
   private _childFrames = new Set<Frame>();
@@ -277,8 +274,6 @@ export class Frame extends Disposable {
   readonly fileTransferPortController: FileTransferPortController;
   readonly _detachedScope = new LongStandingScope();
   _firedLifecycleEvents = new Set<LifecycleEvent>();
-  private _firedNetworkIdleSelf = false;
-  private _networkIdleTimer: ReturnType<typeof setTimeout> | undefined;
   private _contextData = new Map<World, ContextData>();
   readonly _redirectedNavigations = new Map<
     string,
@@ -375,19 +370,6 @@ export class Frame extends Disposable {
     this._onDomContentLoaded.reset();
     this._onLoad.reset();
 
-    // Keep the current navigation request if any.
-    this._inflightRequests = new Set(
-      Array.from(this._inflightRequests).filter(
-        request => request === this._currentDocument.request
-      )
-    );
-    this._stopNetworkIdleTimer();
-    if (this._inflightRequests.size === 0) this._startNetworkIdleTimer();
-    try {
-      this.frameManager.page.mainFrame()._recalculateNetworkIdle(this);
-    } catch (error) {
-      // Main frame not ready, skip network idle recalculation
-    }
     this._onLifecycleEvent('commit');
   }
 
@@ -412,71 +394,6 @@ export class Frame extends Disposable {
     }
   }
 
-  _startNetworkIdleTimer() {
-    assert(!this._networkIdleTimer);
-    // We should not start a timer and report networkidle in detached frames.
-    // This happens at least in Firefox for child frames, where we may get requestFinished
-    // after the frame was detached - probably a race in the Firefox itself.
-    if (this._firedLifecycleEvents.has('networkidle') || this._detachedScope.isClosed()) return;
-    this._networkIdleTimer = setTimeout(() => {
-      this._firedNetworkIdleSelf = true;
-      try {
-        this.frameManager.page.mainFrame()._recalculateNetworkIdle();
-      } catch (error) {
-        // Main frame not ready, skip network idle recalculation
-      }
-    }, 500);
-  }
-
-  _stopNetworkIdleTimer() {
-    if (this._networkIdleTimer) clearTimeout(this._networkIdleTimer);
-    this._networkIdleTimer = undefined;
-    this._firedNetworkIdleSelf = false;
-  }
-
-  // Helpers to integrate with per-frame inflight tracking
-  _onRequestStarted() {
-    this._stopNetworkIdleTimer();
-  }
-  _onRequestFinished() {
-    if (this._inflightRequests.size === 0) {
-      // Only start the timer if it's not already running. In MV3, we can miss
-      // some request start events (e.g., listener attached late), so completion
-      // can arrive while the idle timer is already active from commit.
-      if (!this._networkIdleTimer) this._startNetworkIdleTimer();
-    }
-    try {
-      this.frameManager.page.mainFrame()._recalculateNetworkIdle();
-    } catch (error) {
-      // Main frame not ready, skip network idle recalculation
-    }
-  }
-
-  _recalculateNetworkIdle(frameThatAllowsRemovingNetworkIdle?: Frame) {
-    let isNetworkIdle = this._firedNetworkIdleSelf;
-    for (const child of this._childFrames) {
-      child._recalculateNetworkIdle(frameThatAllowsRemovingNetworkIdle);
-      // We require networkidle event to be fired in the whole frame subtree, and then consider it done.
-      if (!child._firedLifecycleEvents.has('networkidle')) isNetworkIdle = false;
-    }
-    if (isNetworkIdle && !this._firedLifecycleEvents.has('networkidle')) {
-      this._firedLifecycleEvents.add('networkidle');
-      this._fireAddLifecycle('networkidle');
-      if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
-        console.log('api', `  "networkidle" event fired`);
-    }
-    if (
-      frameThatAllowsRemovingNetworkIdle !== this &&
-      this._firedLifecycleEvents.has('networkidle') &&
-      !isNetworkIdle
-    ) {
-      // Usually, networkidle is fired once and not removed after that.
-      // However, when we clear them right before a new commit, this is allowed for a particular frame.
-      this._firedLifecycleEvents.delete('networkidle');
-      this._fireRemoveLifecycle('networkidle');
-    }
-  }
-
   _onLifecycleEvent(event: RegularLifecycleEvent) {
     console.log(`🔗 Frame ${this.frameId}: _onLifecycleEvent called with "${event}"`);
     console.log(
@@ -497,11 +414,6 @@ export class Frame extends Disposable {
 
     if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
       console.log('api', `  "${event}" event fired`);
-    try {
-      this.frameManager.mainFrame()._recalculateNetworkIdle();
-    } catch (error) {
-      // Main frame not ready, skip network idle recalculation
-    }
   }
 
   // #endregion END nav
@@ -751,32 +663,68 @@ export class Frame extends Disposable {
       `🔍 Frame ${this.frameId}: _waitForLoadState debug - waiting for "${waitUntil}", current events:`,
       Array.from(this._firedLifecycleEvents)
     );
-    if (!this._firedLifecycleEvents.has(waitUntil)) {
-      console.log(
-        `[Frame._waitForLoadState] Waiting for lifecycle event $$$$$$ "${waitUntil}" for frame ${this.frameId}`
-      );
-      // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
-      await progress.race(
-        Frame.waitForEvent(
-          progress,
-          this.onAddLifecycle,
-          (e: LifecycleEvent) => {
-            console.log(
-              `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: ` +
-                `"${e}", waiting for: "${waitUntil}"`
-            );
-            return e === waitUntil;
-          },
-          30000 // This becomes irrelevant as progress.race will handle timeout
-        )
-      );
-      console.log(
-        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
-      );
-    } else {
+
+    // Check if the requested lifecycle event is already satisfied or implied
+    const isAlreadySatisfied = this._firedLifecycleEvents.has(waitUntil);
+    const isImpliedByLaterEvents = this._isLifecycleEventImplied(waitUntil);
+
+    if (isAlreadySatisfied) {
       console.log(
         `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`
       );
+      return;
+    }
+
+    if (isImpliedByLaterEvents) {
+      console.log(
+        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" is implied by later events for frame ${this.frameId}`
+      );
+      // Mark the implied event as fired for consistency
+      this._firedLifecycleEvents.add(waitUntil);
+      this._fireAddLifecycle(waitUntil);
+      return;
+    }
+
+    console.log(
+      `[Frame._waitForLoadState] Waiting for lifecycle event $$$$$$ "${waitUntil}" for frame ${this.frameId}`
+    );
+    // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
+    await progress.race(
+      Frame.waitForEvent(
+        progress,
+        this.onAddLifecycle,
+        (e: LifecycleEvent) => {
+          console.log(
+            `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: ` +
+              `"${e}", waiting for: "${waitUntil}"`
+          );
+          return e === waitUntil;
+        },
+        30000 // This becomes irrelevant as progress.race will handle timeout
+      )
+    );
+    console.log(
+      `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
+    );
+  }
+
+  /**
+   * Check if a lifecycle event is implied by later events that have already fired
+   * For example, if 'load' has fired, then 'domcontentloaded' is implied
+   */
+  private _isLifecycleEventImplied(event: LifecycleEvent): boolean {
+    switch (event) {
+      case 'domcontentloaded':
+        // If 'load' has fired, then 'domcontentloaded' must have already occurred
+        return this._firedLifecycleEvents.has('load');
+      case 'commit':
+        // If 'domcontentloaded' or 'load' has fired, then 'commit' must have already occurred
+        return (
+          this._firedLifecycleEvents.has('domcontentloaded') ||
+          this._firedLifecycleEvents.has('load')
+        );
+      default:
+        return false;
     }
   }
 
@@ -881,7 +829,6 @@ export class Frame extends Disposable {
   }
 
   _onDetached() {
-    this._stopNetworkIdleTimer();
     this._detachedScope.close(new Error('Frame was detached'));
     for (const data of this._contextData.values()) {
       if (data.context) data.context.contextDestroyed('Frame was detached');
@@ -1033,6 +980,22 @@ export class Frame extends Disposable {
     return executeWithProgress(async progress => {
       const verifiedState = verifyLifecycle('state', state);
       progress.log(`Waiting for load state "${verifiedState}"`);
+
+      // For networkidle, delegate to content script readiness (new approach)
+      if (verifiedState === 'networkidle') {
+        progress.log(
+          `Frame.waitForLoadState: Delegating 'networkidle' to content script readiness system`
+        );
+
+        try {
+          await this.waitForContentScriptReady(progress);
+          progress.log('Frame.waitForLoadState: Content script readiness completed successfully');
+          return;
+        } catch (error) {
+          progress.log(`Frame.waitForLoadState: Content script readiness failed: ${error}`);
+          throw error;
+        }
+      }
 
       // For Chrome internal pages, apply timeout protection
       const url = this.url();
@@ -1342,14 +1305,9 @@ export class Frame extends Disposable {
    * Click a selector, but only after the frame has loaded.
    */
   async click(selector: string, options?: ClickOptions): Promise<void> {
-    // Auto-wait for potential navigation triggered by the click on top frame.
-    return withAutoWait(
-      this.tabId,
-      () =>
-        this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
-          handle.clickWithProgress(progress, options)
-        ),
-      { waitUntil: 'commit', timeoutMs: options?.timeout ?? 30000 }
+    // Simplified click without auto-wait since we use content script readiness
+    return this._executeWithElementHandle(selector, options?.timeout || 30000, (handle, progress) =>
+      handle.clickWithProgress(progress, options)
     );
   }
 
@@ -2007,43 +1965,6 @@ export class Frame extends Disposable {
    */
 
   /**
-   * Add a network request to the inflight requests set
-   * Used when a new request is initiated from this frame
-   */
-  _addInflightRequest(
-    requestInfo: RequestInfo,
-    documentId?: string
-  ): InstanceType<typeof Network.Request> {
-    const request = new Network.Request(requestInfo, documentId);
-    this._inflightRequests.add(request);
-    return request;
-  }
-
-  /**
-   * Remove a network request from the inflight requests set
-   * Used when a request completes or fails
-   */
-  _removeInflightRequest(request: InstanceType<typeof Network.Request>): void {
-    this._inflightRequests.delete(request);
-  }
-
-  /**
-   * Find an inflight request by document ID
-   * Used by frameManager to locate requests associated with document navigations
-   */
-  _findRequestByDocumentId(documentId: string): InstanceType<typeof Network.Request> | undefined {
-    return Array.from(this._inflightRequests).find(request => request._documentId === documentId);
-  }
-
-  /**
-   * Clear all inflight requests
-   * Used during frame disposal or context reset
-   */
-  _clearInflightRequests(): void {
-    this._inflightRequests.clear();
-  }
-
-  /**
    * Get the full HTML content of the frame including doctype and document element.
    * Chrome extension-compatible version of Playwright's frame.content()
    * @returns Promise resolving to the complete HTML content as a string
@@ -2292,6 +2213,19 @@ export class Frame extends Disposable {
         }
       }
     }
+  }
+
+  /**
+   * Wait for frame to be ready (content script loaded and evaluated)
+   * Replaces waitForLoadState('networkidle')
+   */
+  async waitForContentScriptReady(progress?: Progress): Promise<void> {
+    const { ContentScriptReadinessManager } = await import('./navigation/contentScriptReadiness');
+    const barrier = ContentScriptReadinessManager.getInstance().getBarrier(
+      this.tabId,
+      this.frameId
+    );
+    return barrier.waitForReady(progress);
   }
 }
 

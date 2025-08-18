@@ -10,7 +10,7 @@ import { TestContext } from '../api';
 export async function testWaitForEventFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing Page.waitForEvent() functionality');
 
@@ -47,48 +47,34 @@ export async function testWaitForEventFunctionality(
     });
   }
 
-  // Test 2: Wait for a request event
-  progress.log('Test 2: Testing waitForEvent with request event');
+  // Test 2: Wait for a domcontentloaded event (replacing removed request event test)
+  progress.log('Test 2: Testing waitForEvent with domcontentloaded event');
   try {
-    // Start waiting for request event
-    const requestEventPromise = page.waitForEvent('request', {
+    // Start waiting for domcontentloaded event
+    const domContentLoadedPromise = page.waitForEvent('domcontentloaded', {
       timeout: 5000,
-      predicate: (eventArg: unknown) => {
-        // Type guard to check if eventArg has expected request properties
-        return (
-          typeof eventArg === 'object' &&
-          eventArg !== null &&
-          'url' in eventArg &&
-          typeof (eventArg as { url: unknown }).url === 'string'
-        );
-      },
     });
 
-    // Trigger a request by navigating or interacting with the page
-    await page.evaluate(() => {
-      // Create a simple fetch request to trigger the request event
-      fetch('/favicon.ico').catch(() => {
-        // Ignore errors, we just want to trigger a request
-      });
-    });
+    // Trigger a navigation to cause domcontentloaded event
+    await page.goto('http://localhost:3005/');
 
     // Wait for the event
-    const requestEvent = await requestEventPromise;
+    const domEvent = await domContentLoadedPromise;
 
-    progress.log('✅ Request event received successfully');
+    progress.log('✅ DOMContentLoaded event received successfully');
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
-      message: 'waitForEvent with request event test passed',
-      details: { eventReceived: !!requestEvent },
+      message: 'waitForEvent with domcontentloaded event test passed',
+      details: { eventReceived: !!domEvent },
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    progress.log(`❌ Request event test failed: ${errorMessage}`);
+    progress.log(`❌ DOMContentLoaded event test failed: ${errorMessage}`);
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Error,
-      message: 'waitForEvent with request event test failed',
+      message: 'waitForEvent with domcontentloaded event test failed',
       details: { error: errorMessage },
     });
   }

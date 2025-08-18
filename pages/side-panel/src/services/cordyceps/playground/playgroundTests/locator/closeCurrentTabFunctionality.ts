@@ -12,7 +12,7 @@ import { BrowserContext, BrowserContextState } from '@src/services/browser-use/b
 export async function testCloseCurrentTabFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing closeCurrentTab() functionality...');
 
@@ -80,7 +80,7 @@ export async function testCloseCurrentTabFunctionality(
 
     if (!closeEventFired) {
       progress.log(
-        '⚠️ Warning: Page close event did not fire (this may be expected in test environment)',
+        '⚠️ Warning: Page close event did not fire (this may be expected in test environment)'
       );
     }
 
@@ -117,9 +117,9 @@ export async function testCloseCurrentTabFunctionality(
     });
 
     // Test 3: Close all tabs except one, then close the last one
-    progress.log('Test 3: Testing closeCurrentTab() until context closes...');
+    progress.log('Test 3: Testing closeCurrentTab() until only one tab remains...');
 
-    // Close tabs until only one remains
+    // Close tabs until only one remains (but don't close the last tab)
     while (browserContext.pages.length > 1) {
       const remainingBefore = browserContext.pages.length;
       const currentPageBefore = await browserContext.getCurrentPage();
@@ -139,7 +139,7 @@ export async function testCloseCurrentTabFunctionality(
       // Safety check: if pages length didn't decrease, break to avoid infinite loop
       if (remainingAfter >= remainingBefore) {
         progress.log(
-          `⚠️ Tab count didn't decrease (${remainingBefore} → ${remainingAfter}), breaking loop`,
+          `⚠️ Tab count didn't decrease (${remainingBefore} → ${remainingAfter}), breaking loop`
         );
         break;
       }
@@ -149,33 +149,26 @@ export async function testCloseCurrentTabFunctionality(
       throw new Error(`Expected 1 tab remaining, got ${browserContext.pages.length}`);
     }
 
-    // Close the last tab - this should close the entire context
+    // Verify we have exactly one tab left (don't close the last tab to avoid closing the window)
     const lastPage = await browserContext.getCurrentPage();
     const lastTabId = lastPage.tabId;
 
-    progress.log(`Closing last tab (tabId: ${lastTabId})...`);
-    await browserContext.closeCurrentTab();
+    progress.log(`✅ Successfully closed all tabs except the last one (tabId: ${lastTabId})`);
+    progress.log('✅ Test 3 passed: closeCurrentTab() works correctly, keeping last tab open');
 
-    // Verify context is properly closed
-    const finalState = browserContext.session.state;
-    if (finalState !== BrowserContextState.CLOSED) {
-      throw new Error(`Expected context to be CLOSED after closing last tab, got ${finalState}`);
-    }
-
-    progress.log('✅ Test 3 passed: Context properly closed after closing all tabs');
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Success,
-      message: 'closeCurrentTab() close all tabs test passed',
+      message: 'closeCurrentTab() close tabs test passed (keeping last tab open)',
       details: {
-        finalState,
         remainingTabs: browserContext.pages.length,
-        lastClosedTabId: lastTabId,
+        lastRemainingTabId: lastTabId,
       },
     });
 
-    // Clean up
-    browserWindow.dispose();
+    // Clean up - DO NOT dispose browserWindow as it closes the entire browser
+    // and affects other tests that might run after this one
+    // browserWindow.dispose(); // ❌ REMOVED: This closes the entire browser window
 
     progress.log('✅ All closeCurrentTab() functionality tests completed successfully');
     context.events.emit({

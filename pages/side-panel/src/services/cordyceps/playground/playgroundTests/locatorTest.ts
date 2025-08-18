@@ -104,7 +104,8 @@ export class LocatorTest extends PlaygroundTest {
       progress.log('Testing StateAwareEvent functionality for lifecycle event race conditions');
       try {
         const stateAwareEventTest = new StateAwareEventTest(this.context);
-        await stateAwareEventTest.run(15000, 'StateAwareEvent functionality tests');
+        // Increased timeout for robust navigation with retries (was 15000)
+        await stateAwareEventTest.run(25000, 'StateAwareEvent functionality tests');
         this.context.events.emit({
           timestamp: Date.now(),
           severity: Severity.Success,

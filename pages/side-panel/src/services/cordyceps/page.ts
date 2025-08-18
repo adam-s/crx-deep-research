@@ -3,7 +3,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FrameManager } from './frameManager';
 import { Frame, FrameLocator } from './frame';
-import { Progress, executeWithProgress } from './core/progress';
+import { Progress, executeWithProgress, ProgressController } from './core/progress';
 import { Session } from './session';
 import { FrameExecutionContext } from './core/frameExecutionContext';
 import { NavigationDelegate } from './navigation/navigationDelegate';
@@ -15,8 +15,6 @@ import type {
   SelectOptionOptions,
   ExpectScreenshotOptions,
   ScreenshotOptions,
-  RequestInfo,
-  ResponseInfo,
   PageFrameEvent,
   NavigationResponse,
   WaitForEventOptions,
@@ -36,8 +34,7 @@ import {
 import { convertBrowserBufferToNodeBuffer } from './utilities/bufferUtils';
 import type { FilePayload } from '@shared/utils/fileInputTypes';
 import { Screenshotter, validateScreenshotOptions } from './media/screenshotter';
-import { NetworkListenerManager } from './navigation/networkListenerManager';
-import { waitForCondition } from './navigation/autoWait';
+import { waitForCondition } from './utilities/utils';
 import { LongStandingScope } from '@injected/isomorphic/manualPromise';
 import { DownloadManager, DownloadEventData } from './operations/downloadManager';
 import { Download } from './operations/download';
@@ -77,19 +74,6 @@ export class Page extends Disposable {
   // MV3-safe extra headers applied via declarativeNetRequest per tab
   private _extraHTTPHeaders: Readonly<Record<string, string>> | undefined;
 
-  // Network events using centralized manager to prevent memory leaks
-  private readonly _networkEvents!: ReturnType<typeof NetworkListenerManager.prototype.registerTab>;
-  readonly onRequest!: Event<RequestInfo>;
-  readonly onResponse!: Event<ResponseInfo>;
-  // Track requests by id to map to frames and complete inflight sets
-  private readonly _reqById = new Map<
-    string,
-    {
-      frame: Frame;
-      req: InstanceType<typeof Frame>['_inflightRequests'] extends Set<infer T> ? T : never;
-    }
-  >();
-
   constructor(tabId: number, session: Session) {
     super();
     this.tabId = tabId;
@@ -97,13 +81,6 @@ export class Page extends Disposable {
     this.frameManager = this._register(new FrameManager(this));
     this.screenshotter = new Screenshotter(this);
     this._navigationDelegate = new NavigationDelegate(tabId);
-
-    // Initialize network events using centralized manager to prevent memory leaks
-    this._networkEvents = this._register(
-      NetworkListenerManager.getInstance().registerTab(this.tabId)
-    );
-    this.onRequest = this._networkEvents.onRequest;
-    this.onResponse = this._networkEvents.onResponse;
 
     // Register with download manager for download tracking
     const downloadManager = DownloadManager.getInstance();
@@ -118,61 +95,19 @@ export class Page extends Disposable {
       })
     );
 
-    // Wire request lifecycle into frames for accurate networkidle
-    this._register(
-      this.onRequest(ri => {
-        const frame = this.frameManager.frame(ri.frameId) ?? this.frameManager.mainFrame();
-        const req = frame._addInflightRequest(ri);
-        this._reqById.set(ri.id, { frame, req });
-        if (
-          typeof (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted ===
-          'function'
-        ) {
-          (frame as unknown as { _onRequestStarted?: () => void })._onRequestStarted!();
-        }
-      })
-    );
-
-    this._register(
-      this._networkEvents.onCompleted(res => {
-        const rec = this._reqById.get(res.id);
-        if (!rec) {
-          return;
-        }
-        // Set response on our Network.Request wrapper
-        (rec.req as unknown as { _setResponse?: (r: ResponseInfo) => void })._setResponse?.(res);
-        // Remove before finishing so size-based checks are accurate
-        rec.frame._removeInflightRequest(rec.req as never);
-        if (
-          typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
-            ._onRequestFinished === 'function'
-        ) {
-          (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
-        }
-        this._reqById.delete(res.id);
-      })
-    );
-
-    this._register(
-      this._networkEvents.onError(err => {
-        const rec = this._reqById.get(err.id);
-        if (!rec) {
-          return;
-        }
-        // Remove before finishing so size-based checks are accurate
-        rec.frame._removeInflightRequest(rec.req as never);
-        if (
-          typeof (rec.frame as unknown as { _onRequestFinished?: () => void })
-            ._onRequestFinished === 'function'
-        ) {
-          (rec.frame as unknown as { _onRequestFinished?: () => void })._onRequestFinished!();
-        }
-        this._reqById.delete(err.id);
-      })
-    );
-
     // Setup content script listener immediately - this is needed for execution context creation
     this._setupContentScriptListener();
+
+    // Initialize content script readiness manager (for new approach)
+    import('./navigation/contentScriptReadiness').then(({ ContentScriptReadinessManager }) => {
+      const readinessManager = ContentScriptReadinessManager.getInstance();
+      this._register({
+        dispose: () => {
+          // Clean up readiness barriers for this tab when page is disposed
+          readinessManager.removeTabBarriers(this.tabId);
+        },
+      });
+    });
 
     console.log(`✅ Page created for tab ${tabId}`);
   }
@@ -318,7 +253,6 @@ export class Page extends Disposable {
   dispose(): void {
     console.log(`🗑️ Disposing Page for tab ${this.tabId}`);
     console.log(`🗑️ Page disposing FrameManager with ${this.frameManager.frames().length} frames`);
-    this._reqById.clear();
 
     if (this._ownedContext) {
       console.log(`🗑️ Page disposing owned context for tab ${this.tabId}`);
@@ -574,6 +508,24 @@ export class Page extends Disposable {
    */
   async waitForLoadState(state?: LifecycleEvent, options?: TimeoutOptions): Promise<void> {
     const url = this.url();
+
+    // For networkidle, delegate to content script readiness (new approach)
+    if (state === 'networkidle') {
+      console.log(
+        `Page.waitForLoadState: Delegating 'networkidle' to content script readiness system`
+      );
+
+      const timeout = options?.timeout ?? 30000;
+      const progress = new ProgressController(timeout);
+      try {
+        await this.waitForContentScriptReady(progress);
+        console.log('Page.waitForLoadState: Content script readiness completed successfully');
+        return;
+      } catch (error) {
+        console.warn('Page.waitForLoadState: Content script readiness failed:', error);
+        throw error;
+      }
+    }
 
     // For Chrome internal pages (new tab pages), use simplified load detection
     if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
@@ -999,21 +951,32 @@ export class Page extends Disposable {
 
   /**
    * Wait for network stability with race condition handling.
-   * This method delegates to NetworkListenerManager for network stability detection.
+   * This method now delegates to content script readiness instead of complex network tracking.
    *
    * @param progress Progress controller for abort handling
-   * @param options Network stability options
-   * @returns Promise that resolves when network is stable
+   * @param options Network stability options (kept for backward compatibility)
+   * @returns Promise that resolves when content script is ready
    */
   async waitForNetworkStability(
     progress: Progress,
-    options: {
+    _options: {
       idleTime?: number;
       timeout?: number;
       ignoredResourceTypes?: string[];
     } = {}
   ): Promise<void> {
-    return NetworkListenerManager.waitForNetworkStability(this._networkEvents, progress, options);
+    console.log(
+      'Page.waitForNetworkStability: Delegating to content script readiness system (new approach)'
+    );
+
+    try {
+      await this.waitForContentScriptReady(progress);
+      console.log('Page.waitForNetworkStability: Content script readiness completed successfully');
+      return;
+    } catch (error) {
+      console.warn('Page.waitForNetworkStability: Content script readiness failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1069,12 +1032,6 @@ export class Page extends Disposable {
           break;
         case 'load':
           vsCodeEvent = this.onLoad;
-          break;
-        case 'request':
-          vsCodeEvent = this.onRequest;
-          break;
-        case 'response':
-          vsCodeEvent = this.onResponse;
           break;
         case 'download':
           console.log(`📱 [Page ${this.tabId}] Setting up waitForEvent for download`);
@@ -1151,12 +1108,6 @@ export class Page extends Disposable {
       case 'load':
         vsCodeEvent = this.onLoad;
         break;
-      case 'request':
-        vsCodeEvent = this.onRequest;
-        break;
-      case 'response':
-        vsCodeEvent = this.onResponse;
-        break;
       case 'download':
         vsCodeEvent = this.onDownload;
         break;
@@ -1223,7 +1174,8 @@ export class Page extends Disposable {
   }
 
   /**
-   * Temporary: expose per-tab network emitter debug snapshot for diagnostics.
+   * Network debug snapshot is no longer available since we removed network tracking.
+   * This method is kept for backward compatibility but returns null.
    */
   getNetworkDebugSnapshot(): {
     requestListeners: number;
@@ -1232,10 +1184,29 @@ export class Page extends Disposable {
     responseEmits: number;
     emitterId: string;
   } | null {
-    return NetworkListenerManager.getInstance().getTabEmitterDebug(this.tabId);
+    console.warn('getNetworkDebugSnapshot: Network tracking has been removed, returning null');
+    return null;
   }
 
   content() {
     return this.mainFrame().content();
+  }
+
+  /**
+   * Wait for main frame content script to be ready
+   * Replaces complex network stability detection
+   */
+  async waitForContentScriptReady(progress?: Progress): Promise<void> {
+    const mainFrame = this.mainFrame();
+    return mainFrame.waitForContentScriptReady(progress);
+  }
+
+  /**
+   * Wait for specific frame to be ready
+   */
+  async waitForFrameReady(frameId: number, progress?: Progress): Promise<void> {
+    const { ContentScriptReadinessManager } = await import('./navigation/contentScriptReadiness');
+    const barrier = ContentScriptReadinessManager.getInstance().getBarrier(this.tabId, frameId);
+    return barrier.waitForReady(progress);
   }
 }

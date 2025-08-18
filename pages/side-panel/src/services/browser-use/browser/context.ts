@@ -554,6 +554,8 @@ export class BrowserContext {
    * This matches the Python implementation's _wait_for_stable_network method
    */
   async waitForStableNetwork(): Promise<void> {
+    // Network tracking disabled - using content script readiness instead
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const page = await this.browserWindow.getCurrentPage();
 
     // Define relevant resource types and content types for filtering
@@ -623,7 +625,9 @@ export class BrowserContext {
 
     // Setting up request/response listeners
 
+    // Network tracking disabled - functions kept for reference
     // Set up listener for new requests
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onRequest = (request: RequestInfo) => {
       // Request received
 
@@ -665,6 +669,7 @@ export class BrowserContext {
     };
 
     // Set up listener for responses
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onResponse = (response: ResponseInfo) => {
       const request = response.request;
 
@@ -711,10 +716,10 @@ export class BrowserContext {
     };
 
     // Add event listeners using Cordyceps Page events
-    // Adding event listeners
-    const requestDisposable = page.onRequest(onRequest);
-    const responseDisposable = page.onResponse(onResponse);
-    // Event listeners added
+    // Network tracking has been removed - using content script readiness instead
+    // const requestDisposable = page.onRequest(onRequest);
+    // const responseDisposable = page.onResponse(onResponse);
+    // Event listeners added (disabled)
 
     try {
       // Wait for network to stabilize
@@ -752,9 +757,9 @@ export class BrowserContext {
         };
 
         const cleanup = () => {
-          // Cleaning up event listeners
-          requestDisposable.dispose();
-          responseDisposable.dispose();
+          // Network listeners disabled - no cleanup needed
+          // requestDisposable.dispose();
+          // responseDisposable.dispose();
         };
 
         // Start checking
@@ -766,8 +771,9 @@ export class BrowserContext {
         `[browserContext.waitForStableNetwork] Error while waiting for stable network:`,
         e
       );
-      requestDisposable.dispose();
-      responseDisposable.dispose();
+      // Network listeners disabled - no cleanup needed
+      // requestDisposable.dispose();
+      // responseDisposable.dispose();
       throw e;
     }
   }

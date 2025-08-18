@@ -2,7 +2,7 @@ import { DEFAULTS } from './constants';
 
 // #region Type Definitions
 
-export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion'; // extensionTypes.DocumentLifecycle
+export type DocumentLifecycle = 'prerender' | 'active' | 'cached' | 'pending_deletion';
 
 export type FrameType = 'outermost_frame' | 'sub_frame' | 'fenced_frame'; // extensionTypes.FrameType
 
@@ -80,7 +80,7 @@ export function createFrameConfiguration(
     parentDocumentId?: string;
     url: string;
   },
-  sender: chrome.runtime.MessageSender,
+  sender: chrome.runtime.MessageSender
 ): FrameConfiguration {
   const tab = sender.tab;
 
@@ -136,7 +136,7 @@ export function createFrameConfiguration(
  */
 export function getFrame(
   tabId: number,
-  frameId: number,
+  frameId: number
 ): Promise<chrome.webNavigation.GetFrameResultDetails | null> {
   return new Promise((resolve, reject) => {
     chrome.webNavigation.getFrame({ tabId, frameId }, frame => {
@@ -168,7 +168,7 @@ export function calculateCenterPosition(boundingBox: BoundingBox): Position {
 export function createDragEvent(
   type: string,
   position: Position,
-  dataTransfer: DataTransfer,
+  dataTransfer: DataTransfer
 ): DragEvent {
   return new DragEvent(type, {
     bubbles: true,
@@ -218,7 +218,7 @@ export function createDragAndDropScript() {
     sourceSelector: string,
     targetSelector: string,
     srcPos: { x: number; y: number },
-    tgtPos: { x: number; y: number },
+    tgtPos: { x: number; y: number }
   ) => {
     // Find elements in the content script context
     const sourceElem = document.querySelector(sourceSelector);
@@ -248,7 +248,7 @@ export function createDragAndDropScript() {
         cancelable: true,
         clientX: srcPos.x,
         clientY: srcPos.y,
-      }),
+      })
     );
 
     // 2. Dispatch dragstart on the source
@@ -373,7 +373,7 @@ export function isNonRetriableError(error: Error): boolean {
 export function doesStateMatch(
   desiredState: 'attached' | 'detached' | 'visible' | 'hidden',
   visible: boolean,
-  attached: boolean,
+  attached: boolean
 ): boolean {
   const stateMatches = {
     attached,
@@ -392,7 +392,7 @@ export function doesStateMatch(
  */
 export function shouldReturnElementHandle(
   state: 'attached' | 'detached' | 'visible' | 'hidden',
-  omitReturnValue?: boolean,
+  omitReturnValue?: boolean
 ): boolean {
   if (omitReturnValue) {
     return false;
@@ -481,6 +481,59 @@ export function testIdAttributeName(): string {
  */
 export function setTestIdAttribute(attributeName: string): void {
   _testIdAttributeName = attributeName;
+}
+
+// #endregion
+
+// #region Script Execution Utilities
+
+/**
+ * Execute a script function in the main world context of a tab
+ * This is a general utility for navigation and other operations that need to run in the main world
+ */
+export async function executeScriptInMainWorld<T>(
+  tabId: number,
+  func: () => T,
+  options: { allFrames?: boolean } = {}
+): Promise<T | undefined> {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: options.allFrames ?? false },
+      world: 'MAIN',
+      func,
+    });
+    return result?.result as T | undefined;
+  } catch (error) {
+    console.error('Failed to execute script in main world:', error);
+    return undefined;
+  }
+}
+
+/**
+ * Execute history.back() in the main world context
+ * @returns true if navigation was attempted, false if no history available
+ */
+export async function executeHistoryBack(tabId: number): Promise<boolean> {
+  const result = await executeScriptInMainWorld(tabId, () => {
+    if (history.length > 1) {
+      history.back();
+      return true;
+    }
+    return false;
+  });
+  return result ?? false;
+}
+
+/**
+ * Execute history.forward() in the main world context
+ * @returns true if navigation was attempted
+ */
+export async function executeHistoryForward(tabId: number): Promise<boolean> {
+  const result = await executeScriptInMainWorld(tabId, () => {
+    history.forward();
+    return true;
+  });
+  return result ?? false;
 }
 
 // #endregion

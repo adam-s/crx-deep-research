@@ -1,7 +1,6 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED } from '@shared/utils/message';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { NavigationLifecycle } from './navigation/lifecycle';
 
 export class Session extends Disposable {
   /**
@@ -15,7 +14,7 @@ export class Session extends Disposable {
    * and to keep concerns separated.
    */
   private readonly _onContentScriptLoaded = this._register(
-    new Emitter<chrome.runtime.MessageSender>(),
+    new Emitter<chrome.runtime.MessageSender>()
   );
   readonly onContentScriptLoaded: Event<chrome.runtime.MessageSender> =
     this._onContentScriptLoaded.event;
@@ -27,7 +26,7 @@ export class Session extends Disposable {
     new Emitter<{
       tabId: number;
       removeInfo: chrome.tabs.TabRemoveInfo;
-    }>(),
+    }>()
   );
   readonly onTabRemoved: Event<{ tabId: number; removeInfo: chrome.tabs.TabRemoveInfo }> =
     this._onTabRemoved.event;
@@ -36,51 +35,49 @@ export class Session extends Disposable {
   readonly onTabActivated: Event<chrome.tabs.TabActiveInfo> = this._onTabActivated.event;
 
   private readonly _onBeforeNavigate = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationParentedCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationParentedCallbackDetails>()
   );
   readonly onBeforeNavigate: Event<chrome.webNavigation.WebNavigationParentedCallbackDetails> =
     this._onBeforeNavigate.event;
 
   private readonly _onCommitted = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>()
   );
   readonly onCommitted: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
     this._onCommitted.event;
 
   private readonly _onCompleted = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>()
   );
   readonly onCompleted: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails> =
     this._onCompleted.event;
 
   private readonly _onDOMContentLoaded = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationFramedCallbackDetails>()
   );
   readonly onDOMContentLoaded: Event<chrome.webNavigation.WebNavigationFramedCallbackDetails> =
     this._onDOMContentLoaded.event;
 
   // Same-document navigations
   private readonly _onHistoryStateUpdated = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>()
   );
   readonly onHistoryStateUpdated: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
     this._onHistoryStateUpdated.event;
 
   private readonly _onReferenceFragmentUpdated = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationTransitionCallbackDetails>()
   );
   readonly onReferenceFragmentUpdated: Event<chrome.webNavigation.WebNavigationTransitionCallbackDetails> =
     this._onReferenceFragmentUpdated.event;
 
   private readonly _onErrorOccurred = this._register(
-    new Emitter<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails>(),
+    new Emitter<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails>()
   );
   readonly onErrorOccurred: Event<chrome.webNavigation.WebNavigationFramedErrorCallbackDetails> =
     this._onErrorOccurred.event;
 
   readonly windowId: number;
-  // Centralized navigation lifecycles per-tab for consistent wiring
-  private readonly _navByTab = new Map<number, NavigationLifecycle>();
 
   constructor(windowId: number) {
     super();
@@ -122,13 +119,13 @@ export class Session extends Disposable {
     const onDOMContentLoaded = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) =>
       this._onDOMContentLoaded.fire(details);
     const onHistoryStateUpdated = (
-      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails
     ) => this._onHistoryStateUpdated.fire(details);
     const onReferenceFragmentUpdated = (
-      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+      details: chrome.webNavigation.WebNavigationTransitionCallbackDetails
     ) => this._onReferenceFragmentUpdated.fire(details);
     const onErrorOccurred = (
-      details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails,
+      details: chrome.webNavigation.WebNavigationFramedErrorCallbackDetails
     ) => this._onErrorOccurred.fire(details);
 
     chrome.webNavigation.onBeforeNavigate.addListener(onBeforeNavigate);
@@ -157,18 +154,13 @@ export class Session extends Disposable {
       this._onTabCreated.fire(tab);
       if (tab.windowId !== this.windowId) return;
       if (typeof tab.id === 'number') {
-        // Lazily create a lifecycle instance so consumers can subscribe immediately
-        this._ensureNavLifecycle(tab.id);
+        // Tab created - navigation tracking handled by NavigationTracker singleton
       }
     };
 
     const tabRemovedListener = (tabId: number, removeInfo: chrome.tabs.TabRemoveInfo) => {
       this._onTabRemoved.fire({ tabId, removeInfo });
-      const nav = this._navByTab.get(tabId);
-      if (nav) {
-        nav.dispose();
-        this._navByTab.delete(tabId);
-      }
+      // Tab removed - cleanup handled by NavigationTracker singleton
     };
 
     const tabActivatedListener = (activeInfo: chrome.tabs.TabActiveInfo) => {
@@ -194,7 +186,7 @@ export class Session extends Disposable {
   public static forTab<T extends { tabId: number }>(
     event: Event<T>,
     tabId: number,
-    disposables?: DisposableStore,
+    disposables?: DisposableStore
   ): Event<T> {
     return Event.filter(event, (e: T) => e.tabId === tabId, disposables);
   }
@@ -205,12 +197,12 @@ export class Session extends Disposable {
   public static forTabContentScript(
     event: Event<chrome.runtime.MessageSender>,
     tabId: number,
-    disposables?: DisposableStore,
+    disposables?: DisposableStore
   ): Event<chrome.runtime.MessageSender> {
     return Event.filter(
       event,
       (sender: chrome.runtime.MessageSender) => sender.tab?.id === tabId,
-      disposables,
+      disposables
     );
   }
 
@@ -220,25 +212,8 @@ export class Session extends Disposable {
   public static forFrame<T extends { frameId: number }>(
     event: Event<T>,
     frameId: number,
-    disposables?: DisposableStore,
+    disposables?: DisposableStore
   ): Event<T> {
     return Event.filter(event, (e: T) => e.frameId === frameId, disposables);
-  }
-
-  /**
-   * Get or create NavigationLifecycle for a tab. Callers can subscribe to
-   * nav events without duplicating chrome.webNavigation listeners.
-   */
-  public getNavigationLifecycle(tabId: number): NavigationLifecycle {
-    return this._ensureNavLifecycle(tabId);
-  }
-
-  private _ensureNavLifecycle(tabId: number): NavigationLifecycle {
-    const existing = this._navByTab.get(tabId);
-    if (existing) return existing;
-    const nav = this._register(new NavigationLifecycle(tabId));
-    nav.attach();
-    this._navByTab.set(tabId, nav);
-    return nav;
   }
 }

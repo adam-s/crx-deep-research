@@ -249,9 +249,8 @@ export class FrameManager extends Disposable {
       return;
     }
 
-    const request = documentId
-      ? Array.from(frame._inflightRequests).find(request => request._documentId === documentId)
-      : undefined;
+    // Network tracking has been removed - no longer track inflight requests
+    const request = undefined;
     frame.setPendingDocument({ documentId, request });
   }
 

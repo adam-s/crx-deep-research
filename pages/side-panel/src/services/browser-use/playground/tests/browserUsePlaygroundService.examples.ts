@@ -117,7 +117,7 @@ export async function quickTest(service: BrowserUsePlaygroundService): Promise<b
  */
 export async function testWithProgress(
   service: BrowserUsePlaygroundService,
-  timeoutMs: number = 10000,
+  timeoutMs: number = 10000
 ): Promise<void> {
   console.log(`⏱️ Running conversation tests with ${timeoutMs}ms timeout...`);
 

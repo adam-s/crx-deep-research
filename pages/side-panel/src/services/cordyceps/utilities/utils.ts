@@ -86,14 +86,14 @@ export function createElementGetter() {
 export async function executeOperationWithProgress(
   operation: (progress: Progress) => Promise<OperationResult>,
   operationName: string,
-  options: { timeout?: number } = {},
+  options: { timeout?: number } = {}
 ): Promise<void> {
   return executeWithProgress(
     async progress => {
       const result = await operation(progress);
       handleOperationResult(result, operationName);
     },
-    { timeout: options.timeout || 30000 },
+    { timeout: options.timeout || 30000 }
   );
 }
 
@@ -103,7 +103,7 @@ export async function executeOperationWithProgress(
 export async function executeWithElementHandleOperation<T>(
   progress: Progress,
   handle: string,
-  operation: (element: Element) => T,
+  operation: (element: Element) => T
 ): Promise<T> {
   const element = getElementByHandle(handle);
   return operation(element);
@@ -121,12 +121,12 @@ export interface ClickResult {
  */
 export function createClickHandler(
   clickWithOptions: (handle: string, options: ClickOptions) => Promise<ClickResult | null>,
-  clickSimple: (handle: string) => Promise<ClickResult | null>,
+  clickSimple: (handle: string) => Promise<ClickResult | null>
 ) {
   return async (
     progress: Progress,
     handle: string,
-    options?: ClickOptions,
+    options?: ClickOptions
   ): Promise<OperationResult> => {
     // Use enhanced click if options are provided
     if (options && (options.position || options.force || options.button || options.clickCount)) {
@@ -136,7 +136,7 @@ export function createClickHandler(
           force: options.force,
           button: options.button,
           clickCount: options.clickCount,
-        }),
+        })
       );
 
       if (!clickResult) {
@@ -180,7 +180,7 @@ export interface FrameLike {
     progress: Progress,
     selector: string,
     performActionPreChecksAndLog: boolean,
-    options: { strict: boolean },
+    options: { strict: boolean }
   ): Promise<ElementHandleLike | null>;
 }
 
@@ -191,7 +191,7 @@ export async function executeWithElementHandle<T>(
   frame: FrameLike,
   selector: string,
   timeout: number,
-  action: (handle: ElementHandleLike, progress: Progress) => Promise<T>,
+  action: (handle: ElementHandleLike, progress: Progress) => Promise<T>
 ): Promise<T> {
   return await executeWithProgress(
     async progress => {
@@ -207,7 +207,7 @@ export async function executeWithElementHandle<T>(
         }
       }
     },
-    { timeout },
+    { timeout }
   );
 }
 
@@ -217,7 +217,7 @@ export async function executeWithElementHandle<T>(
 export async function withElementHandle<R>(
   getElement: () => Promise<ElementHandleLike | null>,
   task: (handle: ElementHandleLike, timeout?: number) => Promise<R>,
-  options: { title: string; timeout?: number },
+  options: { title: string; timeout?: number }
 ): Promise<R> {
   return executeWithProgress(
     async () => {
@@ -235,7 +235,7 @@ export async function withElementHandle<R>(
         }
       }
     },
-    { timeout: options.timeout },
+    { timeout: options.timeout }
   );
 }
 
@@ -337,7 +337,7 @@ export function handleChromeRuntimeError(operation: string): void {
 export function createScriptInjectionConfig(
   tabId: number,
   frameId: number,
-  world: chrome.scripting.ExecutionWorld,
+  world: chrome.scripting.ExecutionWorld
 ) {
   return {
     target: {
@@ -396,3 +396,116 @@ export function parseURL(url: string): URL | null {
     return null;
   }
 }
+
+// #endregion
+
+// #region Waiting and Condition Utilities
+
+/**
+ * Wait for a condition with race condition handling and progress support.
+ * This is a general-purpose utility for waiting with proper abort support.
+ *
+ * @param progress Progress controller for abort handling
+ * @param condition Function that returns true when condition is met
+ * @param options Waiting options
+ * @returns Promise that resolves when condition is met
+ */
+export async function waitForCondition(
+  progress: Progress,
+  condition: () => boolean | Promise<boolean>,
+  options: {
+    pollInterval?: number;
+    timeout?: number;
+    description?: string;
+  } = {}
+): Promise<void> {
+  const { pollInterval = 100, timeout = 30000, description = 'condition' } = options;
+
+  progress.log(`Waiting for ${description} (polling: ${pollInterval}ms, timeout: ${timeout}ms)`);
+
+  const conditionPromise = new Promise<void>((resolve, reject) => {
+    let pollId: ReturnType<typeof setTimeout> | undefined;
+
+    const checkCondition = async () => {
+      try {
+        const result = await condition();
+        if (result) {
+          progress.log(`${description} met`);
+          if (pollId) {
+            clearTimeout(pollId);
+          }
+          resolve();
+          return;
+        }
+      } catch (error) {
+        progress.log(`Error checking ${description}: ${error}`);
+        if (pollId) {
+          clearTimeout(pollId);
+        }
+        reject(error);
+        return;
+      }
+
+      // Schedule next check
+      pollId = setTimeout(checkCondition, pollInterval);
+    };
+
+    // Set up cleanup
+    progress.cleanupWhenAborted(() => {
+      if (pollId) {
+        clearTimeout(pollId);
+      }
+    });
+
+    // Start checking
+    checkCondition();
+  });
+
+  // Helper to add timeout to a promise with proper cleanup
+  const withTimeout = <T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    onCancel: () => void,
+    label: string
+  ): Promise<T> => {
+    let isComplete = false;
+
+    return new Promise<T>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (isComplete) return;
+        isComplete = true;
+        onCancel();
+        reject(new Error(`${label} timeout after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      promise
+        .then(value => {
+          if (isComplete) return;
+          isComplete = true;
+          clearTimeout(timeoutId);
+          resolve(value);
+        })
+        .catch(error => {
+          if (isComplete) return;
+          isComplete = true;
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+  };
+
+  // Use withTimeout helper to avoid Promise resolve reassignment bugs
+  const timeoutPromise = withTimeout(
+    conditionPromise,
+    timeout,
+    () => {
+      // Cleanup is handled by the conditionPromise itself
+    },
+    description
+  );
+
+  // Race against progress abort signal
+  return progress.race(timeoutPromise);
+}
+
+// #endregion
