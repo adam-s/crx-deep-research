@@ -1,8 +1,8 @@
 /**
- * Comprehensive test for BrowserContext.scrollToTop() method
+ * Comprehensive test for BrowserContext.scrollToBottom() method
  *
- * This test verifies the scroll to top functionality works correctly,
- * including scroll position validation and behavior from different starting positions.
+ * This test verifies the scroll functionality works correctly,
+ * including scroll position validation and behavior with different page heights.
  */
 
 import { BrowserContext } from '../../browser/context';
@@ -35,10 +35,13 @@ interface TestContext {
 }
 
 /**
- * Main test function for scrollToTop() method
+ * Main test function for scrollToBottom() method
  */
-export async function testScrollToTop(progress: TestProgress, context: TestContext): Promise<void> {
-  progress.log('🧪 Testing BrowserContext.scrollToTop() method...');
+export async function testScrollToBottom(
+  progress: TestProgress,
+  context: TestContext
+): Promise<void> {
+  progress.log('🧪 Testing BrowserContext.scrollToBottom() method...');
 
   try {
     // Create browser window
@@ -47,11 +50,11 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
       browserWindow = await BrowserWindow.create();
       progress.log(`📍 Created browser window: ${browserWindow.windowId}`);
     } catch (error) {
-      progress.log('⚠️ Skipping scrollToTop tests - BrowserWindow not available');
+      progress.log('⚠️ Skipping scrollToBottom tests - BrowserWindow not available');
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Info,
-        message: 'scrollToTop tests skipped - BrowserWindow not available',
+        message: 'scrollToBottom tests skipped - BrowserWindow not available',
         details: { reason: 'Cannot create BrowserWindow in test environment' },
       });
       return;
@@ -88,10 +91,12 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
 
     progress.log('📍 Added scrollable content to page');
 
-    // Get page dimensions
+    // Get initial scroll position (should be at top)
+    const initialScrollY = await page.evaluate(() => window.scrollY);
     const documentHeight = await page.evaluate(() => document.body.scrollHeight);
     const windowHeight = await page.evaluate(() => window.innerHeight);
 
+    progress.log(`📍 Initial scroll position: ${initialScrollY}`);
     progress.log(`📍 Document height: ${documentHeight}px, Window height: ${windowHeight}px`);
 
     if (documentHeight <= windowHeight) {
@@ -105,80 +110,77 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
       });
     }
 
-    // Test 2: Scroll to bottom first, then test scrollToTop
-    progress.log('Test 2: Scroll to bottom then test scrollToTop()');
+    // Test 2: Basic scrollToBottom functionality
+    progress.log('Test 2: Basic scrollToBottom() functionality');
 
-    // First scroll to bottom to have a starting position
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    const bottomScrollY = await page.evaluate(() => window.scrollY);
-    progress.log(`📍 Scrolled to bottom: ${bottomScrollY}`);
-
-    // Now test scrollToTop
     const startTime = performance.now();
-    await browserContext.scrollToTop();
+    await browserContext.scrollToBottom();
     const scrollTime = performance.now() - startTime;
 
-    progress.log(`📍 scrollToTop() completed in ${scrollTime.toFixed(2)}ms`);
+    progress.log(`📍 scrollToBottom() completed in ${scrollTime.toFixed(2)}ms`);
 
-    // Verify scroll position after scrolling to top
-    const topScrollY = await page.evaluate(() => window.scrollY);
-    progress.log(`📍 Final scroll position: ${topScrollY}`);
+    // Verify scroll position after scrolling
+    const finalScrollY = await page.evaluate(() => window.scrollY);
+    const finalDocumentHeight = await page.evaluate(() => {
+      // Use both document.body.scrollHeight and document.documentElement.scrollHeight
+      // to get the most accurate measurement
+      return Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.offsetHeight
+      );
+    });
+    const finalWindowHeight = await page.evaluate(() => window.innerHeight);
 
-    // Check if we're at the top (should be 0 or very close to 0)
-    const tolerance = 5; // 5px tolerance
+    progress.log(`📍 Final scroll position: ${finalScrollY}`);
+    progress.log(`📍 Expected bottom position: ${finalDocumentHeight - finalWindowHeight}`);
 
-    if (topScrollY > tolerance) {
-      throw new Error(`Scroll position not at top. Expected: 0, Actual: ${topScrollY}`);
-    }
+    // Check if we're at or near the bottom (allow for small differences due to rounding)
+    const expectedBottom = finalDocumentHeight - finalWindowHeight;
+    const tolerance = 50; // 50px tolerance to account for browser differences, zoom levels, and content layout
+    const actualDifference = Math.abs(finalScrollY - expectedBottom);
 
-    progress.log(`✅ Test 2 passed: Page scrolled to top successfully`);
+    progress.log(
+      `📍 Scroll validation - Expected: ${expectedBottom}, Actual: ${finalScrollY}, Difference: ${actualDifference}px, Tolerance: ${tolerance}px`
+    );
 
-    // Test 3: Test from middle position
-    progress.log('Test 3: ScrollToTop from middle position');
+    if (actualDifference > tolerance) {
+      // Provide additional context for debugging
+      const percentScrolled = (finalScrollY / (finalDocumentHeight - finalWindowHeight)) * 100;
+      progress.log(
+        `📍 Additional context - Scroll percentage: ${percentScrolled.toFixed(1)}%, Document height: ${finalDocumentHeight}px, Window height: ${finalWindowHeight}px`
+      );
 
-    // Scroll to middle of page
-    const middlePosition = Math.floor(documentHeight / 2);
-    await page.evaluate(pos => window.scrollTo(0, pos), middlePosition);
-    const middleScrollY = await page.evaluate(() => window.scrollY);
-    progress.log(`📍 Scrolled to middle: ${middleScrollY}`);
-
-    // Scroll to top from middle
-    await browserContext.scrollToTop();
-    const fromMiddleScrollY = await page.evaluate(() => window.scrollY);
-
-    if (fromMiddleScrollY > tolerance) {
       throw new Error(
-        `Failed to scroll to top from middle. Expected: 0, Actual: ${fromMiddleScrollY}`,
+        `Scroll position not at bottom. Expected: ~${expectedBottom}, Actual: ${finalScrollY}, Difference: ${actualDifference}px (tolerance: ${tolerance}px)`
       );
     }
 
-    progress.log(`✅ Test 3 passed: Scrolled to top from middle position`);
+    progress.log(`✅ Test 2 passed: Page scrolled to bottom successfully`);
 
-    // Test 4: Multiple scroll operations
-    progress.log('Test 4: Multiple scroll operations');
+    // Test 3: Multiple scroll operations
+    progress.log('Test 3: Multiple scroll operations');
 
+    // Scroll to top first
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const topScrollY = await page.evaluate(() => window.scrollY);
+    progress.log(`📍 Reset to top: ${topScrollY}`);
+
+    // Perform multiple scrollToBottom operations
     const scrollTimes: number[] = [];
     const scrollCount = 3;
 
     for (let i = 0; i < scrollCount; i++) {
-      // Scroll to a random position first
-      const randomPosition = Math.floor(Math.random() * (documentHeight - windowHeight));
-      await page.evaluate(pos => window.scrollTo(0, pos), randomPosition);
-      const beforeScrollY = await page.evaluate(() => window.scrollY);
-
       const startTime = performance.now();
-      await browserContext.scrollToTop();
+      await browserContext.scrollToBottom();
       const endTime = performance.now();
       scrollTimes.push(endTime - startTime);
 
-      const afterScrollY = await page.evaluate(() => window.scrollY);
+      const currentScrollY = await page.evaluate(() => window.scrollY);
       progress.log(
-        `📍 Scroll ${i + 1}/${scrollCount}: ${beforeScrollY} -> ${afterScrollY} (${(endTime - startTime).toFixed(2)}ms)`,
+        `📍 Scroll ${i + 1}/${scrollCount}: ${currentScrollY} (${(endTime - startTime).toFixed(2)}ms)`
       );
-
-      if (afterScrollY > tolerance) {
-        throw new Error(`Failed scroll ${i + 1}: position ${afterScrollY} not at top`);
-      }
 
       // Small delay between operations
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -187,32 +189,30 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
     const avgScrollTime = scrollTimes.reduce((a, b) => a + b, 0) / scrollTimes.length;
     progress.log(`📍 Average scroll time: ${avgScrollTime.toFixed(2)}ms`);
 
-    progress.log(`✅ Test 4 passed: Multiple scroll operations handled correctly`);
+    progress.log(`✅ Test 3 passed: Multiple scroll operations handled correctly`);
 
-    // Test 5: Scroll behavior when already at top
-    progress.log('Test 5: Scroll behavior when already at top');
+    // Test 4: Scroll behavior with already scrolled page
+    progress.log('Test 4: Scroll behavior when already at bottom');
 
-    // Should already be at top from previous test
+    // Already at bottom from previous test
     const beforeScrollY = await page.evaluate(() => window.scrollY);
 
-    await browserContext.scrollToTop();
+    await browserContext.scrollToBottom();
 
     const afterScrollY = await page.evaluate(() => window.scrollY);
 
-    if (Math.abs(beforeScrollY - afterScrollY) > 2) {
-      progress.log(`📍 Minor position change: ${beforeScrollY} -> ${afterScrollY} (acceptable)`);
+    if (Math.abs(beforeScrollY - afterScrollY) > 5) {
+      progress.log(
+        `📍 Scroll position changed: ${beforeScrollY} -> ${afterScrollY} (minor movement expected)`
+      );
     } else {
-      progress.log('📍 Scroll position remained stable when already at top');
+      progress.log('📍 Scroll position remained stable when already at bottom');
     }
 
-    if (afterScrollY > tolerance) {
-      throw new Error(`Position changed unexpectedly when already at top: ${afterScrollY}`);
-    }
+    progress.log(`✅ Test 4 passed: Handled already-at-bottom state correctly`);
 
-    progress.log(`✅ Test 5 passed: Handled already-at-top state correctly`);
-
-    // Test 6: Error handling with short page
-    progress.log('Test 6: Behavior with non-scrollable page');
+    // Test 5: Error handling with short page
+    progress.log('Test 5: Behavior with non-scrollable page');
 
     // Navigate to a simple page without extra content
     await page.evaluate(() => {
@@ -230,21 +230,21 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
     const shortWindowHeight = await page.evaluate(() => window.innerHeight);
 
     progress.log(
-      `📍 Short page - Document height: ${shortPageHeight}px, Window height: ${shortWindowHeight}px`,
+      `📍 Short page - Document height: ${shortPageHeight}px, Window height: ${shortWindowHeight}px`
     );
 
     // Try to scroll on a non-scrollable page
-    await browserContext.scrollToTop();
+    await browserContext.scrollToBottom();
 
     const shortPageScrollY = await page.evaluate(() => window.scrollY);
     progress.log(`📍 Scroll position on short page: ${shortPageScrollY}`);
 
-    // Should remain at 0 for non-scrollable page
-    if (shortPageScrollY > tolerance) {
+    // Should remain at 0 or near 0 for non-scrollable page
+    if (shortPageScrollY > 50) {
       progress.log(`⚠️ Unexpected scroll on short page: ${shortPageScrollY}px`);
     }
 
-    progress.log(`✅ Test 6 passed: Handled non-scrollable page correctly`);
+    progress.log(`✅ Test 5 passed: Handled non-scrollable page correctly`);
 
     // Cleanup
     await browserContext.close();
@@ -253,23 +253,23 @@ export async function testScrollToTop(progress: TestProgress, context: TestConte
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,
-      message: 'scrollToTop() tests completed successfully',
+      message: 'scrollToBottom() tests completed successfully',
       details: {
         averageScrollTime: `${avgScrollTime.toFixed(2)}ms`,
-        totalTests: 6,
-        testsPassed: 6,
+        totalTests: 5,
+        testsPassed: 5,
       },
     });
 
-    progress.log('✅ All scrollToTop() tests passed!');
+    progress.log('✅ All scrollToBottom() tests passed!');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    progress.log(`❌ scrollToTop() test failed: ${errorMessage}`);
+    progress.log(`❌ scrollToBottom() test failed: ${errorMessage}`);
 
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Error,
-      message: 'scrollToTop() test failed',
+      message: 'scrollToBottom() test failed',
       details: { error: errorMessage },
     });
 

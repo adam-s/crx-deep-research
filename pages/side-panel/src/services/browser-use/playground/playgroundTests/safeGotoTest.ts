@@ -9,7 +9,7 @@
 import { BrowserContext } from '../../browser/context';
 import { Severity } from '@src/utils/types';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -91,7 +91,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `✅ Test 1 passed: Successful navigation (${duration1.toFixed(2)}ms, result: ${result1})`,
+      `✅ Test 1 passed: Successful navigation (${duration1.toFixed(2)}ms, result: ${result1})`
     );
     progress.log(`📍 Current URL: ${currentUrl}`);
 
@@ -112,7 +112,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     const status2 = result2.status();
     if (status2 < 200 || status2 >= 400) {
       throw new Error(
-        `Expected successful status code for iframe1, got: ${status2} ${result2.statusText()}`,
+        `Expected successful status code for iframe1, got: ${status2} ${result2.statusText()}`
       );
     }
 
@@ -128,7 +128,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `✅ Test 2 passed: iframe1 navigation (${duration2.toFixed(2)}ms, status: ${status2})`,
+      `✅ Test 2 passed: iframe1 navigation (${duration2.toFixed(2)}ms, status: ${status2})`
     );
     progress.log(`📍 Current URL: ${currentUrl2}`);
 
@@ -203,7 +203,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `✅ Test 4 passed: URL validation (${invalidUrlTests}/${invalidUrls.length} blocked)`,
+      `✅ Test 4 passed: URL validation (${invalidUrlTests}/${invalidUrls.length} blocked)`
     );
 
     // Test 5: Navigation with relative URLs and fragments
@@ -226,7 +226,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
         if (result5 !== null) {
           const status5 = result5.status();
           progress.log(
-            `📍 Successfully navigated to ${test.description} (${duration5.toFixed(2)}ms, status: ${status5})`,
+            `📍 Successfully navigated to ${test.description} (${duration5.toFixed(2)}ms, status: ${status5})`
           );
         } else {
           progress.log(`📍 Navigation to ${test.description} was blocked (null response)`);
@@ -270,7 +270,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
 
     performanceTests.forEach(test => {
       progress.log(
-        `📍 Attempt ${test.attempt}: ${test.duration.toFixed(2)}ms (status: ${test.status})`,
+        `📍 Attempt ${test.attempt}: ${test.duration.toFixed(2)}ms (status: ${test.status})`
       );
     });
 
@@ -329,7 +329,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     const status8 = result8.status();
     if (status8 < 200 || status8 >= 400) {
       throw new Error(
-        `Navigation for state test failed: status ${status8} ${result8.statusText()}`,
+        `Navigation for state test failed: status ${status8} ${result8.statusText()}`
       );
     }
 
@@ -345,7 +345,7 @@ export async function testSafeGoto(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `📍 State after navigation: URL=${browserState.url}, Title="${browserState.title}"`,
+      `📍 State after navigation: URL=${browserState.url}, Title="${browserState.title}"`
     );
     progress.log(`✅ Test 8 passed: Browser state integration validated`);
 
@@ -467,7 +467,7 @@ export async function testGoBack(progress: TestProgress, context: TestContext): 
       progress.log(`After direct navigation: ${finalUrl}`);
 
       throw new Error(
-        `goBack did not return to root as expected; current pathname: ${after}, final: ${finalUrl}`,
+        `goBack did not return to root as expected; current pathname: ${after}, final: ${finalUrl}`
       );
     }
 
@@ -539,7 +539,7 @@ export async function testGoForward(progress: TestProgress, context: TestContext
     if (currentPath !== '/') {
       // Fallback: navigate directly to root to ensure test can proceed
       progress.log(
-        `goBack didn't work (still at ${currentPath}), navigating directly to root as fallback`,
+        `goBack didn't work (still at ${currentPath}), navigating directly to root as fallback`
       );
       await browserContext.safeGoto('http://localhost:3005');
       await new Promise(r => setTimeout(r, 1000));
@@ -547,13 +547,13 @@ export async function testGoForward(progress: TestProgress, context: TestContext
 
       if (currentPath !== '/') {
         throw new Error(
-          `Cannot establish proper test state. Expected to be on root before goForward, actual: ${page.url()}`,
+          `Cannot establish proper test state. Expected to be on root before goForward, actual: ${page.url()}`
         );
       }
 
       // Since goBack didn't work, we can't test goForward properly
       progress.log(
-        '⚠️ goBack navigation failed, skipping goForward test (this indicates goBack needs fixing)',
+        '⚠️ goBack navigation failed, skipping goForward test (this indicates goBack needs fixing)'
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -565,7 +565,7 @@ export async function testGoForward(progress: TestProgress, context: TestContext
     }
 
     progress.log(
-      '✅ Successfully established test state: on root page with forward history available',
+      '✅ Successfully established test state: on root page with forward history available'
     );
 
     // Perform goForward via BrowserContext
@@ -582,7 +582,7 @@ export async function testGoForward(progress: TestProgress, context: TestContext
 
     if (currentPath !== '/iframe1') {
       throw new Error(
-        `goForward did not navigate to /iframe1 as expected; current pathname: ${currentPath}`,
+        `goForward did not navigate to /iframe1 as expected; current pathname: ${currentPath}`
       );
     }
 
@@ -618,7 +618,7 @@ export async function testGoForward(progress: TestProgress, context: TestContext
  */
 export async function runSafeGotoTest(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   await testSafeGoto(progress, context);
 }
@@ -678,7 +678,7 @@ export async function quickSafeGotoTest(browserWindow: BrowserWindow): Promise<b
       // This is expected - invalid URLs should throw errors
       console.log(
         '✅ Invalid URL correctly blocked:',
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       );
     }
     await browserContext.safeGoto('http://localhost:3005');

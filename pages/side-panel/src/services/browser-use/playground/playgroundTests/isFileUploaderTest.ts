@@ -40,7 +40,7 @@ interface TestContext {
  */
 export async function testIsFileUploader(
   progress: TestProgress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.isFileUploader() method...');
 
@@ -81,7 +81,7 @@ export async function testIsFileUploader(
     }
 
     const undefinedResult = await browserContext.isFileUploader(
-      undefined as unknown as ElementNode,
+      undefined as unknown as ElementNode
     );
     if (undefinedResult !== false) {
       throw new Error(`Expected false for undefined element, got: ${undefinedResult}`);
@@ -118,7 +118,7 @@ export async function testIsFileUploader(
     const fileInputWithAcceptResult = await browserContext.isFileUploader(fileInputWithAccept);
     if (fileInputWithAcceptResult !== true) {
       throw new Error(
-        `Expected true for input with accept attribute, got: ${fileInputWithAcceptResult}`,
+        `Expected true for input with accept attribute, got: ${fileInputWithAcceptResult}`
       );
     }
 
@@ -275,7 +275,7 @@ export async function testIsFileUploader(
     const parentNoFileResult = await browserContext.isFileUploader(parentWithoutFileInput);
     if (parentNoFileResult !== false) {
       throw new Error(
-        `Expected false for parent without file input child, got: ${parentNoFileResult}`,
+        `Expected false for parent without file input child, got: ${parentNoFileResult}`
       );
     }
 
@@ -328,7 +328,7 @@ export async function testIsFileUploader(
     const shallowResult = await browserContext.isFileUploader(formContainer, 1);
     if (shallowResult !== false) {
       throw new Error(
-        `Expected false for form container with shallow depth (1), got: ${shallowResult}`,
+        `Expected false for form container with shallow depth (1), got: ${shallowResult}`
       );
     }
 
@@ -336,7 +336,7 @@ export async function testIsFileUploader(
     const deepResult = await browserContext.isFileUploader(formContainer, 3);
     if (deepResult !== true) {
       throw new Error(
-        `Expected true for form container with sufficient depth (3), got: ${deepResult}`,
+        `Expected true for form container with sufficient depth (3), got: ${deepResult}`
       );
     }
 
@@ -353,7 +353,7 @@ export async function testIsFileUploader(
     };
 
     const missingTagResult = await browserContext.isFileUploader(
-      elementMissingTagName as ElementNode,
+      elementMissingTagName as ElementNode
     );
     if (missingTagResult !== false) {
       throw new Error(`Expected false for element missing tag name, got: ${missingTagResult}`);
@@ -402,7 +402,7 @@ export async function testIsFileUploader(
     }
 
     progress.log(
-      `📍 Large tree performance: ${performanceTime.toFixed(2)}ms for ${50 * 10} elements`,
+      `📍 Large tree performance: ${performanceTime.toFixed(2)}ms for ${50 * 10} elements`
     );
 
     if (performanceTime > 1000) {

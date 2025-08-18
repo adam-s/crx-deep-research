@@ -13,7 +13,7 @@
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { BrowserContext } from '../../browser/context';
 import { Page } from '@src/services/cordyceps/page';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing

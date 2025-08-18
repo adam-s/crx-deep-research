@@ -146,7 +146,7 @@ export async function testRefreshPage(progress: TestProgress, context: TestConte
       refreshTimes.push(endTime - startTime);
 
       progress.log(
-        `📍 Refresh ${i + 1}/${refreshCount} completed in ${(endTime - startTime).toFixed(2)}ms`,
+        `📍 Refresh ${i + 1}/${refreshCount} completed in ${(endTime - startTime).toFixed(2)}ms`
       );
 
       // Small delay between refreshes
@@ -181,7 +181,7 @@ export async function testRefreshPage(progress: TestProgress, context: TestConte
     } catch (error) {
       // This is expected behavior for some error pages
       progress.log(
-        `📍 Refresh on error page threw error (expected): ${error instanceof Error ? error.message : String(error)}`,
+        `📍 Refresh on error page threw error (expected): ${error instanceof Error ? error.message : String(error)}`
       );
     }
 

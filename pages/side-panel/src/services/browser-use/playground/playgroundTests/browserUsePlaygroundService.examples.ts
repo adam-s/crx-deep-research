@@ -4,7 +4,7 @@
  * This file shows how to run the conversation service tests in your Chrome extension.
  */
 
-import { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 import { runBrowserUseConversationTests } from './browserUsePlaygroundService.test';
 
 /**

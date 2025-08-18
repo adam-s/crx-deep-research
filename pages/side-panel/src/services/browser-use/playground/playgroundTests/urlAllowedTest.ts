@@ -8,7 +8,7 @@
 import { BrowserContext } from '../../browser/context';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -43,7 +43,7 @@ interface UrlAllowedTestContext {
 export async function testUrlAllowedNoConfiguration(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -91,7 +91,7 @@ export async function testUrlAllowedNoConfiguration(
       });
     } else {
       throw new Error(
-        `Test 1 failed: Expected all ${totalTests} URLs to be allowed, but only ${passedTests} were allowed`,
+        `Test 1 failed: Expected all ${totalTests} URLs to be allowed, but only ${passedTests} were allowed`
       );
     }
   } catch (error) {
@@ -118,7 +118,7 @@ export async function testUrlAllowedNoConfiguration(
 export async function testUrlAllowedWithAllowedDomains(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -194,7 +194,7 @@ export async function testUrlAllowedWithAllowedDomains(
       });
     } else {
       throw new Error(
-        `Test 2 failed: Expected ${totalAllowedTests} allowed and ${totalRejectedTests} rejected, got ${allowedPassed} allowed and ${rejectedPassed} rejected`,
+        `Test 2 failed: Expected ${totalAllowedTests} allowed and ${totalRejectedTests} rejected, got ${allowedPassed} allowed and ${rejectedPassed} rejected`
       );
     }
   } catch (error) {
@@ -221,7 +221,7 @@ export async function testUrlAllowedWithAllowedDomains(
 export async function testUrlAllowedEdgeCases(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -299,11 +299,11 @@ export async function testUrlAllowedEdgeCases(
         if (isAllowed === test.expected) {
           passedTests++;
           progress.log(
-            `✅ ${test.description}: ${test.url} -> ${isAllowed} (expected ${test.expected})`,
+            `✅ ${test.description}: ${test.url} -> ${isAllowed} (expected ${test.expected})`
           );
         } else {
           progress.log(
-            `❌ ${test.description}: ${test.url} -> ${isAllowed} (expected ${test.expected})`,
+            `❌ ${test.description}: ${test.url} -> ${isAllowed} (expected ${test.expected})`
           );
         }
       } catch (error) {
@@ -326,7 +326,7 @@ export async function testUrlAllowedEdgeCases(
       });
     } else {
       throw new Error(
-        `Test 3 failed: Expected all ${totalTests} edge cases to pass, but only ${passedTests} passed`,
+        `Test 3 failed: Expected all ${totalTests} edge cases to pass, but only ${passedTests} passed`
       );
     }
   } catch (error) {
@@ -353,7 +353,7 @@ export async function testUrlAllowedEdgeCases(
 export async function testUrlAllowedEmptyArray(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -398,7 +398,7 @@ export async function testUrlAllowedEmptyArray(
       });
     } else {
       throw new Error(
-        `Test 4 failed: Expected all ${totalTests} URLs to be allowed with empty array, but only ${passedTests} were allowed`,
+        `Test 4 failed: Expected all ${totalTests} URLs to be allowed with empty array, but only ${passedTests} were allowed`
       );
     }
   } catch (error) {
@@ -425,7 +425,7 @@ export async function testUrlAllowedEmptyArray(
 export async function testHandleDisallowedNavigation(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -487,7 +487,7 @@ export async function testHandleDisallowedNavigation(
       progress.log(`Final page URL: ${finalUrl}`);
     } catch (error) {
       progress.log(
-        'Could not get final URL (page may not have execution context after navigation to about:blank)',
+        'Could not get final URL (page may not have execution context after navigation to about:blank)'
       );
       finalUrl = 'about:blank'; // Expected result
     }
@@ -511,13 +511,13 @@ export async function testHandleDisallowedNavigation(
     // due to execution context limitations with about:blank)
     if (finalUrl === 'about:blank' || finalUrl === 'unknown') {
       progress.log(
-        '✅ Navigation to safe page attempted (about:blank or execution context unavailable)',
+        '✅ Navigation to safe page attempted (about:blank or execution context unavailable)'
       );
     } else if (finalUrl !== initialUrl) {
       progress.log('✅ Page URL changed as expected');
     } else {
       progress.log(
-        `⚠️ Warning: Page URL didn't change, but this may be expected in test environment. Initial: ${initialUrl}, Final: ${finalUrl}`,
+        `⚠️ Warning: Page URL didn't change, but this may be expected in test environment. Initial: ${initialUrl}, Final: ${finalUrl}`
       );
     }
 
@@ -557,7 +557,7 @@ export async function testHandleDisallowedNavigation(
 export async function testHandleDisallowedNavigationMultiple(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -615,7 +615,7 @@ export async function testHandleDisallowedNavigationMultiple(
       });
     } else {
       throw new Error(
-        `Test 6 failed: Expected ${totalTests} successful tests, got ${successfulTests}`,
+        `Test 6 failed: Expected ${totalTests} successful tests, got ${successfulTests}`
       );
     }
   } catch (error) {
@@ -642,7 +642,7 @@ export async function testHandleDisallowedNavigationMultiple(
 export async function testHandleDisallowedNavigationEdgeCases(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -699,7 +699,7 @@ export async function testHandleDisallowedNavigationEdgeCases(
       });
     } else {
       throw new Error(
-        `Test 7 failed: Expected ${totalTests} successful tests, got ${successfulTests}`,
+        `Test 7 failed: Expected ${totalTests} successful tests, got ${successfulTests}`
       );
     }
   } catch (error) {
@@ -831,7 +831,7 @@ export async function quickUrlAllowedTest(browserWindow: BrowserWindow): Promise
 
     console.log(`Quick _isUrlAllowed test: ${success ? 'PASSED' : 'FAILED'}`);
     console.log(
-      `Results: noConfig=${test1}, allowed=${test2}, rejected=${test3}, subdomain=${test4}, handleDisallowed=${test5}`,
+      `Results: noConfig=${test1}, allowed=${test2}, rejected=${test3}, subdomain=${test4}, handleDisallowed=${test5}`
     );
 
     return success;
@@ -847,7 +847,7 @@ export async function quickUrlAllowedTest(browserWindow: BrowserWindow): Promise
 export async function testWaitForPageAndFramesLoadTimeout(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let contextWithTimeout: BrowserContext | undefined;
   try {
@@ -905,7 +905,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
     });
 
     progress.log(
-      `Timeout override test: ${timeoutSuccess ? 'PASSED' : 'FAILED'} (custom: ${elapsed.toFixed(3)}s, default: ${elapsed2.toFixed(3)}s)`,
+      `Timeout override test: ${timeoutSuccess ? 'PASSED' : 'FAILED'} (custom: ${elapsed.toFixed(3)}s, default: ${elapsed2.toFixed(3)}s)`
     );
   } catch (error) {
     context.events.emit({
@@ -929,7 +929,7 @@ export async function testWaitForPageAndFramesLoadTimeout(
 export async function testWaitForPageAndFramesLoadUrlValidation(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1002,7 +1002,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
     await contextRestricted.close();
 
     progress.log(
-      `URL validation test: ${disallowedTestPassed ? 'PASSED' : 'FAILED'} - disallowed URLs properly blocked`,
+      `URL validation test: ${disallowedTestPassed ? 'PASSED' : 'FAILED'} - disallowed URLs properly blocked`
     );
   } catch (error) {
     context.events.emit({
@@ -1022,7 +1022,7 @@ export async function testWaitForPageAndFramesLoadUrlValidation(
 export async function testWaitForPageAndFramesLoadMinimumWait(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1062,7 +1062,7 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
     });
 
     progress.log(
-      `Minimum wait test: ${minWaitSuccess ? 'PASSED' : 'FAILED'} (elapsed: ${elapsed.toFixed(3)}s)`,
+      `Minimum wait test: ${minWaitSuccess ? 'PASSED' : 'FAILED'} (elapsed: ${elapsed.toFixed(3)}s)`
     );
   } catch (error) {
     context.events.emit({
@@ -1082,7 +1082,7 @@ export async function testWaitForPageAndFramesLoadMinimumWait(
 export async function testWaitForPageAndFramesLoadNetworkStability(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1148,7 +1148,7 @@ export async function testWaitForPageAndFramesLoadNetworkStability(
 export async function testWaitForPageAndFramesLoadErrorHandling(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1224,7 +1224,7 @@ export async function testWaitForPageAndFramesLoadErrorHandling(
 export async function testWaitForPageAndFramesLoadComprehensive(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({
@@ -1267,7 +1267,7 @@ export async function testWaitForPageAndFramesLoadComprehensive(
 export async function testTakeScreenshot(
   progress: TestProgress,
   context: UrlAllowedTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   try {
     context.events.emit({

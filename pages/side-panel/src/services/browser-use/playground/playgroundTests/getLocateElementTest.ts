@@ -41,7 +41,7 @@ interface TestContext {
  */
 export async function testGetLocateElement(
   progress: TestProgress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.getLocateElement() method...');
 
@@ -152,8 +152,8 @@ export async function testGetLocateElement(
       new Promise<null>((_, reject) =>
         setTimeout(
           () => reject(new Error('Test 4 timeout: null element handling took too long')),
-          1000,
-        ),
+          1000
+        )
       ),
     ]);
     if (nullHandle !== null) {
@@ -272,7 +272,7 @@ export async function testGetLocateElement(
  */
 export async function testInputTextElementNode(
   progress: TestProgress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext._inputTextElementNode() method...');
 

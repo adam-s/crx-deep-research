@@ -8,7 +8,7 @@
 import { BrowserContext } from '../../browser/context';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -43,7 +43,7 @@ interface WaitForStableNetworkTestContext {
 export async function testWaitForStableNetworkImmediate(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -106,7 +106,7 @@ export async function testWaitForStableNetworkImmediate(
 export async function testWaitForStableNetworkWithActivity(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -208,7 +208,7 @@ export async function testWaitForStableNetworkWithActivity(
 export async function testWaitForStableNetworkFiltering(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -279,7 +279,7 @@ export async function testWaitForStableNetworkFiltering(
       });
     } else {
       throw new Error(
-        `Test 3 failed: Expected quick completion with filtering, took ${duration}ms`,
+        `Test 3 failed: Expected quick completion with filtering, took ${duration}ms`
       );
     }
   } catch (error) {
@@ -306,7 +306,7 @@ export async function testWaitForStableNetworkFiltering(
 export async function testWaitForStableNetworkDelayedStabilization(
   progress: TestProgress,
   context: WaitForStableNetworkTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -343,7 +343,7 @@ export async function testWaitForStableNetworkDelayedStabilization(
     const requestDisposable = page.onRequest(request => {
       requestCount++;
       progress.log(
-        `[DEBUG] Request ${requestCount}: ${request.method} ${request.url} (type: ${request.resourceType})`,
+        `[DEBUG] Request ${requestCount}: ${request.method} ${request.url} (type: ${request.resourceType})`
       );
     });
     const responseDisposable = page.onResponse(response => {
@@ -401,7 +401,7 @@ export async function testWaitForStableNetworkDelayedStabilization(
       // Log more details to help debug the issue
       progress.log(`Timeout details: expected 400-3000ms range, got ${duration}ms`);
       progress.log(
-        `Config: maxWait=${browserContext.config.maximumWaitPageLoadTime}s, idle=${browserContext.config.waitForNetworkIdlePageLoadTime}s`,
+        `Config: maxWait=${browserContext.config.maximumWaitPageLoadTime}s, idle=${browserContext.config.waitForNetworkIdlePageLoadTime}s`
       );
       progress.log(`Debug: Captured ${requestCount} requests, ${responseCount} responses`);
       throw new Error(`Test 4 failed: Expected duration in range 400-3000ms, took ${duration}ms`);
@@ -428,7 +428,7 @@ export async function testWaitForStableNetworkDelayedStabilization(
  * Run all _waitForStableNetwork tests
  */
 export async function runAllWaitForStableNetworkTests(
-  context: WaitForStableNetworkTestContext,
+  context: WaitForStableNetworkTestContext
 ): Promise<void> {
   const progress = new TestProgress('WaitForStableNetwork');
   let browserWindow: BrowserWindow | undefined;

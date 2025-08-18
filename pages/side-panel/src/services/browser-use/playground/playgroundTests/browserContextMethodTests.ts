@@ -13,7 +13,7 @@
 import { BrowserContext, BrowserContextState } from '../../browser/context';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 import { BrowserState } from '../../browser/views';
 
 /**

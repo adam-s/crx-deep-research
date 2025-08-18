@@ -14,7 +14,7 @@ import { Page } from '../page';
 import { BrowserWindow } from '../browserWindow';
 
 export const ICordycepsPlaygroundService = createDecorator<ICordycepsPlaygroundService>(
-  'cordycepsPlaygroundService',
+  'cordycepsPlaygroundService'
 );
 
 export interface ICordycepsPlaygroundService {

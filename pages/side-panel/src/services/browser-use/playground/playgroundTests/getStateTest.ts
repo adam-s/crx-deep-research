@@ -9,7 +9,7 @@
 import { BrowserContext } from '../../browser/context';
 import { Severity } from '@src/utils/types';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -158,14 +158,14 @@ export async function testGetState(progress: TestProgress, context: TestContext)
       // xpath validation - collect issues, don't crash
       if (el.xpath !== null && el.xpath !== undefined && typeof el.xpath !== 'string') {
         validationIssues.push(
-          `Invalid element xpath type: ${typeof el.xpath} for ${el.tagName} at depth ${depth} (expected string, null, or undefined)`,
+          `Invalid element xpath type: ${typeof el.xpath} for ${el.tagName} at depth ${depth} (expected string, null, or undefined)`
         );
       }
 
       // Log xpath issues for analysis
       if (el.xpath === null || el.xpath === undefined) {
         progress.log(
-          `📍 Element ${el.tagName} at depth ${depth} has null/undefined xpath (common for root/shadow DOM elements)`,
+          `📍 Element ${el.tagName} at depth ${depth} has null/undefined xpath (common for root/shadow DOM elements)`
         );
       } else if (typeof el.xpath === 'string' && el.xpath.length === 0 && depth > 0) {
         progress.log(`📍 Element ${el.tagName} at depth ${depth} has empty xpath string`);
@@ -174,13 +174,13 @@ export async function testGetState(progress: TestProgress, context: TestContext)
       // Validate boolean properties - collect issues, don't crash
       if (typeof el.isVisible !== 'boolean') {
         validationIssues.push(
-          `Invalid isVisible: ${el.isVisible} for ${el.tagName} at depth ${depth}`,
+          `Invalid isVisible: ${el.isVisible} for ${el.tagName} at depth ${depth}`
         );
       }
 
       if (typeof el.isInteractive !== 'boolean') {
         validationIssues.push(
-          `Invalid isInteractive: ${el.isInteractive} for ${el.tagName} at depth ${depth}`,
+          `Invalid isInteractive: ${el.isInteractive} for ${el.tagName} at depth ${depth}`
         );
       }
 
@@ -207,12 +207,12 @@ export async function testGetState(progress: TestProgress, context: TestContext)
 
       // Only fail if we have critical structural problems
       const criticalIssues = validationIssues.filter(
-        issue => issue.includes('too deep') || issue.includes('Invalid element tagName'),
+        issue => issue.includes('too deep') || issue.includes('Invalid element tagName')
       );
 
       if (criticalIssues.length > 0) {
         throw new Error(
-          `Critical DOM structure issues found: ${criticalIssues.length} critical problems`,
+          `Critical DOM structure issues found: ${criticalIssues.length} critical problems`
         );
       } else {
         progress.log(`📍 Non-critical issues detected but test continuing...`);
@@ -220,7 +220,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `✅ Test 3 passed: Element tree validated (${totalElements} elements, ${validationIssues.length} issues)`,
+      `✅ Test 3 passed: Element tree validated (${totalElements} elements, ${validationIssues.length} issues)`
     );
 
     // Test 4: Selector map validation
@@ -250,7 +250,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
 
       if (!element.tagName || typeof element.tagName !== 'string') {
         selectorMapIssues.push(
-          `Invalid selector element tagName: ${element.tagName} for key ${key}`,
+          `Invalid selector element tagName: ${element.tagName} for key ${key}`
         );
         continue;
       }
@@ -262,14 +262,14 @@ export async function testGetState(progress: TestProgress, context: TestContext)
         typeof element.xpath !== 'string'
       ) {
         selectorMapIssues.push(
-          `Invalid selector element xpath type: ${typeof element.xpath} for ${element.tagName} (key: ${key})`,
+          `Invalid selector element xpath type: ${typeof element.xpath} for ${element.tagName} (key: ${key})`
         );
       }
 
       // Log xpath status for analysis
       if (element.xpath === null || element.xpath === undefined) {
         progress.log(
-          `📍 Selector element ${element.tagName} (key: ${key}) has null/undefined xpath (common for root/shadow DOM elements)`,
+          `📍 Selector element ${element.tagName} (key: ${key}) has null/undefined xpath (common for root/shadow DOM elements)`
         );
       } else if (typeof element.xpath === 'string' && element.xpath.length === 0) {
         progress.log(`📍 Selector element ${element.tagName} (key: ${key}) has empty xpath string`);
@@ -289,17 +289,17 @@ export async function testGetState(progress: TestProgress, context: TestContext)
 
       if (issueRatio > 0.5) {
         throw new Error(
-          `Too many selector map issues: ${selectorMapIssues.length}/${totalEntries} entries have problems`,
+          `Too many selector map issues: ${selectorMapIssues.length}/${totalEntries} entries have problems`
         );
       } else {
         progress.log(
-          `📍 Selector map issues within acceptable range (${(issueRatio * 100).toFixed(1)}%)`,
+          `📍 Selector map issues within acceptable range (${(issueRatio * 100).toFixed(1)}%)`
         );
       }
     }
 
     progress.log(
-      `✅ Test 4 passed: Selector map validated (${selectorMapSize} elements, ${selectorMapIssues.length} issues)`,
+      `✅ Test 4 passed: Selector map validated (${selectorMapSize} elements, ${selectorMapIssues.length} issues)`
     );
 
     // Test 5: Compare with DOM reality using page.evaluate
@@ -311,7 +311,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
         title: document.title,
         totalElements: document.querySelectorAll('*').length,
         interactiveElements: document.querySelectorAll(
-          'button, input, select, textarea, a[href], [onclick], [role="button"]',
+          'button, input, select, textarea, a[href], [onclick], [role="button"]'
         ).length,
         visibleElements: 0,
         viewportDimensions: {
@@ -356,7 +356,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
     }
 
     progress.log(
-      `📍 DOM reality: ${domReality.totalElements} total, ${domReality.interactiveElements} interactive, ${domReality.visibleElements} visible`,
+      `📍 DOM reality: ${domReality.totalElements} total, ${domReality.interactiveElements} interactive, ${domReality.visibleElements} visible`
     );
     progress.log(`📍 State captured: ${selectorMapSize} in selector map`);
 
@@ -383,13 +383,13 @@ export async function testGetState(progress: TestProgress, context: TestContext)
     // Compare states
     if (browserState2.url !== browserState.url) {
       throw new Error(
-        `URL inconsistency between calls: ${browserState.url} vs ${browserState2.url}`,
+        `URL inconsistency between calls: ${browserState.url} vs ${browserState2.url}`
       );
     }
 
     if (browserState2.title !== browserState.title) {
       throw new Error(
-        `Title inconsistency between calls: "${browserState.title}" vs "${browserState2.title}"`,
+        `Title inconsistency between calls: "${browserState.title}" vs "${browserState2.title}"`
       );
     }
 
@@ -402,11 +402,11 @@ export async function testGetState(progress: TestProgress, context: TestContext)
     // Check if second call was faster (should use caching)
     if (getStateTime2 > getStateTime * 0.8) {
       progress.log(
-        `⚠️ Second call not significantly faster: ${getStateTime2.toFixed(2)}ms vs ${getStateTime.toFixed(2)}ms`,
+        `⚠️ Second call not significantly faster: ${getStateTime2.toFixed(2)}ms vs ${getStateTime.toFixed(2)}ms`
       );
     } else {
       progress.log(
-        `📍 Second call faster (caching working): ${getStateTime2.toFixed(2)}ms vs ${getStateTime.toFixed(2)}ms`,
+        `📍 Second call faster (caching working): ${getStateTime2.toFixed(2)}ms vs ${getStateTime.toFixed(2)}ms`
       );
     }
 
@@ -526,7 +526,7 @@ export async function testGetState(progress: TestProgress, context: TestContext)
  */
 export async function runGetStateTest(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   await testGetState(progress, context);
 }

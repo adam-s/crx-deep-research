@@ -5,7 +5,7 @@
  */
 
 import { runBrowserUseContextTests, quickBrowserUseContextTest } from './browserUseContextTests';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Run context tests from the browser console or UI
@@ -17,7 +17,7 @@ import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService
 
 // Example 1: Run comprehensive context tests
 export async function runBrowserUseContextTestSuite(
-  service?: BrowserUsePlaygroundService,
+  service?: BrowserUsePlaygroundService
 ): Promise<void> {
   console.log('🧪 Running browser-use context test suite...');
 
@@ -75,7 +75,7 @@ export async function runManualContextTests(service?: BrowserUsePlaygroundServic
  */
 export async function testContextWithProgress(
   service?: BrowserUsePlaygroundService,
-  timeoutMs: number = 15000,
+  timeoutMs: number = 15000
 ): Promise<void> {
   console.log(`⏱️ Running context tests with ${timeoutMs}ms timeout...`);
 
@@ -106,7 +106,7 @@ export async function testContextWithProgress(
  * Integration with BrowserUsePlaygroundService
  */
 export async function integrateBrowserUseContextTests(
-  service: BrowserUsePlaygroundService,
+  service: BrowserUsePlaygroundService
 ): Promise<void> {
   console.log('🔗 Integrating context tests with playground service...');
 

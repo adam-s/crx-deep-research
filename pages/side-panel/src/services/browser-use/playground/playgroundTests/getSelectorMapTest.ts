@@ -11,7 +11,7 @@ import { DOMElementNode, SelectorMap } from '../../dom/views';
 import { BrowserState } from '../../browser/views';
 import { Severity } from '@src/utils/types';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -43,10 +43,10 @@ interface TestContext {
  */
 export async function testGetSelectorMap(
   progress: TestProgress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log(
-    '🧪 Testing BrowserContext.getState() and getSelectorMap() with real DOM at localhost:3005...',
+    '🧪 Testing BrowserContext.getState() and getSelectorMap() with real DOM at localhost:3005...'
   );
 
   try {
@@ -82,7 +82,7 @@ export async function testGetSelectorMap(
       progress.log('✅ Test 1 passed: Empty selector map returned when no cached state');
     } else {
       throw new Error(
-        `Expected empty selector map, got ${Object.keys(emptySelectorMap).length} items`,
+        `Expected empty selector map, got ${Object.keys(emptySelectorMap).length} items`
       );
     }
 
@@ -116,7 +116,7 @@ export async function testGetSelectorMap(
       const domInfo = {
         totalElements: document.querySelectorAll('*').length,
         interactiveElements: document.querySelectorAll(
-          'button, input, select, textarea, a[href], [onclick], [role="button"]',
+          'button, input, select, textarea, a[href], [onclick], [role="button"]'
         ).length,
         buttonElements: document.querySelectorAll('button').length,
         inputElements: document.querySelectorAll('input').length,
@@ -140,7 +140,7 @@ export async function testGetSelectorMap(
           shadowHost: !!document.querySelector('#shadow-host'),
           iframe1: !!document.querySelector('iframe[title="First embedded iframe"]'),
           iframe2: !!document.querySelector(
-            'iframe[title="Second embedded iframe with nested content"]',
+            'iframe[title="Second embedded iframe with nested content"]'
           ),
         },
       };
@@ -160,7 +160,7 @@ export async function testGetSelectorMap(
     progress.log(`📍 Debugging selector map contents:`);
     Object.entries(realSelectorMap).forEach(([key, element]) => {
       progress.log(
-        `  ${key}: ${element.tagName} - id: ${element.attributes?.id || 'none'} - xpath: ${element.xpath}`,
+        `  ${key}: ${element.tagName} - id: ${element.attributes?.id || 'none'} - xpath: ${element.xpath}`
       );
     });
 
@@ -179,13 +179,13 @@ export async function testGetSelectorMap(
     for (const expected of expectedElements) {
       // Find element in selector map - try multiple approaches
       let selectorMapElement = Object.values(realSelectorMap).find(
-        el => el.attributes?.id === expected.id,
+        el => el.attributes?.id === expected.id
       );
 
       // If not found by id, try finding by xpath containing the id
       if (!selectorMapElement) {
         selectorMapElement = Object.values(realSelectorMap).find(el =>
-          el.xpath?.includes(`@id="${expected.id}"`),
+          el.xpath?.includes(`@id="${expected.id}"`)
         );
       }
 
@@ -196,13 +196,13 @@ export async function testGetSelectorMap(
             el.tagName === expected.tagName &&
             (el.xpath?.includes(`@id="${expected.id}"`) ||
               el.attributes?.id === expected.id ||
-              el.xpath?.includes(expected.id)),
+              el.xpath?.includes(expected.id))
         );
       }
 
       if (!selectorMapElement) {
         validationErrors.push(
-          `Element #${expected.id} not found in selector map (tried id, xpath, and tag matching)`,
+          `Element #${expected.id} not found in selector map (tried id, xpath, and tag matching)`
         );
         continue;
       }
@@ -210,7 +210,7 @@ export async function testGetSelectorMap(
       // Validate tag name
       if (selectorMapElement.tagName !== expected.tagName) {
         validationErrors.push(
-          `Element #${expected.id} tag mismatch: expected ${expected.tagName}, got ${selectorMapElement.tagName}`,
+          `Element #${expected.id} tag mismatch: expected ${expected.tagName}, got ${selectorMapElement.tagName}`
         );
         continue;
       }
@@ -218,7 +218,7 @@ export async function testGetSelectorMap(
       // Validate type if specified
       if (expected.type && selectorMapElement.attributes?.type !== expected.type) {
         validationErrors.push(
-          `Element #${expected.id} type mismatch: expected ${expected.type}, got ${selectorMapElement.attributes?.type}`,
+          `Element #${expected.id} type mismatch: expected ${expected.type}, got ${selectorMapElement.attributes?.type}`
         );
         continue;
       }
@@ -242,7 +242,7 @@ export async function testGetSelectorMap(
             style.display !== 'none',
           interactive:
             ['button', 'input', 'select', 'textarea', 'a'].includes(
-              element.tagName.toLowerCase(),
+              element.tagName.toLowerCase()
             ) ||
             element.hasAttribute('onclick') ||
             element.hasAttribute('role'),
@@ -257,14 +257,14 @@ export async function testGetSelectorMap(
       // Compare DOM element with selector map element
       if (domElementExists.tagName !== selectorMapElement.tagName) {
         validationErrors.push(
-          `Element #${expected.id} DOM/selector map tag mismatch: DOM=${domElementExists.tagName}, map=${selectorMapElement.tagName}`,
+          `Element #${expected.id} DOM/selector map tag mismatch: DOM=${domElementExists.tagName}, map=${selectorMapElement.tagName}`
         );
         continue;
       }
 
       if (expected.type && domElementExists.type !== selectorMapElement.attributes?.type) {
         validationErrors.push(
-          `Element #${expected.id} DOM/selector map type mismatch: DOM=${domElementExists.type}, map=${selectorMapElement.attributes?.type}`,
+          `Element #${expected.id} DOM/selector map type mismatch: DOM=${domElementExists.type}, map=${selectorMapElement.attributes?.type}`
         );
         continue;
       }
@@ -272,7 +272,7 @@ export async function testGetSelectorMap(
       // Compare visibility
       if (domElementExists.visible !== selectorMapElement.isVisible) {
         validationErrors.push(
-          `Element #${expected.id} visibility mismatch: DOM=${domElementExists.visible}, map=${selectorMapElement.isVisible}`,
+          `Element #${expected.id} visibility mismatch: DOM=${domElementExists.visible}, map=${selectorMapElement.isVisible}`
         );
         continue;
       }
@@ -280,7 +280,7 @@ export async function testGetSelectorMap(
       // Compare interactivity
       if (domElementExists.interactive !== selectorMapElement.isInteractive) {
         validationErrors.push(
-          `Element #${expected.id} interactivity mismatch: DOM=${domElementExists.interactive}, map=${selectorMapElement.isInteractive}`,
+          `Element #${expected.id} interactivity mismatch: DOM=${domElementExists.interactive}, map=${selectorMapElement.isInteractive}`
         );
         continue;
       }
@@ -294,7 +294,7 @@ export async function testGetSelectorMap(
     }
 
     progress.log(
-      `📍 Validated ${validatedElements}/${expectedElements.length} elements successfully`,
+      `📍 Validated ${validatedElements}/${expectedElements.length} elements successfully`
     );
 
     if (validatedElements < Math.floor(expectedElements.length * 0.7)) {
@@ -325,7 +325,7 @@ export async function testGetSelectorMap(
       const coveragePercentage = (totalSelectorMapElements / totalDOMInteractive) * 100;
 
       progress.log(
-        `📍 Coverage: ${totalSelectorMapElements}/${totalDOMInteractive} interactive elements (${coveragePercentage.toFixed(1)}%)`,
+        `📍 Coverage: ${totalSelectorMapElements}/${totalDOMInteractive} interactive elements (${coveragePercentage.toFixed(1)}%)`
       );
 
       // If we have reasonable coverage (at least 10% of interactive elements), consider it a pass
@@ -334,12 +334,12 @@ export async function testGetSelectorMap(
         validatedElements = Math.floor(expectedElements.length * 0.7); // Set to passing threshold
       } else {
         throw new Error(
-          `Too many validation failures: only ${validatedElements}/${expectedElements.length} elements validated correctly by ID, and coverage is only ${coveragePercentage.toFixed(1)}%`,
+          `Too many validation failures: only ${validatedElements}/${expectedElements.length} elements validated correctly by ID, and coverage is only ${coveragePercentage.toFixed(1)}%`
         );
       }
     } else {
       throw new Error(
-        `Too many validation failures: only ${validatedElements}/${expectedElements.length} elements validated correctly`,
+        `Too many validation failures: only ${validatedElements}/${expectedElements.length} elements validated correctly`
       );
     }
 
@@ -367,12 +367,12 @@ export async function testGetSelectorMap(
     });
 
     progress.log(
-      `📍 Found ${iframeTest.iframeCount} iframes: ${JSON.stringify(iframeTest.iframes)}`,
+      `📍 Found ${iframeTest.iframeCount} iframes: ${JSON.stringify(iframeTest.iframes)}`
     );
 
     // Check if iframes are represented in selector map
     const iframeElementsInMap = Object.values(realSelectorMap).filter(
-      el => el.tagName === 'iframe',
+      el => el.tagName === 'iframe'
     ).length;
 
     progress.log(`📍 Iframes in selector map: ${iframeElementsInMap}`);
@@ -389,7 +389,7 @@ export async function testGetSelectorMap(
     // Verify consistency
     if (Object.keys(selectorMap2).length !== Object.keys(realSelectorMap).length) {
       throw new Error(
-        `Selector map inconsistency: first call returned ${Object.keys(realSelectorMap).length} elements, second call returned ${Object.keys(selectorMap2).length} elements`,
+        `Selector map inconsistency: first call returned ${Object.keys(realSelectorMap).length} elements, second call returned ${Object.keys(selectorMap2).length} elements`
       );
     }
 
@@ -405,7 +405,7 @@ export async function testGetSelectorMap(
 
     if (Object.keys(browserState.selectorMap).length !== Object.keys(realSelectorMap).length) {
       throw new Error(
-        `Browser state selector map size mismatch: state=${Object.keys(browserState.selectorMap).length}, getSelectorMap=${Object.keys(realSelectorMap).length}`,
+        `Browser state selector map size mismatch: state=${Object.keys(browserState.selectorMap).length}, getSelectorMap=${Object.keys(realSelectorMap).length}`
       );
     }
 
@@ -462,7 +462,7 @@ export async function testGetSelectorMap(
  */
 export async function runGetSelectorMapTest(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   await testGetSelectorMap(progress, context);
 }
@@ -495,7 +495,7 @@ export async function quickGetSelectorMapTest(browserWindow: BrowserWindow): Pro
       true, // isInViewport
       false, // hasShadowRoot
       undefined, // highlightIndex
-      null, // parent
+      null // parent
     );
 
     const testSelectorMap: SelectorMap = {
@@ -512,7 +512,7 @@ export async function quickGetSelectorMapTest(browserWindow: BrowserWindow): Pro
       [], // browserErrors
       mockElement, // elementTree
       mockElement, // rootElement
-      testSelectorMap, // selector map
+      testSelectorMap // selector map
     );
 
     // Test 3: Retrieve the selector map

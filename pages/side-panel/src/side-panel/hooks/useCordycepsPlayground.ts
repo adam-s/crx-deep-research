@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { useService } from './useService';
 import { EventMessage, Severity } from '../../utils/types';
-import { ICordycepsPlaygroundService } from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
+import { ICordycepsPlaygroundService } from '@src/services/cordyceps/playground/cordycepsPlayground.service';
 
 export interface UseCordycepsPlaygroundReturn {
   /** Run all playground tests */
@@ -68,7 +68,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
           setIsRunning(false);
           setError(event.error?.message || event.message);
         }
-      }),
+      })
     );
 
     return () => {
@@ -171,7 +171,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     (severity: Severity): EventMessage[] => {
       return events.filter(event => event.severity === severity);
     },
-    [events],
+    [events]
   );
 
   return {

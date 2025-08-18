@@ -14,16 +14,16 @@ import {
   ConversationType,
   MessageRole,
 } from '@shared/features/conversation';
-import { quickUrlAllowedTest } from './tests/urlAllowedTest';
-import { quickGetSelectorMapTest } from './tests/getSelectorMapTest';
-import { quickGetStateTest } from './tests/getStateTest';
+import { quickUrlAllowedTest } from './playgroundTests/urlAllowedTest';
+import { quickGetSelectorMapTest } from './playgroundTests/getSelectorMapTest';
+import { quickGetStateTest } from './playgroundTests/getStateTest';
 import {
   quickSafeGotoTest,
   runSafeGotoTest,
   TestProgress,
   testGoBack,
   testGoForward,
-} from './tests/safeGotoTest';
+} from './playgroundTests/safeGotoTest';
 
 export const IBrowserUsePlaygroundService = createDecorator<IBrowserUsePlaygroundService>(
   'browserUsePlaygroundService'
@@ -467,9 +467,11 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the context test functions dynamically
-      const { runBrowserUseContextTests } = await import('./tests/browserUseContextTests');
+      const { runBrowserUseContextTests } = await import(
+        './playgroundTests/browserUseContextTests'
+      );
       const { runBrowserContextMethodTests, TestProgress } = await import(
-        './tests/browserContextMethodTests'
+        './playgroundTests/browserContextMethodTests'
       );
 
       // Run the comprehensive context tests
@@ -504,7 +506,9 @@ export class BrowserUsePlaygroundService
       });
 
       // Import the quick test function dynamically
-      const { quickBrowserUseContextTest } = await import('./tests/browserUseContextTests');
+      const { quickBrowserUseContextTest } = await import(
+        './playgroundTests/browserUseContextTests'
+      );
 
       // Run the quick context test
       const result = await quickBrowserUseContextTest();
@@ -544,7 +548,9 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllWaitForStableNetworkTests } = await import('./tests/waitForStableNetworkTest');
+      const { runAllWaitForStableNetworkTests } = await import(
+        './playgroundTests/waitForStableNetworkTest'
+      );
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -580,7 +586,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllUrlAllowedTests } = await import('./tests/urlAllowedTest');
+      const { runAllUrlAllowedTests } = await import('./playgroundTests/urlAllowedTest');
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -661,7 +667,7 @@ export class BrowserUsePlaygroundService
 
     try {
       const { testWaitForPageAndFramesLoadComprehensive, TestProgress } = await import(
-        './tests/urlAllowedTest'
+        './playgroundTests/urlAllowedTest'
       );
 
       // Get browser instance
@@ -702,7 +708,7 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testTakeScreenshot, TestProgress } = await import('./tests/urlAllowedTest');
+      const { testTakeScreenshot, TestProgress } = await import('./playgroundTests/urlAllowedTest');
 
       // Get browser instance
       const browserWindow = await this.browserUseService.getBrowser();
@@ -740,7 +746,9 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runGetTabsInfoTest, TestProgress } = await import('./tests/getTabsInfoTest');
+      const { runGetTabsInfoTest, TestProgress } = await import(
+        './playgroundTests/getTabsInfoTest'
+      );
 
       const progress = new TestProgress('GetTabsInfo Tests');
 
@@ -770,7 +778,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runQuickGetTabsInfoTest } = await import('./tests/getTabsInfoTest');
+      const { runQuickGetTabsInfoTest } = await import('./playgroundTests/getTabsInfoTest');
 
       const result = await runQuickGetTabsInfoTest();
 
@@ -809,7 +817,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllGetScrollInfoTests } = await import('./tests/getScrollInfoTest');
+      const { runAllGetScrollInfoTests } = await import('./playgroundTests/getScrollInfoTest');
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -845,7 +853,7 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { quickGetScrollInfoTest } = await import('./tests/getScrollInfoTest');
+      const { quickGetScrollInfoTest } = await import('./playgroundTests/getScrollInfoTest');
 
       // Get browser instance
       const browserWindow = await this.browserUseService.getBrowser();
@@ -888,7 +896,9 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runAllElementInteractionTests } = await import('./tests/getLocateElementTest');
+      const { runAllElementInteractionTests } = await import(
+        './playgroundTests/getLocateElementTest'
+      );
 
       // Create test context compatible with the test requirements
       const testContext = {
@@ -942,7 +952,7 @@ export class BrowserUsePlaygroundService
     try {
       // Import the quick test functions dynamically
       const { quickGetLocateElementTest, quickInputTextElementNodeTest } = await import(
-        './tests/getLocateElementTest'
+        './playgroundTests/getLocateElementTest'
       );
 
       // Run both quick tests
@@ -994,7 +1004,9 @@ export class BrowserUsePlaygroundService
 
     try {
       // Import the test functions dynamically
-      const { runGetSelectorMapTest, TestProgress } = await import('./tests/getSelectorMapTest');
+      const { runGetSelectorMapTest, TestProgress } = await import(
+        './playgroundTests/getSelectorMapTest'
+      );
 
       const progress = new TestProgress('GetSelectorMap Tests');
 
@@ -1067,7 +1079,7 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { runGetStateTest, TestProgress } = await import('./tests/getStateTest');
+      const { runGetStateTest, TestProgress } = await import('./playgroundTests/getStateTest');
       const progress = new TestProgress('GetState Tests');
 
       await runGetStateTest(progress, this);
@@ -1215,7 +1227,7 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testRefreshPage, TestProgress } = await import('./tests/refreshPageTest');
+      const { testRefreshPage, TestProgress } = await import('./playgroundTests/refreshPageTest');
       const progress = new TestProgress('refreshPage Test');
 
       await testRefreshPage(progress, this);
@@ -1241,7 +1253,9 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testScrollToBottom, TestProgress } = await import('./tests/scrollToBottomTest');
+      const { testScrollToBottom, TestProgress } = await import(
+        './playgroundTests/scrollToBottomTest'
+      );
       const progress = new TestProgress('scrollToBottom Test');
 
       await testScrollToBottom(progress, this);
@@ -1267,7 +1281,7 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testScrollToTop, TestProgress } = await import('./tests/scrollToTopTest');
+      const { testScrollToTop, TestProgress } = await import('./playgroundTests/scrollToTopTest');
       const progress = new TestProgress('scrollToTop Test');
 
       await testScrollToTop(progress, this);
@@ -1293,7 +1307,9 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testReinitializePage, TestProgress } = await import('./tests/reinitializePageTest');
+      const { testReinitializePage, TestProgress } = await import(
+        './playgroundTests/reinitializePageTest'
+      );
       const progress = new TestProgress('reinitializePage Test');
 
       await testReinitializePage(progress, this);
@@ -1319,7 +1335,9 @@ export class BrowserUsePlaygroundService
     });
 
     try {
-      const { testIsFileUploader, TestProgress } = await import('./tests/isFileUploaderTest');
+      const { testIsFileUploader, TestProgress } = await import(
+        './playgroundTests/isFileUploaderTest'
+      );
       const progress = new TestProgress('isFileUploader Test');
 
       await testIsFileUploader(progress, this);

@@ -7,7 +7,7 @@
 
 import { BrowserContext } from '../../browser/context';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -25,7 +25,7 @@ export class TestProgress {
  */
 export async function runGetTabsInfoTest(
   progress: TestProgress,
-  context: BrowserUsePlaygroundService,
+  context: BrowserUsePlaygroundService
 ): Promise<void> {
   progress.log('🧪 Running standalone _getTabsInfo() test...');
 

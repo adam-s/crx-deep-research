@@ -39,7 +39,7 @@ interface TestContext {
  */
 export async function testReinitializePage(
   progress: TestProgress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   progress.log('🧪 Testing BrowserContext.reinitializePage() method...');
 
@@ -74,7 +74,7 @@ export async function testReinitializePage(
     // Get initial state to populate caches
     const initialState = await browserContext.getState();
     progress.log(
-      `📍 Generated initial state with ${Object.keys(initialState.selectorMap).length} elements`,
+      `📍 Generated initial state with ${Object.keys(initialState.selectorMap).length} elements`
     );
 
     // Add some temporary DOM modifications
@@ -114,7 +114,7 @@ export async function testReinitializePage(
 
     if (elementExistsAfterReinit) {
       throw new Error(
-        'Test element still exists after reinitialization - DOM was not properly reset',
+        'Test element still exists after reinitialization - DOM was not properly reset'
       );
     }
 
@@ -137,7 +137,7 @@ export async function testReinitializePage(
     // Build state cache
     const preReinitState = await browserContext.getState();
     progress.log(
-      `📍 Pre-reinit state cached with ${Object.keys(preReinitState.selectorMap).length} elements`,
+      `📍 Pre-reinit state cached with ${Object.keys(preReinitState.selectorMap).length} elements`
     );
 
     // Modify the page again
@@ -154,7 +154,7 @@ export async function testReinitializePage(
     // Get new state - should be fresh, not cached
     const postReinitState = await browserContext.getState();
     progress.log(
-      `📍 Post-reinit state generated with ${Object.keys(postReinitState.selectorMap).length} elements`,
+      `📍 Post-reinit state generated with ${Object.keys(postReinitState.selectorMap).length} elements`
     );
 
     // Verify the modification element is gone (proving cache was cleared and page reloaded)
@@ -211,7 +211,7 @@ export async function testReinitializePage(
 
     if (highlightsAfterReinit > 0) {
       progress.log(
-        `⚠️ ${highlightsAfterReinit} highlight elements still present after reinitialization`,
+        `⚠️ ${highlightsAfterReinit} highlight elements still present after reinitialization`
       );
       // This might be acceptable if they're recreated by the system
     } else {
@@ -241,7 +241,7 @@ export async function testReinitializePage(
       reinitTimes.push(endTime - startTime);
 
       progress.log(
-        `📍 Reinit ${i + 1}/${reinitCount} completed in ${(endTime - startTime).toFixed(2)}ms`,
+        `📍 Reinit ${i + 1}/${reinitCount} completed in ${(endTime - startTime).toFixed(2)}ms`
       );
 
       // Verify marker was removed
@@ -279,7 +279,7 @@ export async function testReinitializePage(
     } catch (error) {
       // This might be expected behavior for some error scenarios
       progress.log(
-        `📍 Reinitialization on error page threw error: ${error instanceof Error ? error.message : String(error)}`,
+        `📍 Reinitialization on error page threw error: ${error instanceof Error ? error.message : String(error)}`
       );
 
       // Navigate back to a working page with timeout protection

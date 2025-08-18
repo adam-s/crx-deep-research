@@ -8,7 +8,7 @@
 import { BrowserContext } from '../../browser/context';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 
 /**
  * Simple progress tracker for testing
@@ -43,7 +43,7 @@ interface ScrollInfoTestContext {
 export async function testGetScrollInfoAtTop(
   progress: TestProgress,
   context: ScrollInfoTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -91,7 +91,7 @@ export async function testGetScrollInfoAtTop(
       progress.log('✅ Test 1 passed: Correctly detected page top position');
     } else {
       throw new Error(
-        `Test 1 failed: Expected pixelsAbove ≤ 5 and pixelsBelow > 0, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`,
+        `Test 1 failed: Expected pixelsAbove ≤ 5 and pixelsBelow > 0, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`
       );
     }
   } catch (error) {
@@ -117,7 +117,7 @@ export async function testGetScrollInfoAtTop(
 export async function testGetScrollInfoAfterScroll(
   progress: TestProgress,
   context: ScrollInfoTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -165,7 +165,7 @@ export async function testGetScrollInfoAfterScroll(
       progress.log('✅ Test 2 passed: Correctly detected scroll position');
     } else {
       throw new Error(
-        `Test 2 failed: Expected pixelsAbove ~500 (450-550) and pixelsBelow > 0, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`,
+        `Test 2 failed: Expected pixelsAbove ~500 (450-550) and pixelsBelow > 0, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`
       );
     }
   } catch (error) {
@@ -191,7 +191,7 @@ export async function testGetScrollInfoAfterScroll(
 export async function testGetScrollInfoAtBottom(
   progress: TestProgress,
   context: ScrollInfoTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   try {
@@ -240,7 +240,7 @@ export async function testGetScrollInfoAtBottom(
       progress.log('✅ Test 3 passed: Correctly detected page bottom position');
     } else {
       throw new Error(
-        `Test 3 failed: Expected pixelsAbove > 0 and pixelsBelow ≤ 5, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`,
+        `Test 3 failed: Expected pixelsAbove > 0 and pixelsBelow ≤ 5, got pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`
       );
     }
   } catch (error) {
@@ -266,7 +266,7 @@ export async function testGetScrollInfoAtBottom(
 export async function testGetScrollInfoErrorHandling(
   progress: TestProgress,
   context: ScrollInfoTestContext,
-  browserWindow: BrowserWindow,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   let browserContext: BrowserContext | undefined;
   let originalUrl: string | undefined;
@@ -305,7 +305,7 @@ export async function testGetScrollInfoErrorHandling(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       progress.log(
-        `⚠️ Iframe page test encountered error (continuing with restricted page test): ${errorMessage}`,
+        `⚠️ Iframe page test encountered error (continuing with restricted page test): ${errorMessage}`
       );
     }
 
@@ -341,7 +341,7 @@ export async function testGetScrollInfoErrorHandling(
           details: { pixelsAbove, pixelsBelow, pageType: 'chrome://version/' },
         });
         progress.log(
-          '✅ Test 4 passed: Got fallback values - no scrollable content or restricted access',
+          '✅ Test 4 passed: Got fallback values - no scrollable content or restricted access'
         );
       } else {
         context.events.emit({
@@ -354,7 +354,7 @@ export async function testGetScrollInfoErrorHandling(
       }
     } else {
       throw new Error(
-        `Test 4 failed: Invalid scroll info results: pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`,
+        `Test 4 failed: Invalid scroll info results: pixelsAbove=${pixelsAbove}, pixelsBelow=${pixelsBelow}`
       );
     }
 

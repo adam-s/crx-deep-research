@@ -36,11 +36,16 @@ import {
 import {
   CordycepsPlaygroundService,
   ICordycepsPlaygroundService,
-} from '@src/services/cordyceps/playground/cordycepsPlaygroundService';
+} from '@src/services/cordyceps/playground/cordycepsPlayground.service';
 import {
   BrowserUsePlaygroundService,
   IBrowserUsePlaygroundService,
-} from '@src/services/browser-use/playground/browserUsePlaygroundService';
+} from '@src/services/browser-use/playground/browserUsePlayground.service';
+import { IStagehandService, StagehandService } from '@src/services/stagehand/stagehand.service';
+import {
+  IStagehandPlaygroundService,
+  StagehandPlaygroundService,
+} from '@src/services/stagehand/playground/stagehandPlayground.service';
 
 export interface ISidePanelConfiguration {}
 
@@ -67,7 +72,7 @@ export class SidePanelApp extends Disposable {
   // after creating the instance.
   async start() {
     this._windowId = await new Promise(resolve =>
-      chrome.windows.getCurrent(window => resolve(window.id!)),
+      chrome.windows.getCurrent(window => resolve(window.id!))
     );
 
     try {
@@ -96,7 +101,7 @@ export class SidePanelApp extends Disposable {
 
     // Register LocalAsyncStorageService
     const localAsyncStorageService = this._register(
-      instantiationService.createInstance(LocalAsyncStorageService<SidePanelStorageSchema>),
+      instantiationService.createInstance(LocalAsyncStorageService<SidePanelStorageSchema>)
     );
     serviceCollection.set(ILocalAsyncStorage, localAsyncStorageService);
     await localAsyncStorageService.start();
@@ -109,7 +114,7 @@ export class SidePanelApp extends Disposable {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const messageClient = new MessageClient( // Message Client
       `documentId:side-panel:${this.windowId}`,
-      'documentId:service-worker',
+      'documentId:service-worker'
     );
 
     serviceCollection.set(IConnectionManager, new SyncDescriptor(ConnectionManager));
@@ -128,7 +133,7 @@ export class SidePanelApp extends Disposable {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const mathService = ProxyChannel.toService<IMathService>(
-      server.getChannel('mathService', contentRouter),
+      server.getChannel('mathService', contentRouter)
     );
 
     mathService.add(2, 3).then(result => {
@@ -142,14 +147,22 @@ export class SidePanelApp extends Disposable {
     serviceCollection.set(IBrowserUseService, browserUseService);
 
     const cordycepsPlaygroundService = this._register(
-      instantiationService.createInstance(CordycepsPlaygroundService),
+      instantiationService.createInstance(CordycepsPlaygroundService)
     );
     serviceCollection.set(ICordycepsPlaygroundService, cordycepsPlaygroundService);
 
     const browserUsePlaygroundService = this._register(
-      instantiationService.createInstance(BrowserUsePlaygroundService),
+      instantiationService.createInstance(BrowserUsePlaygroundService)
     );
     serviceCollection.set(IBrowserUsePlaygroundService, browserUsePlaygroundService);
+
+    const stagehandService = this._register(instantiationService.createInstance(StagehandService));
+    serviceCollection.set(IStagehandService, stagehandService);
+
+    const stagehandPlaygroundService = this._register(
+      instantiationService.createInstance(StagehandPlaygroundService)
+    );
+    serviceCollection.set(IStagehandPlaygroundService, stagehandPlaygroundService);
 
     return instantiationService;
   }
@@ -179,7 +192,7 @@ export class SidePanelApp extends Disposable {
       const listener = (
         message: ChromeMessage,
         _: chrome.runtime.MessageSender,
-        sendResponse: (response?: unknown) => void,
+        sendResponse: (response?: unknown) => void
       ) => {
         if (message.type === `crx-deep-research:sidePanelVisibilityChangeTest:${this.windowId}`) {
           setTimeout(() => {

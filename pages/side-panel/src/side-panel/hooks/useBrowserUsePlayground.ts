@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EventMessage, Severity } from '../../utils/types';
-import { IBrowserUsePlaygroundService } from '../../services/browser-use/playground/browserUsePlaygroundService';
+import { IBrowserUsePlaygroundService } from '../../services/browser-use/playground/browserUsePlayground.service';
 import { useService } from './useService';
 
 export const useBrowserUsePlayground = () => {
@@ -76,7 +76,7 @@ export const useBrowserUsePlayground = () => {
     (severity: Severity) => {
       return events.filter(event => event.severity === severity);
     },
-    [events],
+    [events]
   );
 
   return {

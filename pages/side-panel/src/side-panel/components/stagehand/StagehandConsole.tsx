@@ -1,41 +1,122 @@
 import React, { useEffect, useRef } from 'react';
-import { Button } from '@fluentui/react-components';
-import { Severity } from '../../../utils/types';
+import { Button, Text, makeStyles, tokens } from '@fluentui/react-components';
+import { DeleteRegular, PlayRegular } from '@fluentui/react-icons';
 import { DarkScrollContainer } from '../common/DarkScrollContainer';
 import { useStagehandPlayground } from '@src/side-panel/hooks/useStagehandPlayground';
+import { Severity } from '../../../utils/types';
+
+const useStyles = makeStyles({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: tokens.borderRadiusMedium,
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  headerTitle: {
+    fontSize: '14px',
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+  },
+  headerActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  console: {
+    flex: 1,
+    backgroundColor: '#1e1e1e',
+    color: '#d4d4d4',
+    fontFamily: 'Consolas, "Courier New", Monaco, monospace',
+    fontSize: '12px',
+    lineHeight: '1.4',
+    padding: '12px',
+    overflow: 'auto',
+    minHeight: 0,
+    borderRadius: tokens.borderRadiusSmall,
+  },
+  logEntry: {
+    marginBottom: '2px',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+  },
+  timestamp: {
+    color: '#808080',
+    marginRight: '8px',
+  },
+  service: {
+    color: '#569cd6',
+    marginRight: '8px',
+  },
+  level: {
+    marginRight: '8px',
+    fontWeight: 'bold',
+  },
+  info: {
+    color: '#4ec9b0',
+  },
+  success: {
+    color: '#b5cea8',
+  },
+  warning: {
+    color: '#dcdcaa',
+  },
+  error: {
+    color: '#f44747',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    color: '#808080',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+});
 
 const getSeverityColor = (severity: Severity): string => {
   switch (severity) {
     case Severity.Success:
-      return '#28a745';
+      return '#b5cea8';
     case Severity.Info:
-      return '#17a2b8';
+      return '#4ec9b0';
     case Severity.Warning:
-      return '#ffc107';
+      return '#dcdcaa';
     case Severity.Error:
-      return '#dc3545';
+      return '#f44747';
     default:
-      return '#6c757d';
+      return '#d4d4d4';
   }
 };
 
-const getSeverityIcon = (severity: Severity): string => {
+const getSeverityLevel = (severity: Severity): string => {
   switch (severity) {
     case Severity.Success:
-      return '✅';
+      return 'SUCCESS';
     case Severity.Info:
-      return 'ℹ️';
+      return 'INFO';
     case Severity.Warning:
-      return '⚠️';
+      return 'WARNING';
     case Severity.Error:
-      return '❌';
+      return 'ERROR';
     default:
-      return '📝';
+      return 'INFO';
   }
 };
 
 export const StagehandConsole: React.FC = () => {
-  const { events, clearEvents, getEventsBySeverity } = useStagehandPlayground();
+  const styles = useStyles();
+  const { events, clearEvents } = useStagehandPlayground();
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new events arrive
@@ -45,99 +126,67 @@ export const StagehandConsole: React.FC = () => {
     }
   }, [events]);
 
-  const successEvents = getEventsBySeverity(Severity.Success);
-  const infoEvents = getEventsBySeverity(Severity.Info);
-  const warningEvents = getEventsBySeverity(Severity.Warning);
-  const errorEvents = getEventsBySeverity(Severity.Error);
+  const formatTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3,
+    });
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '12px',
-          }}
-        >
-          <h3 style={{ margin: 0 }}>Stagehand Console</h3>
-          <Button appearance="subtle" onClick={clearEvents} disabled={events.length === 0}>
+    <div className={styles.root}>
+      <div className={styles.header}>
+        <Text className={styles.headerTitle}>Stagehand Console</Text>
+        <div className={styles.headerActions}>
+          <Button
+            appearance="subtle"
+            size="small"
+            icon={<DeleteRegular />}
+            onClick={clearEvents}
+            disabled={events.length === 0}
+          >
             Clear
           </Button>
         </div>
-        <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#999' }}>
-          <span>
-            {getSeverityIcon(Severity.Success)} Success: {successEvents.length}
-          </span>
-          <span>
-            {getSeverityIcon(Severity.Info)} Info: {infoEvents.length}
-          </span>
-          <span>
-            {getSeverityIcon(Severity.Warning)} Warning: {warningEvents.length}
-          </span>
-          <span>
-            {getSeverityIcon(Severity.Error)} Error: {errorEvents.length}
-          </span>
-        </div>
       </div>
-      <DarkScrollContainer>
-        <div
-          ref={consoleRef}
-          style={{
-            height: '100%',
-            overflow: 'auto',
-            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-            fontSize: '12px',
-          }}
-        >
-          {events.length === 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: '#666',
-                fontSize: '14px',
-              }}
-            >
-              No events to display. Run a test to see output.
-            </div>
-          ) : (
-            events.map((event, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '8px 12px',
-                  borderBottom: '1px solid #2a2a2a',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                }}
-              >
-                <span style={{ color: getSeverityColor(event.severity), minWidth: '16px' }}>
-                  {getSeverityIcon(event.severity)}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: getSeverityColor(event.severity), fontWeight: 'bold' }}>
-                    {event.message}
-                  </div>
-                  {event.details && (
-                    <div style={{ color: '#ccc', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
-                      {typeof event.details === 'string'
-                        ? event.details
-                        : JSON.stringify(event.details, null, 2)}
-                    </div>
-                  )}
-                  <div style={{ color: '#666', fontSize: '10px', marginTop: '4px' }}>
-                    {new Date(event.timestamp).toLocaleTimeString()}
-                  </div>
+
+      <DarkScrollContainer ref={consoleRef} className={styles.console}>
+        {events.length === 0 ? (
+          <div className={styles.emptyState}>
+            <PlayRegular style={{ fontSize: '24px', marginBottom: '8px' }} />
+            <div>Stagehand console ready</div>
+            <div style={{ fontSize: '11px', marginTop: '4px' }}>Waiting for test execution...</div>
+          </div>
+        ) : (
+          events.map((event, index) => (
+            <div key={index} className={styles.logEntry}>
+              <span className={styles.timestamp}>{formatTimestamp(event.timestamp)}</span>
+              <span className={styles.service}>[stagehand]</span>
+              <span className={styles.level} style={{ color: getSeverityColor(event.severity) }}>
+                {getSeverityLevel(event.severity)}
+              </span>
+              <span>{event.message}</span>
+              {event.details && (
+                <div
+                  style={{
+                    color: '#808080',
+                    fontSize: '10px',
+                    marginLeft: '60px',
+                    marginTop: '2px',
+                  }}
+                >
+                  {typeof event.details === 'string'
+                    ? event.details
+                    : JSON.stringify(event.details, null, 2)}
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              )}
+            </div>
+          ))
+        )}
       </DarkScrollContainer>
     </div>
   );

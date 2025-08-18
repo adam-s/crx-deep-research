@@ -7,7 +7,7 @@
 
 import { BrowserContext, BrowserSession, BrowserContextState } from '../../browser/context';
 import { Severity } from '@src/utils/types';
-import type { BrowserUsePlaygroundService } from '../browserUsePlaygroundService';
+import type { BrowserUsePlaygroundService } from '../browserUsePlayground.service';
 import { runSnapshotForAITest, TestProgress as SnapshotTestProgress } from './snapshotForAITest';
 
 /**
