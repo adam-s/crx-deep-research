@@ -87,7 +87,7 @@ const manifest = Object.assign(
     ],
     host_permissions: ['<all_urls>'],
   },
-  !isFirefox && { side_panel: { ...sidePanelConfig.side_panel } },
+  !isFirefox && { side_panel: { ...sidePanelConfig.side_panel } }
 );
 
 export default manifest;
