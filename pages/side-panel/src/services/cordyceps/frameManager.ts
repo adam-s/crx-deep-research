@@ -65,7 +65,6 @@ export class FrameManager extends Disposable {
   constructor(public readonly page: Page) {
     super();
     this._mainFramePromise = new Promise(resolve => (this._mainFrameResolve = resolve));
-    console.log(`✅ FrameManager created for tab ${this.page.tabId}`);
   }
 
   /** Tab ID for this manager */
@@ -74,13 +73,7 @@ export class FrameManager extends Disposable {
   }
 
   dispose(): void {
-    console.log(`🗑️ Disposing FrameManager for tab ${this.page.tabId}`);
-    console.log(
-      `🗑️ FrameManager disposing ${this._frames.size} frames: [${Array.from(this._frames.keys()).join(', ')}]`
-    );
-
     super.dispose();
-    console.log(`✅ FrameManager for tab ${this.page.tabId} disposed successfully`);
   }
 
   public mainFrame(): Frame {
@@ -111,12 +104,9 @@ export class FrameManager extends Disposable {
   }
 
   public clearFrames(): void {
-    console.log(`🗑️ FrameManager clearing ${this._frames.size} frames for tab ${this.page.tabId}`);
-
     // Dispose all frames except main frame
     for (const frame of this._frames.values()) {
       if (frame !== this._mainFrame) {
-        console.log(`🗑️ FrameManager disposing child frame ${frame.frameId}`);
         frame.dispose();
       }
     }
@@ -124,15 +114,10 @@ export class FrameManager extends Disposable {
 
     // Reset main frame if it exists
     if (this._mainFrame) {
-      console.log(
-        `🗑️ FrameManager clearing child frames from main frame ${this._mainFrame.frameId}`
-      );
       // Clear all child frames from main frame
       this._mainFrame.clearChildFrames();
       this._frames.set(this._mainFrame.frameId, this._mainFrame);
     }
-
-    console.log(`✅ FrameManager cleared all frames for tab ${this.page.tabId}`);
   }
 
   public frame(frameId: number): Frame | null {
@@ -151,7 +136,6 @@ export class FrameManager extends Disposable {
       // Update URL if provided
       if (url) {
         existingFrame.setUrl(url);
-        console.log(`🔄 Frame ${frameId} updated URL: ${url}`);
       }
       return existingFrame;
     }
@@ -159,12 +143,8 @@ export class FrameManager extends Disposable {
     const isMainFrame =
       parentFrameId === null || parentFrameId === undefined || parentFrameId === -1;
     if (isMainFrame) {
-      console.log(`📍 Attaching main frame ${frameId} for tab ${this.page.tabId}`);
       return this._attachMainFrame(frameId, url);
     }
-    console.log(
-      `📍 Attaching child frame ${frameId} with parent ${parentFrameId} for tab ${this.page.tabId}`
-    );
     return this._attachChildFrame(frameId, parentFrameId, url);
   }
 
@@ -294,7 +274,6 @@ export class FrameManager extends Disposable {
     frame._onClearLifecycle();
     frame._fireInternalNavigation(url, name, frame._currentDocument, undefined, true);
     if (!initial) {
-      console.log('api', `  navigated to "${url}"`);
       this.page.frameNavigatedToNewDocument(frame);
     }
     // Restore pending if any - see comments above about keepPending.
@@ -322,7 +301,6 @@ export class FrameManager extends Disposable {
     }
     frame.setUrl(url);
     frame._fireInternalNavigation(url, frame.name(), undefined, undefined, true);
-    console.log('api', `  navigated to "${url}"`);
   }
 
   frameAbortedNavigation(frameId: number, errorText: string, documentId?: string) {

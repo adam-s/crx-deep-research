@@ -20,6 +20,7 @@
     "cordycepts",
     "deepseek",
     "evals",
-    "langchain"
+    "langchain",
+    "Screenshotter"
   ]
 }

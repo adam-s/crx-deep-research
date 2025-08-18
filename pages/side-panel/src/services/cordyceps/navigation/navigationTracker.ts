@@ -105,15 +105,6 @@ export class NavigationTracker {
   // Event handlers ----------------------------------------------------------
 
   private _onCommitted = (d: chrome.webNavigation.WebNavigationTransitionCallbackDetails): void => {
-    console.log(`🔍 NavigationTracker._onCommitted:`, {
-      tabId: d.tabId,
-      frameId: d.frameId,
-      url: d.url,
-      documentId: d.documentId,
-      transitionType: d.transitionType,
-      transitionQualifiers: d.transitionQualifiers,
-    });
-
     const st = this._ensure(key(d.tabId, d.frameId), d.tabId, d.frameId);
     const isCrossDoc = !!d.documentId && d.documentId !== st.currentDocumentId;
     st.url = d.url;
@@ -128,58 +119,33 @@ export class NavigationTracker {
         url: d.url,
         newDocument: { documentId: d.documentId! },
       });
-      console.log(`🔗 NavigationTracker: Fired cross-document navigation event`);
     } else {
       this._markLifecycle(st, 'commit');
       this._onInternalNavigation.fire({ tabId: d.tabId, frameId: d.frameId, url: d.url });
-      console.log(`🔗 NavigationTracker: Fired same-document navigation event`);
     }
   };
 
   private _onSameDocument = (
     d: chrome.webNavigation.WebNavigationTransitionCallbackDetails
   ): void => {
-    console.log(`🔍 NavigationTracker._onSameDocument:`, {
-      tabId: d.tabId,
-      frameId: d.frameId,
-      url: d.url,
-      transitionType: d.transitionType,
-      transitionQualifiers: d.transitionQualifiers,
-    });
-
     const st = this._ensure(key(d.tabId, d.frameId), d.tabId, d.frameId);
     st.url = d.url;
     this._markLifecycle(st, 'commit');
     this._onInternalNavigation.fire({ tabId: d.tabId, frameId: d.frameId, url: d.url });
-    console.log(`🔗 NavigationTracker: Fired same-document navigation event`);
   };
 
   private _onDOMContentLoaded = (
     d: chrome.webNavigation.WebNavigationFramedCallbackDetails
   ): void => {
-    console.log(`🔍 NavigationTracker._onDOMContentLoaded:`, {
-      tabId: d.tabId,
-      frameId: d.frameId,
-      url: d.url,
-    });
-
     const st = this._ensure(key(d.tabId, d.frameId), d.tabId, d.frameId);
     st.url = d.url;
     this._markLifecycle(st, 'domcontentloaded');
-    console.log(`🔗 NavigationTracker: Marked domcontentloaded lifecycle for frame ${d.frameId}`);
   };
 
   private _onCompleted = (d: chrome.webNavigation.WebNavigationFramedCallbackDetails): void => {
-    console.log(`🔍 NavigationTracker._onCompleted:`, {
-      tabId: d.tabId,
-      frameId: d.frameId,
-      url: d.url,
-    });
-
     const st = this._ensure(key(d.tabId, d.frameId), d.tabId, d.frameId);
     st.url = d.url;
     this._markLifecycle(st, 'load');
-    console.log(`🔗 NavigationTracker: Marked load lifecycle for frame ${d.frameId}`);
   };
 
   private _setupNavigationMessageListener(): void {
@@ -201,13 +167,6 @@ export class NavigationTracker {
             tabId,
             frameId,
             url: message.detail.url,
-          });
-
-          console.debug(`🔗 NavigationTracker: ${message.detail.type} navigation detected`, {
-            tabId,
-            frameId,
-            url: message.detail.url,
-            timestamp: message.detail.timestamp,
           });
         }
       }

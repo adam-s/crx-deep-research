@@ -142,21 +142,14 @@ export class BrowserWindow extends Disposable {
 
         const page = this._pages.get(tabId);
         if (page) {
-          console.log(
-            `🗑️ Found Page for tab ${tabId} with ${page.frameManager.frames().length} frames`
-          );
           page.dispose();
           this._pages.delete(tabId);
-          console.log(`✅ Page for tab ${tabId} removed from BrowserWindow`);
-        } else {
-          console.log(`⚠️ No Page found for removed tab ${tabId}`);
         }
         // Clean up dedupe keys for this tab to prevent memory growth
         const prefix = `${tabId}:`;
         for (const key of this._processedCommittedDocuments) {
           if (key.startsWith(prefix)) this._processedCommittedDocuments.delete(key);
         }
-        console.log(`📊 BrowserWindow now has ${this._pages.size} pages remaining`);
       })
     );
 
@@ -164,9 +157,6 @@ export class BrowserWindow extends Disposable {
     this._register(
       this.session.onTabCreated(tab => {
         if (this._store.isDisposed) {
-          console.log(
-            `⚠️ Skipping tab creation event for tab ${tab.id} - BrowserWindow already disposed`
-          );
           return;
         }
         if (tab.windowId === this.windowId && tab.id) {
@@ -321,11 +311,6 @@ export class BrowserWindow extends Disposable {
     try {
       const frames = await chrome.webNavigation.getAllFrames({ tabId: page.tabId });
       if (frames) {
-        console.log(
-          `Fetching ${frames.length} frames for tab ${page.tabId}:`,
-          frames.map(f => ({ frameId: f.frameId, parentFrameId: f.parentFrameId, url: f.url }))
-        );
-
         // Sort frames to ensure parents are attached before children
         const sortedFrames = this._sortFramesByHierarchy(frames);
 
@@ -390,9 +375,6 @@ export class BrowserWindow extends Disposable {
       return;
     }
 
-    console.log(`Handling subframe navigation: tab ${tabId}, frame ${frameId}, url: ${url}`);
-    console.log(`Before attachment, page has ${page.frameManager.frames().length} frames`);
-
     try {
       const frameDetails = await chrome.webNavigation.getFrame({ tabId, frameId });
       if (frameDetails) {
@@ -404,7 +386,6 @@ export class BrowserWindow extends Disposable {
           frame._onClearLifecycle();
           // page.frameNavigatedToNewDocument(frame); // This line is removed to avoid duplication
         }
-        console.log(`After attachment, page has ${page.frameManager.frames().length} frames`);
       }
     } catch (error) {
       // Ignore common navigation errors that don't need logging
@@ -418,7 +399,6 @@ export class BrowserWindow extends Disposable {
   private _createPage(tabId: number): Page {
     // Check if this BrowserWindow has been disposed to prevent memory leaks
     if (this._store.isDisposed) {
-      console.log(`⚠️ Skipping page creation for tab ${tabId} - BrowserWindow already disposed`);
       // Return a dummy page or throw an error based on your preference
       throw new Error(`Cannot create page for tab ${tabId} - BrowserWindow has been disposed`);
     }

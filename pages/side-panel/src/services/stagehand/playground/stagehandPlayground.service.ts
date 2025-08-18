@@ -5,6 +5,16 @@ import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
 import { EventMessage, Severity } from '@src/utils/types';
 import { IStagehandService } from '../stagehand.service';
 import { ILogService } from '@shared/services/log.service';
+import { testStagehandDOMUtils, quickStagehandDOMUtilsTest } from './playgroundTests/domUtilsTests';
+import {
+  testStagehandCordycepsConversion,
+  quickStagehandCordycepsConversionTest,
+} from './playgroundTests/cordycepsConversionTests';
+import {
+  testStagehandLivePageDOM,
+  quickStagehandLivePageTest,
+} from './playgroundTests/livePageDomTests';
+import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
   'stagehandPlaygroundService'
@@ -16,6 +26,14 @@ export interface IStagehandPlaygroundService {
   readonly onEvent: Event<EventMessage>;
   /** Run all stagehand tests */
   runAllTests: () => Promise<void>;
+  /** Run DOM utilities tests (no conversion needed) */
+  runDOMUtilsTests: () => Promise<void>;
+  /** Run Cordyceps conversion tests */
+  runCordycepsConversionTests: () => Promise<void>;
+  /** Run live page DOM tests */
+  runLivePageDOMTests: () => Promise<void>;
+  /** Run quick validation tests */
+  runQuickTests: () => Promise<boolean>;
 }
 
 export class StagehandPlaygroundService extends Disposable implements IStagehandPlaygroundService {
@@ -38,130 +56,176 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
     this.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,
-      message: '🚀 Starting Stagehand browser automation tests',
+      message: '🚀 Starting Stagehand -> Cordyceps conversion tests',
+      details: {
+        conversionPhase: 'playwright-to-cordyceps',
+        testServer: 'http://localhost:3005',
+      },
     });
 
     try {
-      // Step 1: Initialize services
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: '⚙️ Initializing Stagehand service...',
-      });
-
+      // Initialize Stagehand service
       await this._stagehandService.initialize();
-      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Phase 1: Test pure functions (15% - no conversion needed)
+      await this.runDOMUtilsTests();
+
+      // Phase 2: Test direct Cordyceps conversions (60%)
+      await this.runCordycepsConversionTests();
+
+      // Phase 3: Test with live page content
+      await this.runLivePageDOMTests();
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
 
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
-        message: '✅ Stagehand service initialized successfully',
-      });
-
-      // Step 2: Browser setup simulation
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: '🌐 Setting up browser context...',
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '✅ Browser context ready',
-      });
-
-      // Step 3: DOM interaction tests
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: '🔍 Running DOM interaction tests...',
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '✅ DOM interaction tests passed',
+        message: '✅ All Stagehand conversion tests completed successfully',
         details: {
-          elementsFound: 12,
-          selectorsGenerated: 8,
-          interactionsSuccessful: 5,
-        },
-      });
-
-      // Step 4: Navigation tests
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: '🧭 Testing navigation capabilities...',
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 400));
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '✅ Navigation tests completed',
-        details: {
-          pagesVisited: 3,
-          forwardBackTested: true,
-          urlValidationPassed: true,
-        },
-      });
-
-      // Step 5: Screenshot and state capture
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Info,
-        message: '📸 Testing screenshot and state capture...',
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '✅ Screenshot and state capture working',
-        details: {
-          screenshotsTaken: 4,
-          statesCaptured: 3,
-          cacheHitRate: '85%',
-        },
-      });
-
-      // Final results
-      const totalDuration = Date.now() - startTime;
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '🎉 All Stagehand tests completed successfully!',
-        details: {
-          totalDuration: `${(totalDuration / 1000).toFixed(2)}s`,
-          testSuites: 4,
-          totalTests: 18,
-          passed: 18,
-          failed: 0,
-          performance: 'Excellent',
-          status: 'All systems operational',
+          duration: `${duration}ms`,
+          conversionStatus: 'tests-passing',
         },
       });
     } catch (error) {
-      const totalDuration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Error,
-        message: '❌ Stagehand tests failed',
-        error: error instanceof Error ? error : new Error(String(error)),
-        details: {
-          totalDuration: `${(totalDuration / 1000).toFixed(2)}s`,
-          failurePoint: 'Test execution',
-        },
+        message: `❌ Stagehand conversion tests failed: ${errorMessage}`,
+        details: { error: errorMessage },
+      });
+
+      throw error;
+    }
+  }
+
+  public async runDOMUtilsTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🔧 Testing Stagehand DOM utilities (15% - no conversion needed)...',
+    });
+
+    try {
+      const testContext = { events: this.events };
+      const progress = new TestProgress('DOM-Utils');
+
+      await testStagehandDOMUtils(progress, testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ DOM utilities tests completed',
+        details: { category: 'pure-functions' },
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ DOM utilities tests failed',
+        details: { error: String(error) },
       });
       throw error;
+    }
+  }
+
+  public async runCordycepsConversionTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🔄 Testing Stagehand -> Cordyceps API conversions (60%)...',
+    });
+
+    try {
+      const testContext = { events: this.events };
+      const progress = new TestProgress('Conversion');
+
+      await testStagehandCordycepsConversion(progress, testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ Cordyceps conversion tests completed',
+        details: { category: 'api-conversion' },
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Cordyceps conversion tests failed',
+        details: { error: String(error) },
+      });
+      throw error;
+    }
+  }
+
+  public async runLivePageDOMTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🌐 Testing with live page at http://localhost:3005...',
+    });
+
+    try {
+      const testContext = { events: this.events };
+      const progress = new TestProgress('Live-Page');
+
+      await testStagehandLivePageDOM(progress, testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ Live page DOM tests completed',
+        details: { category: 'live-testing' },
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Live page DOM tests failed',
+        details: { error: String(error) },
+      });
+      throw error;
+    }
+  }
+
+  public async runQuickTests(): Promise<boolean> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '⚡ Running quick validation tests...',
+    });
+
+    try {
+      const domUtilsOk = await quickStagehandDOMUtilsTest();
+      const cordycepsOk = await quickStagehandCordycepsConversionTest();
+      const livePageOk = await quickStagehandLivePageTest();
+
+      const allPassed = domUtilsOk && cordycepsOk && livePageOk;
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: allPassed ? Severity.Success : Severity.Warning,
+        message: allPassed ? '✅ Quick tests passed' : '⚠️ Some quick tests failed',
+        details: {
+          domUtils: domUtilsOk,
+          cordycepsConversion: cordycepsOk,
+          livePage: livePageOk,
+        },
+      });
+
+      return allPassed;
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Quick tests failed',
+        details: { error: String(error) },
+      });
+      return false;
     }
   }
 }

@@ -67,7 +67,6 @@ export class DownloadManager extends Disposable {
    * Also tracks the tab ID for better download association
    */
   registerPage(page: Page): void {
-    console.log(`📝 [DownloadManager] Registering page: ${page.tabId}`);
     this._pageRegistry.set(page.tabId, page);
     this._lastActivePage = page; // Update the most recently active page
 
@@ -82,9 +81,6 @@ export class DownloadManager extends Disposable {
    */
   private _updateActiveTab(tabId: number): void {
     this._lastActivePage = this._pageRegistry.get(tabId);
-    console.log(
-      `📝 [DownloadManager] Updated active tab: ${tabId}, page found: ${!!this._lastActivePage}`,
-    );
   }
 
   /**
@@ -128,7 +124,6 @@ export class DownloadManager extends Disposable {
 
     // Listen for filename determination
     chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-      console.log('📝 [DownloadManager] Determining filename for download:', downloadItem.id);
       // Use default behavior for now
       suggest();
     });
@@ -157,7 +152,7 @@ export class DownloadManager extends Disposable {
     }
 
     const download = this._register(
-      new Download(targetPage, downloadInfo.id, downloadInfo.url, downloadInfo.suggestedFilename),
+      new Download(targetPage, downloadInfo.id, downloadInfo.url, downloadInfo.suggestedFilename)
     );
 
     // Store the download instance
@@ -167,7 +162,7 @@ export class DownloadManager extends Disposable {
     setTimeout(() => {
       // Emit started event
       console.log(
-        `🚀 [DownloadManager] Firing download started event for page: ${targetPage?.tabId || 'none'}, download: ${downloadInfo.id}`,
+        `🚀 [DownloadManager] Firing download started event for page: ${targetPage?.tabId || 'none'}, download: ${downloadInfo.id}`
       );
       this._onDownloadStarted.fire({ download, page: targetPage });
     }, 10); // Small delay to ensure event listeners are ready
@@ -217,14 +212,12 @@ export class DownloadManager extends Disposable {
   private _findAssociatedPage(): Page | undefined {
     // Return the most recently active page
     if (this._lastActivePage) {
-      console.log(`📝 [DownloadManager] Using last active page: ${this._lastActivePage.tabId}`);
       return this._lastActivePage;
     }
 
     // Fallback to any registered page
     const pages = Array.from(this._pageRegistry.values());
     const fallbackPage = pages.length > 0 ? pages[pages.length - 1] : undefined;
-    console.log(`📝 [DownloadManager] Using fallback page: ${fallbackPage?.tabId || 'none'}`);
     return fallbackPage;
   }
 

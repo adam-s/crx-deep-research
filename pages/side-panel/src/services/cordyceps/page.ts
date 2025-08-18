@@ -38,6 +38,7 @@ import { waitForCondition } from './utilities/utils';
 import { LongStandingScope } from '@injected/isomorphic/manualPromise';
 import { DownloadManager, DownloadEventData } from './operations/downloadManager';
 import { Download } from './operations/download';
+import { ContentScriptReadinessManager } from './navigation/contentScriptReadiness';
 
 export class Page extends Disposable {
   // Event emitters for page lifecycle events
@@ -98,18 +99,14 @@ export class Page extends Disposable {
     // Setup content script listener immediately - this is needed for execution context creation
     this._setupContentScriptListener();
 
-    // Initialize content script readiness manager (for new approach)
-    import('./navigation/contentScriptReadiness').then(({ ContentScriptReadinessManager }) => {
-      const readinessManager = ContentScriptReadinessManager.getInstance();
-      this._register({
-        dispose: () => {
-          // Clean up readiness barriers for this tab when page is disposed
-          readinessManager.removeTabBarriers(this.tabId);
-        },
-      });
+    // Initialize content script readiness manager
+    const readinessManager = ContentScriptReadinessManager.getInstance();
+    this._register({
+      dispose: () => {
+        // Clean up readiness barriers for this tab when page is disposed
+        readinessManager.removeTabBarriers(this.tabId);
+      },
     });
-
-    console.log(`✅ Page created for tab ${tabId}`);
   }
 
   /**
@@ -172,7 +169,6 @@ export class Page extends Disposable {
 
   private _addVisitedOrigin(origin: string): void {
     this._visitedOrigins.add(origin);
-    console.debug(`📍 Added visited origin: ${origin} (total: ${this._visitedOrigins.size})`);
   }
 
   /**
@@ -251,15 +247,7 @@ export class Page extends Disposable {
   }
 
   dispose(): void {
-    console.log(`🗑️ Disposing Page for tab ${this.tabId}`);
-    console.log(`🗑️ Page disposing FrameManager with ${this.frameManager.frames().length} frames`);
-
-    if (this._ownedContext) {
-      console.log(`🗑️ Page disposing owned context for tab ${this.tabId}`);
-    }
-
     super.dispose();
-    console.log(`✅ Page for tab ${this.tabId} disposed successfully`);
   }
 
   private _setupContentScriptListener(): void {
@@ -1205,7 +1193,6 @@ export class Page extends Disposable {
    * Wait for specific frame to be ready
    */
   async waitForFrameReady(frameId: number, progress?: Progress): Promise<void> {
-    const { ContentScriptReadinessManager } = await import('./navigation/contentScriptReadiness');
     const barrier = ContentScriptReadinessManager.getInstance().getBarrier(this.tabId, frameId);
     return barrier.waitForReady(progress);
   }

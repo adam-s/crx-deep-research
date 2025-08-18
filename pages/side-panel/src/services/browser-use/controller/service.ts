@@ -1382,28 +1382,18 @@ export class Controller<Context = unknown> {
           pageExtractionLlm,
         }: { browser: BrowserContext; pageExtractionLlm?: PageExtractionLLM }
       ): Promise<ActionResult> {
-        console.log(`[Controller.extract_content ######]`, {
-          goal: params.value,
-          hasLlm: !!pageExtractionLlm,
-        });
         const goal = params.value;
-        console.log(`[Controller.extract_content.goal ######]`, { goal });
         const page = await browser.getCurrentPage();
         // Get the page content first - exactly like Python does
         const pageContent = await page.content();
-        console.log(`[Controller.extract_content.page_content ######]`, {
-          pageContentLength: pageContent.length,
-        });
 
         // Create turndown service (equivalent to Python's markdownify)
         const turndownService = new TurndownService();
-        console.log(`[Controller.extract_content.turndown_created ######]`);
 
         // Remove script, style, and other non-content tags
         // This matches the behavior of Python's markdownify
         // The .remove() method ensures these tags and their contents are completely removed
         turndownService.remove(['script', 'style', 'meta', 'link', 'noscript', 'img']);
-        console.log(`[Controller.extract_content.turndown_configured ######]`);
 
         // Remove link URLs, but keep the text
         turndownService.addRule('plainLink', {
@@ -1413,29 +1403,13 @@ export class Controller<Context = unknown> {
             return content; // no Markdown URL, just the text
           },
         });
-        console.log(`[Controller.extract_content.plain_link_rule_added ######]`);
 
         // Convert HTML to markdown
         let content = turndownService.turndown(pageContent);
-        console.log(`[Controller.extract_content.markdown_converted ######]`, {
-          markdownLength: content.length,
-        });
 
         // CRITICAL: Truncate content to prevent 30k token limit overflow
         const maxContentSize = 15000; // Conservative limit for extract_content
-        console.log(`[Controller.extract_content.content_size_check ######]`, {
-          contentLength: content.length,
-          maxContentSize,
-          needsTruncation: content.length > maxContentSize,
-        });
         if (content.length > maxContentSize) {
-          console.log(
-            `⚠️ extract_content: Truncating page content from ${content.length} to ${maxContentSize} characters`
-          );
-          console.log(`[Controller.extract_content.truncating ######]`, {
-            originalLength: content.length,
-            truncatedLength: maxContentSize,
-          });
           content =
             content.substring(0, maxContentSize) +
             '\n\n[... content truncated to fit token limit ...]';
@@ -1447,32 +1421,16 @@ export class Controller<Context = unknown> {
           'Your task is to extract the content of the page. You will be given a page and a goal and you should extract all relevant information around this goal from the page. If the goal is vague, summarize the page. Respond in json format. Extraction goal: {goal}, Page: {page}';
 
         try {
-          console.log(`[Controller.extract_content.llm_processing ######]`);
           // In Python, this uses a PromptTemplate with input_variables=['goal', 'page']
           // Create a similar structure in TypeScript
           const templateVars = {
             goal: goal,
             page: content,
           };
-          console.log(`[Controller.extract_content.template_vars ######]`, {
-            goalLength: templateVars.goal.length,
-            pageLength: templateVars.page.length,
-          });
-
           // Format the prompt with the goal and content (similar to Python's template.format())
           const formattedPrompt = prompt
             .replace('{goal}', templateVars.goal)
             .replace('{page}', templateVars.page);
-          console.log(`[Controller.extract_content.prompt_formatted ######]`, {
-            promptLength: formattedPrompt.length,
-          });
-
-          // DEBUG: Log extract_content request size
-          console.log(`📊 extract_content request size: ${formattedPrompt.length} characters`);
-          console.log(
-            `📊 extract_content estimated tokens: ~${Math.ceil(formattedPrompt.length * 1.3)} tokens`
-          );
-
           // In TypeScript, the LLM.invoke method expects an array of message objects
           const messages = [
             {
@@ -1480,16 +1438,8 @@ export class Controller<Context = unknown> {
               content: formattedPrompt,
             },
           ];
-          console.log(`[Controller.extract_content.messages_created ######]`, {
-            messageCount: messages.length,
-          });
 
-          // Invoke LLM with message array - equivalent to Python's page_extraction_llm.invoke(template.format(...))
-          console.log(`[Controller.extract_content.invoking_llm ######]`);
           const output = await pageExtractionLlm!.invoke(messages);
-          console.log(`[Controller.extract_content.llm_response ######]`, {
-            outputContentLength: output.content?.length || 0,
-          });
 
           // Use exact same format for message
           const msg = `📄 Extracted from page\n: ${output.content}\n`;
@@ -1547,10 +1497,6 @@ export class Controller<Context = unknown> {
         params: SelectDropdownOptionAction,
         { browser }: { browser: BrowserContext }
       ): Promise<ActionResult> {
-        console.log(`[Controller.select_dropdown_option ######]`, {
-          index: params.index,
-          text: params.text,
-        });
         const { index, text } = params;
         const page = await browser.getCurrentPage();
         // Get element descriptor directly from browser using getDomElementByIndex
@@ -1568,11 +1514,6 @@ export class Controller<Context = unknown> {
             error: '',
           });
         }
-
-        console.debug(`Attempting to select '${text}' using xpath: ${domElement.xpath}`);
-        console.debug(`Element attributes: ${JSON.stringify(domElement.attributes)}`);
-        console.debug(`Element tag: ${domElement.tagName}`);
-
         if (domElement.tagName.toLowerCase() !== 'select') {
           const msg = `Cannot select option: Element with index ${index} is a ${domElement.tagName}, not a select`;
           console.error(msg);
@@ -1589,8 +1530,6 @@ export class Controller<Context = unknown> {
           let frameIndex = 0;
           for (const frame of page.frames()) {
             try {
-              console.debug(`Trying frame ${frameIndex} URL: ${frame.url()}`);
-
               type DropdownCheckResult = {
                 id?: string;
                 name?: string;

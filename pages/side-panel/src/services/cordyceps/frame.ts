@@ -306,28 +306,10 @@ export class Frame extends Disposable {
         dispose: () => {
           if (parentFrame) {
             parentFrame._childFrames.delete(this);
-            console.log(
-              `🗑️ Frame ${this.frameId} removed from parent frame ${parentFrame.frameId} (tab ${this.tabId})`
-            );
           }
         },
       });
     }
-
-    console.log(
-      `✅ Frame ${frameId} created in tab ${this.tabId} with parent ${
-        parentFrame?.frameId ?? 'none'
-      } - URL: ${url ?? 'no url'}`
-    );
-
-    // Debug: Log frame creation details for Event Bridge debugging
-    console.log(`🔍 Frame ${frameId} Event Bridge Debug:`, {
-      frameId: frameId,
-      tabId: this.tabId,
-      parentFrameId: parentFrame?.frameId ?? null,
-      url: url ?? 'no url',
-    });
-
     // Set up NavigationTracker event bridge for lifecycle synchronization
     this._setupNavigationTrackerBridge();
   }
@@ -395,25 +377,11 @@ export class Frame extends Disposable {
   }
 
   _onLifecycleEvent(event: RegularLifecycleEvent) {
-    console.log(`🔗 Frame ${this.frameId}: _onLifecycleEvent called with "${event}"`);
-    console.log(
-      `🔗 Frame ${this.frameId}: Previous lifecycle events:`,
-      Array.from(this._firedLifecycleEvents)
-    );
-
     if (this._firedLifecycleEvents.has(event)) {
-      console.log(`🔗 Frame ${this.frameId}: Event "${event}" already fired, skipping`);
       return;
     }
     this._firedLifecycleEvents.add(event);
     this._fireAddLifecycle(event);
-    console.log(
-      `🔗 Frame ${this.frameId}: Updated lifecycle events:`,
-      Array.from(this._firedLifecycleEvents)
-    );
-
-    if (this === this.frameManager.page.mainFrame() && this._url !== 'about:blank')
-      console.log('api', `  "${event}" event fired`);
   }
 
   // #endregion END nav
@@ -1049,44 +1017,21 @@ export class Frame extends Disposable {
   }
 
   dispose(): void {
-    console.log(`🗑️ Disposing Frame ${this.frameId} in tab ${this.tabId}`);
-
     // Clean up NavigationTracker bridge
     if (this._navigationTrackerDisposable) {
-      console.log(`🗑️ Frame ${this.frameId} disposing NavigationTracker bridge`);
       this._navigationTrackerDisposable.dispose();
       this._navigationTrackerDisposable = null;
     }
 
     // Clean up web navigation listeners
     if (this._webNavigationDisposables.length > 0) {
-      console.log(
-        `🗑️ Frame ${this.frameId} disposing ${this._webNavigationDisposables.length} webNavigation listeners`
-      );
       for (const disposable of this._webNavigationDisposables) {
         disposable.dispose();
       }
       this._webNavigationDisposables = [];
     }
 
-    // Log child frames that will be disposed
-    if (this._childFrames.size > 0) {
-      console.log(
-        `🗑️ Frame ${this.frameId} disposing ${this._childFrames.size} child frames: [${Array.from(
-          this._childFrames
-        )
-          .map(f => f.frameId)
-          .join(', ')}]`
-      );
-    }
-
-    // Dispose execution context if it exists
-    if (this._context) {
-      console.log(`🗑️ Frame ${this.frameId} disposing execution context`);
-    }
-
     super.dispose();
-    console.log(`✅ Frame ${this.frameId} disposed successfully`);
   }
 
   _setContext(context: FrameExecutionContext): void {
@@ -1121,18 +1066,10 @@ export class Frame extends Disposable {
   }
 
   clearChildFrames(): void {
-    console.log(
-      `🗑️ Frame ${this.frameId} clearing ${this._childFrames.size} child frames: [${Array.from(
-        this._childFrames
-      )
-        .map(f => f.frameId)
-        .join(', ')}]`
-    );
     for (const childFrame of this._childFrames) {
       childFrame.dispose();
     }
     this._childFrames.clear();
-    console.log(`✅ Frame ${this.frameId} cleared all child frames`);
   }
 
   title(): Promise<string> {
@@ -2001,30 +1938,13 @@ export class Frame extends Disposable {
 
     // Subscribe to NavigationTracker events for this specific frame
     this._navigationTrackerDisposable = navigationTracker.onInternalNavigation(navEvent => {
-      console.log(`🔍 Frame ${this.frameId}: NavigationTracker event received:`, {
-        tabId: navEvent.tabId,
-        frameId: navEvent.frameId,
-        url: navEvent.url,
-        newDocument: navEvent.newDocument,
-        myTabId: this.tabId,
-        myFrameId: this.frameId,
-        matches: navEvent.tabId === this.tabId && navEvent.frameId === this.frameId,
-      });
-
       // Only handle events for this specific frame
       if (navEvent.tabId !== this.tabId || navEvent.frameId !== this.frameId) {
-        console.log(`🔍 Frame ${this.frameId}: Ignoring event - not for this frame`);
         return;
       }
-
-      console.log(
-        `🔗 Frame ${this.frameId}: NavigationTracker bridge received navigation to ${navEvent.url}`
-      );
-
       // Update frame URL if provided
       if (navEvent.url && navEvent.url !== this._url) {
         this.setUrl(navEvent.url);
-        console.log(`🔗 Frame ${this.frameId}: URL updated to ${navEvent.url}`);
       }
 
       // Fire navigation event through Frame's event system
@@ -2049,14 +1969,6 @@ export class Frame extends Disposable {
 
     // Set up direct chrome.webNavigation listeners for more precise lifecycle tracking
     this._setupWebNavigationLifecycleBridge();
-
-    console.log(
-      `🔗 Frame ${this.frameId}: NavigationTracker event bridge established for tab ${this.tabId}`
-    );
-    console.log(
-      `🔍 Frame ${this.frameId}: Event Bridge setup complete - listening for tabId: ${this.tabId}, ` +
-        `frameId: ${this.frameId}`
-    );
   }
 
   /**
@@ -2069,17 +1981,7 @@ export class Frame extends Disposable {
     const onDOMContentLoaded = (
       details: chrome.webNavigation.WebNavigationFramedCallbackDetails
     ) => {
-      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onDOMContentLoaded received:`, {
-        tabId: details.tabId,
-        frameId: details.frameId,
-        url: details.url,
-        myTabId: this.tabId,
-        myFrameId: this.frameId,
-        matches: details.tabId === this.tabId && details.frameId === this.frameId,
-      });
-
       if (details.tabId === this.tabId && details.frameId === this.frameId) {
-        console.log(`🔗 Frame ${this.frameId}: DOMContentLoaded event from chrome.webNavigation`);
         if (!this._firedLifecycleEvents.has('domcontentloaded')) {
           this._onLifecycleEvent('domcontentloaded');
         }
@@ -2088,17 +1990,7 @@ export class Frame extends Disposable {
 
     // Listen for Completed (load) events
     const onCompleted = (details: chrome.webNavigation.WebNavigationFramedCallbackDetails) => {
-      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onCompleted received:`, {
-        tabId: details.tabId,
-        frameId: details.frameId,
-        url: details.url,
-        myTabId: this.tabId,
-        myFrameId: this.frameId,
-        matches: details.tabId === this.tabId && details.frameId === this.frameId,
-      });
-
       if (details.tabId === this.tabId && details.frameId === this.frameId) {
-        console.log(`🔗 Frame ${this.frameId}: Load event from chrome.webNavigation`);
         if (!this._firedLifecycleEvents.has('load')) {
           this._onLifecycleEvent('load');
         }
@@ -2107,19 +1999,7 @@ export class Frame extends Disposable {
 
     // Listen for Committed events
     const onCommitted = (details: chrome.webNavigation.WebNavigationTransitionCallbackDetails) => {
-      console.log(`🔍 Frame ${this.frameId}: chrome.webNavigation.onCommitted received:`, {
-        tabId: details.tabId,
-        frameId: details.frameId,
-        url: details.url,
-        documentId: details.documentId,
-        transitionType: details.transitionType,
-        myTabId: this.tabId,
-        myFrameId: this.frameId,
-        matches: details.tabId === this.tabId && details.frameId === this.frameId,
-      });
-
       if (details.tabId === this.tabId && details.frameId === this.frameId) {
-        console.log(`🔗 Frame ${this.frameId}: Commit event from chrome.webNavigation`);
         if (!this._firedLifecycleEvents.has('commit')) {
           this._onLifecycleEvent('commit');
         }
@@ -2137,10 +2017,6 @@ export class Frame extends Disposable {
       { dispose: () => chrome.webNavigation.onCompleted.removeListener(onCompleted) },
       { dispose: () => chrome.webNavigation.onCommitted.removeListener(onCommitted) }
     );
-
-    console.log(
-      `🔗 Frame ${this.frameId}: Direct chrome.webNavigation lifecycle listeners established`
-    );
   }
 
   /**
@@ -2150,10 +2026,6 @@ export class Frame extends Disposable {
   public _markAlreadyLoadedPage(): void {
     // Check if we're on a regular HTTP(S) page (not chrome:// or about:blank)
     if (this._url && this._url.startsWith('http') && this._url !== 'about:blank') {
-      console.log(
-        `🔗 Frame ${this.frameId}: Detected already-loaded page, marking lifecycle events`
-      );
-
       // Mark standard lifecycle events as already fired
       const lifecycleEvents: ('domcontentloaded' | 'load' | 'commit')[] = [
         'domcontentloaded',
@@ -2163,9 +2035,6 @@ export class Frame extends Disposable {
 
       for (const event of lifecycleEvents) {
         if (!this._firedLifecycleEvents.has(event)) {
-          console.log(
-            `🔗 Frame ${this.frameId}: Marking '${event}' as already fired for already-loaded page`
-          );
           this._onLifecycleEvent(event);
         }
       }
@@ -2185,15 +2054,11 @@ export class Frame extends Disposable {
 
     if (navEvent.newDocument) {
       // New document navigation - clear existing lifecycle and start fresh
-      console.log(`🔗 Frame ${this.frameId}: New document navigation detected, clearing lifecycle`);
       this._onClearLifecycle();
     }
 
     // Always mark 'commit' for any navigation event from NavigationTracker
     if (!this._firedLifecycleEvents.has('commit')) {
-      console.log(
-        `🔗 Frame ${this.frameId}: Marking 'commit' lifecycle event from NavigationTracker`
-      );
       this._onLifecycleEvent('commit');
     }
 
