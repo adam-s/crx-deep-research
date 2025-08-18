@@ -14,10 +14,12 @@
   "prettier.requireConfig": false,
   "prettier.useEditorConfig": false,
   "cSpell.words": [
+    "braintrust",
     "browseruse",
     "cordyceps",
     "cordycepts",
     "deepseek",
+    "evals",
     "langchain"
   ]
 }
