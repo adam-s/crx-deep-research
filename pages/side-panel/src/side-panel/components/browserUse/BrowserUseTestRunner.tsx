@@ -1,8 +1,8 @@
 import React from 'react';
 import { Button } from '@fluentui/react-components';
-import { useBrowserUse } from '../hooks/useBrowserBaseUse';
-import { useBrowserUsePlayground } from '../hooks/useBrowserUsePlayground';
-import { DarkScrollContainer } from './common/DarkScrollContainer';
+import { useBrowserUse } from '@src/side-panel/hooks/useBrowserBaseUse';
+import { useBrowserUsePlayground } from '@src/side-panel/hooks/useBrowserUsePlayground';
+import { DarkScrollContainer } from '../common/DarkScrollContainer';
 
 export const BrowserUseTestRunner: React.FC = () => {
   const { runExample, isRunning, error, clearError } = useBrowserUse();
@@ -29,7 +29,8 @@ export const BrowserUseTestRunner: React.FC = () => {
             borderRadius: '4px',
             color: '#d00',
             maxHeight: '150px',
-          }}>
+          }}
+        >
           <Button
             appearance="subtle"
             size="small"
@@ -46,7 +47,8 @@ export const BrowserUseTestRunner: React.FC = () => {
               color: '#d00',
               background: 'transparent',
               border: 'none',
-            }}>
+            }}
+          >
             ✕
           </Button>
           <DarkScrollContainer
@@ -56,7 +58,8 @@ export const BrowserUseTestRunner: React.FC = () => {
               maxHeight: '150px',
               overflow: 'auto',
               background: 'transparent',
-            }}>
+            }}
+          >
             <strong>Error:</strong> {error}
           </DarkScrollContainer>
         </div>
@@ -96,7 +99,8 @@ export const BrowserUseTestRunner: React.FC = () => {
             border: '1px solid #b3d9ff',
             borderRadius: '4px',
             color: '#0066cc',
-          }}>
+          }}
+        >
           🔄 {isRunning ? 'Browser Use example is running...' : 'Tests are running...'}
         </div>
       )}

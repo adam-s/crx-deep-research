@@ -1,8 +1,9 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
-import { Main } from '../pages/Main';
+import { Cordyceps } from '../pages/Cordyceps';
 import { BrowserUse } from '../pages/BrowserUse';
 import { useTabNavigationContext } from '../context/TabNavigationContext';
+import { Stagehand } from '../pages/Stagehand';
 
 const useStyles = makeStyles({
   root: {
@@ -23,8 +24,10 @@ export const Content: React.FC = () => {
 
   const renderCurrentPage = () => {
     switch (currentPage) {
-      case 'main':
-        return <Main />;
+      case 'stagehand':
+        return <Stagehand />;
+      case 'cordyceps':
+        return <Cordyceps />;
       case 'browseruse':
         return <BrowserUse />;
       default:

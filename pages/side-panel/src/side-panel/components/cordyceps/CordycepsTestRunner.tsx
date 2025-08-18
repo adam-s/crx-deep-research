@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@fluentui/react-components';
-import { useCordycepsPlayground } from '../hooks/useCordycepsPlayground';
-import { DarkScrollContainer } from './common/DarkScrollContainer';
+import { useCordycepsPlayground } from '../../hooks/useCordycepsPlayground';
+import { DarkScrollContainer } from '../common/DarkScrollContainer';
 
 export const CordycepsTestRunner: React.FC = () => {
   const {
@@ -29,7 +29,8 @@ export const CordycepsTestRunner: React.FC = () => {
             borderRadius: '4px',
             color: '#d00',
             maxHeight: '150px',
-          }}>
+          }}
+        >
           <Button
             appearance="subtle"
             size="small"
@@ -46,7 +47,8 @@ export const CordycepsTestRunner: React.FC = () => {
               color: '#d00',
               background: 'transparent',
               border: 'none',
-            }}>
+            }}
+          >
             ✕
           </Button>
           <DarkScrollContainer
@@ -56,7 +58,8 @@ export const CordycepsTestRunner: React.FC = () => {
               maxHeight: '150px',
               overflow: 'auto',
               background: 'transparent',
-            }}>
+            }}
+          >
             <strong>Error:</strong> {error}
           </DarkScrollContainer>
         </div>
@@ -98,7 +101,8 @@ export const CordycepsTestRunner: React.FC = () => {
             border: '1px solid #b3d9ff',
             borderRadius: '4px',
             color: '#0066cc',
-          }}>
+          }}
+        >
           🔄 Tests are running...
         </div>
       )}

@@ -14,7 +14,9 @@
   "prettier.requireConfig": false,
   "prettier.useEditorConfig": false,
   "cSpell.words": [
+    "browseruse",
     "cordyceps",
+    "cordycepts",
     "deepseek",
     "langchain"
   ]

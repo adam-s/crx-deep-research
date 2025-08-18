@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { type TabValue } from '@fluentui/react-components';
 
-export type PageType = 'main' | 'browseruse';
-
+export type PageType = 'cordyceps' | 'browseruse' | 'stagehand';
 export interface PagePayloads {
-  main: undefined;
+  stagehand: undefined;
+  cordyceps: undefined;
   browseruse: undefined;
   tradeSimulator: undefined;
   news: undefined;
@@ -28,7 +28,7 @@ export interface TabNavigationState {
   clearNavigationPayload: () => void;
 }
 
-export const useTabNavigation = (initialPage: PageType = 'browseruse'): TabNavigationState => {
+export const useTabNavigation = (initialPage: PageType = 'stagehand'): TabNavigationState => {
   const [currentPage, setCurrentPage] = useState<TabValue>(initialPage);
   const [navigationPayload, setNavigationPayload] = useState<ActiveNavigationPayload>(undefined);
 

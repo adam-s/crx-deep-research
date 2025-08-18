@@ -1,7 +1,7 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
-import { BrowserUseTestRunner } from '../components/browserUse/BrowserUseTestRunner';
-import { BrowserUseConsole } from '../components/browserUse/BrowserUseConsole';
+import { StagehandTestRunner } from '../components/stagehand/StagehandTestRunner';
+import { StagehandConsole } from '../components/stagehand/StagehandConsole';
 
 // Define breakpoints (consider moving to a shared constants file)
 const BREAKPOINTS = {
@@ -19,11 +19,11 @@ const useStyles = makeStyles({
     gridTemplateRows: 'auto 1fr',
     gridTemplateColumns: '1fr',
     [`@media (min-width: ${BREAKPOINTS.TABLET})`]: {
-      gridTemplateColumns: '1fr',
+      gridTemplateColumns: '1fr 1fr',
       gridTemplateRows: 'auto 1fr',
     },
     [`@media (min-width: ${BREAKPOINTS.DESKTOP})`]: {
-      gridTemplateColumns: '1fr',
+      gridTemplateColumns: '1fr 1fr',
       gridTemplateRows: 'auto 1fr',
     },
   },
@@ -40,22 +40,22 @@ const useStyles = makeStyles({
     gridRow: '2',
     minHeight: 0,
     [`@media (min-width: ${BREAKPOINTS.TABLET})`]: {
-      gridColumn: '1',
-      gridRow: '2',
+      gridColumn: '2',
+      gridRow: '1 / 3',
     },
   },
 });
 
-export const BrowserUse: React.FC = () => {
+export const Stagehand: React.FC = () => {
   const styles = useStyles();
 
   return (
-    <div data-test-id="browseruse" className={styles.root}>
+    <div data-test-id="stagehand" className={styles.root}>
       <div className={styles.testRunner}>
-        <BrowserUseTestRunner />
+        <StagehandTestRunner />
       </div>
       <div className={styles.console}>
-        <BrowserUseConsole />
+        <StagehandConsole />
       </div>
     </div>
   );

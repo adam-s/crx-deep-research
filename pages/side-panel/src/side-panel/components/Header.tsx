@@ -109,7 +109,7 @@ export const Header: React.FC = () => {
     // For now, let's assume initialPage from provider is sufficient.
     // If you still need to default to 'browseruse' under certain conditions:
     if (!currentPage) {
-      navigateTo('browseruse');
+      navigateTo('stagehand');
     }
   }, [currentPage, navigateTo]);
 
@@ -122,8 +122,9 @@ export const Header: React.FC = () => {
     <div className={classes.root}>
       <div className={classes.headerRightRegion}>
         <TabList selectedValue={currentPage as TabValue} onTabSelect={onTabSelect}>
+          <Tab value="stagehand">Stagehand</Tab>
           <Tab value="browseruse">Browser Use</Tab>
-          <Tab value="main">Main</Tab>
+          <Tab value="cordycepts">Cordyceps</Tab>
         </TabList>
       </div>
       <div className={classes.headerLeftRegion}>

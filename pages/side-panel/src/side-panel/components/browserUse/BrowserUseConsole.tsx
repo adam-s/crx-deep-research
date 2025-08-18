@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Button } from '@fluentui/react-components';
-import { useCordycepsPlayground } from '../hooks/useCordycepsPlayground';
-import { Severity } from '../../utils/types';
-import { DarkScrollContainer } from './common/DarkScrollContainer';
+import { Severity } from '@src/utils/types';
+import { useBrowserUsePlayground } from '@src/side-panel/hooks/useBrowserUsePlayground';
+import { DarkScrollContainer } from '../common/DarkScrollContainer';
 
 const getSeverityColor = (severity: Severity): string => {
   switch (severity) {
@@ -34,8 +34,9 @@ const getSeverityIcon = (severity: Severity): string => {
   }
 };
 
-export const CordycepsConsole: React.FC = () => {
-  const { events, clearEvents, getEventsBySeverity } = useCordycepsPlayground();
+export const BrowserUseConsole: React.FC = () => {
+  const { events, isRunning, runAgentTest, clearEvents, getEventsBySeverity } =
+    useBrowserUsePlayground();
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new events arrive
@@ -59,12 +60,18 @@ export const CordycepsConsole: React.FC = () => {
         gap: '12px',
         height: '100%',
         minHeight: 0,
-      }}>
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>Cordyceps Console</h3>
-        <Button appearance="outline" onClick={clearEvents} size="small">
-          Clear Console
-        </Button>
+        <h3>Browser Use Console</h3>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button appearance="primary" onClick={runAgentTest} disabled={isRunning} size="small">
+            {isRunning ? 'Running Agent...' : 'Run Agent Test'}
+          </Button>
+          <Button appearance="outline" onClick={clearEvents} size="small">
+            Clear Console
+          </Button>
+        </div>
       </div>
 
       {/* Event Summary */}
@@ -75,7 +82,8 @@ export const CordycepsConsole: React.FC = () => {
           padding: '12px',
           borderRadius: '4px',
           flexWrap: 'wrap',
-        }}>
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span style={{ color: getSeverityColor(Severity.Success) }}>✅</span>
           <span>Success: {successEvents.length}</span>
@@ -109,10 +117,11 @@ export const CordycepsConsole: React.FC = () => {
           overflow: 'auto',
           minHeight: '0',
           border: '1px solid #333',
-        }}>
+        }}
+      >
         {events.length === 0 ? (
           <div style={{ color: '#6c757d', fontStyle: 'italic' }}>
-            No events yet. Run a test to see output...
+            No events yet. Run an agent test to see output...
           </div>
         ) : (
           events.map((event, index) => (
@@ -122,9 +131,11 @@ export const CordycepsConsole: React.FC = () => {
                 marginBottom: '8px',
                 paddingBottom: '8px',
                 borderBottom: index < events.length - 1 ? '1px solid #333' : 'none',
-              }}>
+              }}
+            >
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}
+              >
                 <span>{getSeverityIcon(event.severity)}</span>
                 <span style={{ color: getSeverityColor(event.severity), fontWeight: 'bold' }}>
                   {event.severity.toUpperCase()}
@@ -164,7 +175,8 @@ export const CordycepsConsole: React.FC = () => {
                       color: '#888',
                       marginTop: '2px',
                       fontStyle: 'italic',
-                    }}>
+                    }}
+                  >
                     📷 Screenshot thumbnail
                   </div>
                 </div>
@@ -179,7 +191,8 @@ export const CordycepsConsole: React.FC = () => {
                     background: '#2a2a2a',
                     padding: '4px 8px',
                     borderRadius: '3px',
-                  }}>
+                  }}
+                >
                   {JSON.stringify(event.details, null, 2)}
                 </div>
               )}
@@ -190,7 +203,8 @@ export const CordycepsConsole: React.FC = () => {
                     marginTop: '4px',
                     color: '#ff6b6b',
                     fontSize: '11px',
-                  }}>
+                  }}
+                >
                   Error: {event.error.message}
                   {event.stackTrace && (
                     <pre
@@ -200,7 +214,8 @@ export const CordycepsConsole: React.FC = () => {
                         color: '#ccc',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
-                      }}>
+                      }}
+                    >
                       {event.stackTrace}
                     </pre>
                   )}

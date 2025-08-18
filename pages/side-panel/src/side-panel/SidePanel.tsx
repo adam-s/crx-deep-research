@@ -33,7 +33,7 @@ const SidePanel: React.FC = () => {
 
   return (
     <FluentProvider theme={webDarkTheme}>
-      <TabNavigationProvider initialPage="browseruse">
+      <TabNavigationProvider initialPage="stagehand">
         <div className={styles.root}>
           <div className={styles.header}>
             <Header />
@@ -49,5 +49,5 @@ const SidePanel: React.FC = () => {
 
 export default withErrorBoundary(
   withSuspense(SidePanel, <div>Loading ...</div>),
-  <div>Error Occurred</div>,
+  <div>Error Occurred</div>
 );

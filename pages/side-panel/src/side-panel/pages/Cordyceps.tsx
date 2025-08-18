@@ -1,7 +1,7 @@
 import React from 'react';
 import { makeStyles } from '@fluentui/react-components';
-import { CordycepsTestRunner } from '../components/CordycepsTestRunner';
-import { CordycepsConsole } from '../components/CordycepsConsole';
+import { CordycepsTestRunner } from '../components/cordyceps/CordycepsTestRunner';
+import { CordycepsConsole } from '../components/cordyceps/CordycepsConsole';
 
 // Define breakpoints (consider moving to a shared constants file)
 const BREAKPOINTS = {
@@ -46,11 +46,11 @@ const useStyles = makeStyles({
   },
 });
 
-export const Main: React.FC = () => {
+export const Cordyceps: React.FC = () => {
   const styles = useStyles();
 
   return (
-    <div data-test-id="main" className={styles.root}>
+    <div data-test-id="cordyceps" className={styles.root}>
       <div className={styles.testRunner}>
         <CordycepsTestRunner />
       </div>
