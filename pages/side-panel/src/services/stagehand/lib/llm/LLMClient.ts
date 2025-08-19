@@ -95,8 +95,8 @@ export interface CreateChatCompletionOptions {
 }
 
 export abstract class LLMClient {
-  public type: 'openai' | 'anthropic' | 'cerebras' | 'groq' | (string & {});
-  public modelName: AvailableModel | (string & {});
+  public type: 'openai' | 'google' | 'aisdk' | string = 'openai';
+  public modelName: AvailableModel | string;
   public hasVision: boolean;
   public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
@@ -104,6 +104,10 @@ export abstract class LLMClient {
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
     this.modelName = modelName;
     this.userProvidedInstructions = userProvidedInstructions;
+    // Initialize required properties with sensible defaults
+    this.type = 'openai';
+    this.hasVision = false;
+    this.clientOptions = {};
   }
 
   abstract createChatCompletion<

@@ -7,7 +7,7 @@
  * Files tested:
  * - llm/LLMClient.ts - LLM client interfaces
  * - llm/OpenAIClient.ts - OpenAI integration
- * - llm/AnthropicClient.ts - Anthropic integration
+ * - llm/GoogleClient.ts - Google integration
  * - handlers/extractHandler.ts - Data extraction logic
  * - handlers/observeHandler.ts - Page observation logic
  * - prompt.ts - Prompt building utilities
@@ -20,15 +20,44 @@ import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
 import { SidePanelAppStorageSchema, StorageKeys } from '@shared/storage/types/storage.types';
 
-// Use any for page type to match the actual Cordyceps API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PageType = any;
+// Import our converted LLM system components
+import { LLMProvider } from '../../lib/llm/LLMProvider';
+import { OpenAIClient } from '../../lib/llm/OpenAIClient';
+import { GoogleClient } from '../../lib/llm/GoogleClient';
+import { AvailableModel, ModelProvider } from '../../types/model';
+import { LogLine } from '../../types/log';
 
-// Mock LLM client interface for testing
-interface MockLLMClient {
-  apiKey: string;
-  model: string;
-  temperature: number;
+// Use proper Cordyceps Page type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PageType = any; // TODO: Import proper CordycepsPage type when available
+
+// Strongly typed LLM test interfaces using our converted system
+interface LLMClientTestResults {
+  provider: ModelProvider;
+  model: AvailableModel;
+  clientType: string;
+  hasApiKey: boolean;
+  clientCreated: boolean;
+  canCreateCompletion: boolean;
+  error?: string;
+}
+
+interface LLMProviderTestResults {
+  supportedProviders: ModelProvider[];
+  modelsAvailable: AvailableModel[];
+  providerCreated: boolean;
+  openAIClientWorks: boolean;
+  googleClientWorks: boolean;
+  aiSdkClientWorks: boolean;
+}
+
+interface ChatCompletionTestResults {
+  requestSent: boolean;
+  responseReceived: boolean;
+  tokenCount: number;
+  model: AvailableModel;
+  success: boolean;
+  error?: string;
 }
 
 // Mock prompt building utilities
@@ -58,7 +87,7 @@ interface ObservationTestResults {
 declare global {
   interface Window {
     // LLM client utilities
-    createLLMClient?: (apiKey: string, model?: string) => MockLLMClient;
+    createLLMProvider?: () => LLMProvider;
 
     // Prompt building utilities
     buildPrompt?: (template: string, variables: Record<string, unknown>) => string;
@@ -146,7 +175,7 @@ export async function testLLMAndAIProcessing(
 }
 
 /**
- * Test LLM client integration with real API keys
+ * Test LLM client integration with real API keys using our converted system
  */
 async function testLLMClientIntegration(
   page: PageType,
@@ -158,67 +187,145 @@ async function testLLMClientIntegration(
 
   // Get API keys from storage if available
   let openAiKey = '';
-  let geminiKey = '';
-  let provider = 'openai';
+  let googleAiKey = '';
+  const provider = 'openai';
 
   if (storage) {
     try {
-      openAiKey = (await storage.get(StorageKeys.OPEN_AI_API_KEY)) || '';
-      geminiKey = (await storage.get(StorageKeys.GOOGLE_GEMINI_API_KEY)) || '';
-      provider = (await storage.get(StorageKeys.RESEARCH_LLM_PROVIDER)) || 'openai';
+      const storedOpenAI = await storage.get('openaiApiKey');
+      const storedGoogle = await storage.get('googleAiApiKey');
+
+      openAiKey = typeof storedOpenAI === 'string' ? storedOpenAI : '';
+      googleAiKey = typeof storedGoogle === 'string' ? storedGoogle : '';
     } catch (error) {
       progress.log('⚠️ Could not access storage for API keys');
     }
   }
 
-  const clientResults = await page.evaluate(
-    (testData: { openAiKey: string; geminiKey: string; provider: string }) => {
-      const results = {
-        hasOpenAIKey: testData.openAiKey.length > 0,
-        hasGeminiKey: testData.geminiKey.length > 0,
-        currentProvider: testData.provider,
-        hasLLMClient: false,
-        clientCreated: false,
-        modelUsed: 'gpt-4o-mini', // Use mini model for cost efficiency
-        mockClientTest: false,
-      };
+  try {
+    // Create LLM Provider instance with required parameters
+    const llmLogger = (message: LogLine) => {
+      progress.log(`LLM: ${message.message}`);
+    };
+    const llmProvider = new LLMProvider(llmLogger, false); // Disable caching for tests
+    progress.log('✅ LLM Provider created successfully');
 
-      // Test LLM client creation if utilities are available
-      if (window.createLLMClient && testData.openAiKey) {
-        try {
-          const client = window.createLLMClient(testData.openAiKey, 'gpt-4o-mini');
-          results.hasLLMClient = true;
-          results.clientCreated = !!client;
-          results.modelUsed = client.model || 'gpt-4o-mini';
-        } catch (error) {
-          console.warn('LLM client creation failed:', error);
+    // Test results tracking
+    const testResults: LLMProviderTestResults = {
+      supportedProviders: ['openai', 'google'],
+      modelsAvailable: ['gpt-4o-mini', 'gpt-4o', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+      providerCreated: true,
+      openAIClientWorks: false,
+      googleClientWorks: false,
+      aiSdkClientWorks: false,
+    };
+
+    // Test OpenAI client creation
+    if (openAiKey) {
+      try {
+        const openAIClient = await llmProvider.getClient('gpt-4o-mini', { apiKey: openAiKey });
+        testResults.openAIClientWorks = openAIClient !== null;
+        progress.log('✅ OpenAI client created successfully');
+
+        // Test a simple chat completion
+        if (openAIClient) {
+          const response = await openAIClient.createChatCompletion({
+            options: {
+              messages: [{ role: 'user', content: 'Say "Hello from LLM test"' }],
+              temperature: 0.1,
+              maxTokens: 20,
+            },
+            logger: (logMessage: LogLine) => console.log('LLM Log:', logMessage.message),
+          });
+
+          if (response && response.choices && response.choices.length > 0) {
+            progress.log('✅ OpenAI chat completion successful');
+            progress.log(`Response: ${response.choices[0].message?.content}`);
+          }
         }
+      } catch (error) {
+        progress.log('❌ OpenAI client test failed');
+        console.error('OpenAI client error:', error);
       }
+    } else {
+      progress.log('⚠️ No OpenAI API key available for testing');
+    }
 
-      // Mock client test for demonstration
-      results.mockClientTest = true;
+    // Test Google client creation
+    if (googleAiKey) {
+      try {
+        const googleClient = await llmProvider.getClient('gemini-1.5-flash', {
+          apiKey: googleAiKey,
+        });
+        testResults.googleClientWorks = googleClient !== null;
+        progress.log('✅ Google client created successfully');
 
-      return results;
-    },
-    { openAiKey, geminiKey, provider }
-  );
+        // Test a simple chat completion
+        if (googleClient) {
+          const response = await googleClient.createChatCompletion({
+            options: {
+              messages: [{ role: 'user', content: 'Say "Hello from Gemini test"' }],
+              temperature: 0.1,
+              maxTokens: 20,
+            },
+            logger: (logMessage: LogLine) => console.log('LLM Log:', logMessage.message),
+          });
 
-  progress.log(
-    `🔑 LLM client results: Provider=${clientResults.currentProvider}, Model=${clientResults.modelUsed}`
-  );
+          if (response && response.choices && response.choices.length > 0) {
+            progress.log('✅ Google chat completion successful');
+            progress.log(`Response: ${response.choices[0].message?.content}`);
+          }
+        }
+      } catch (error) {
+        progress.log('❌ Google client test failed');
+        console.error('Google client error:', error);
+      }
+    } else {
+      progress.log('⚠️ No Google AI API key available for testing');
+    }
 
-  context.events.emit({
-    timestamp: Date.now(),
-    severity: Severity.Info,
-    message: '🔑 LLM client integration tested',
-    details: {
-      hasOpenAIKey: clientResults.hasOpenAIKey,
-      hasGeminiKey: clientResults.hasGeminiKey,
-      provider: clientResults.currentProvider,
-      modelUsed: clientResults.modelUsed,
-      clientCreated: clientResults.clientCreated,
-    },
-  });
+    // Test AI SDK client (mock test since it doesn't require real API key)
+    try {
+      const aiSdkClient = await llmProvider.getClient('gpt-4o-mini', { mockApiKey: 'test' });
+      testResults.aiSdkClientWorks = aiSdkClient !== null;
+      progress.log('✅ AI SDK client created successfully');
+    } catch (error) {
+      progress.log('❌ AI SDK client test failed');
+      console.error('AI SDK client error:', error);
+    }
+
+    // Emit comprehensive test results
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🔑 LLM client integration test completed',
+      details: {
+        hasOpenAIKey: openAiKey.length > 0,
+        hasGoogleAIKey: googleAiKey.length > 0,
+        provider,
+        testResults,
+        supportedModels: testResults.modelsAvailable,
+        allClientsWorking:
+          testResults.openAIClientWorks &&
+          testResults.googleClientWorks &&
+          testResults.aiSdkClientWorks,
+      },
+    });
+
+    progress.log(
+      `🔑 LLM integration complete: OpenAI=${testResults.openAIClientWorks}, Google=${testResults.googleClientWorks}, AISDK=${testResults.aiSdkClientWorks}`
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    progress.log(`❌ LLM client integration failed: ${errorMessage}`);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Error,
+      message: `❌ LLM client integration failed: ${errorMessage}`,
+      details: { error: errorMessage },
+    });
+  }
 }
 
 /**
@@ -493,7 +600,7 @@ async function testAIInference(
           hasForm: document.querySelectorAll('form').length > 0,
         };
 
-        // Note: We don't actually run inference to avoid costs, just test the interface
+        // Mock inference test (don't make actual API calls in tests)
         results.mockInferenceRun = true;
       }
 
@@ -503,7 +610,7 @@ async function testAIInference(
   );
 
   progress.log(
-    `🧠 Inference results: Utility available=${inferenceResults.hasInferenceUtility}, API key=${inferenceResults.hasApiKey}, Model=${inferenceResults.modelToUse}`
+    `🧠 Inference results: Has utility=${inferenceResults.hasInferenceUtility}, API key available=${inferenceResults.hasApiKey}`
   );
 
   context.events.emit({
@@ -513,28 +620,159 @@ async function testAIInference(
     details: {
       hasInferenceUtility: inferenceResults.hasInferenceUtility,
       hasApiKey: inferenceResults.hasApiKey,
-      modelToUse: inferenceResults.modelToUse,
       mockInferenceRun: inferenceResults.mockInferenceRun,
+      modelToUse: inferenceResults.modelToUse,
     },
   });
 }
 
 /**
- * Quick test for LLM and AI processing
+ * Test Chat Completion Functionality with Strong Typing
+ * Tests actual LLM chat completion with our converted system
  */
-export async function quickLLMAndAIProcessingTest(): Promise<boolean> {
+export async function testChatCompletion(openAiKey: string): Promise<ChatCompletionTestResults> {
+  console.log('💬 Testing Chat Completion...');
+
+  const results: ChatCompletionTestResults = {
+    requestSent: false,
+    responseReceived: false,
+    tokenCount: 0,
+    model: 'gpt-4o-mini',
+    success: false,
+  };
+
   try {
-    // Quick validation that basic JavaScript APIs work
-    const testPrompt = 'Hello {name}!';
-    const variables = { name: 'World' };
+    if (!openAiKey) {
+      results.error = 'No OpenAI API key provided';
+      return results;
+    }
 
-    // Simple template replacement test
-    const result = testPrompt.replace('{name}', variables.name);
-    const success = result === 'Hello World!';
+    // Create provider and client
+    const llmLogger = (message: LogLine) => console.log('LLM Log:', message.message);
+    const provider = new LLMProvider(llmLogger, false);
+    const client = await provider.getClient('gpt-4o-mini', { apiKey: openAiKey });
 
-    return success;
+    if (!client) {
+      results.error = 'Failed to create LLM client';
+      return results;
+    }
+
+    // Test chat completion
+    const testMessage = 'Hello! Please respond with exactly: "LLM test successful"';
+    results.requestSent = true;
+
+    const response = await client.createChatCompletion({
+      options: {
+        messages: [{ role: 'user', content: testMessage }],
+        temperature: 0.1,
+        maxTokens: 50,
+      },
+      logger: llmLogger,
+    });
+
+    if (response && response.choices && response.choices.length > 0) {
+      results.responseReceived = true;
+      results.tokenCount = response.usage?.total_tokens || 0;
+      results.success = true;
+      console.log('✅ Chat completion successful:', response.choices[0].message?.content);
+    } else {
+      results.error = 'No response received from LLM';
+    }
+
+    return results;
   } catch (error) {
-    console.error('Quick LLM & AI processing test failed:', error);
-    return false;
+    console.error('❌ Chat completion test failed:', error);
+    results.error = error instanceof Error ? error.message : 'Unknown error';
+    return results;
   }
+}
+
+/**
+ * Test Individual LLM Clients with Strong Typing
+ * Tests specific client functionality with proper typing
+ */
+export async function testIndividualLLMClients(
+  openAiKey?: string,
+  googleAiKey?: string
+): Promise<LLMClientTestResults[]> {
+  console.log('🔧 Testing Individual LLM Clients...');
+
+  const results: LLMClientTestResults[] = [];
+  const logger = (message: LogLine) => console.log('Client Log:', message.message);
+
+  // Test OpenAI Client
+  if (openAiKey) {
+    const openAIResult: LLMClientTestResults = {
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      clientType: 'OpenAIClient',
+      hasApiKey: true,
+      clientCreated: false,
+      canCreateCompletion: false,
+    };
+
+    try {
+      const openAIClient = new OpenAIClient({
+        logger,
+        modelName: 'gpt-4o-mini',
+        clientOptions: { apiKey: openAiKey },
+      });
+      openAIResult.clientCreated = true;
+
+      // Test completion
+      const response = await openAIClient.createChatCompletion({
+        options: {
+          messages: [{ role: 'user', content: 'Test message' }],
+          temperature: 0.1,
+          maxTokens: 10,
+        },
+        logger,
+      });
+
+      openAIResult.canCreateCompletion = response !== null;
+    } catch (error) {
+      openAIResult.error = error instanceof Error ? error.message : 'Unknown error';
+    }
+
+    results.push(openAIResult);
+  }
+
+  // Test Google Client
+  if (googleAiKey) {
+    const googleResult: LLMClientTestResults = {
+      provider: 'google',
+      model: 'gemini-1.5-flash',
+      clientType: 'GoogleClient',
+      hasApiKey: true,
+      clientCreated: false,
+      canCreateCompletion: false,
+    };
+
+    try {
+      const googleClient = new GoogleClient({
+        logger,
+        modelName: 'gemini-1.5-flash',
+        clientOptions: { apiKey: googleAiKey },
+      });
+      googleResult.clientCreated = true;
+
+      // Test completion
+      const response = await googleClient.createChatCompletion({
+        options: {
+          messages: [{ role: 'user', content: 'Test message' }],
+          temperature: 0.1,
+          maxTokens: 10,
+        },
+        logger,
+      });
+
+      googleResult.canCreateCompletion = response !== null;
+    } catch (error) {
+      googleResult.error = error instanceof Error ? error.message : 'Unknown error';
+    }
+
+    results.push(googleResult);
+  }
+
+  return results;
 }

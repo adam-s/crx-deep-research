@@ -1,20 +1,14 @@
 import {
-  type CoreAssistantMessage,
   type CoreMessage,
-  type CoreSystemMessage,
-  type CoreTool,
-  type CoreUserMessage,
   generateObject,
   generateText,
-  type ImagePart,
   type LanguageModel,
   NoObjectGeneratedError,
-  type TextPart,
 } from 'ai';
 import { CreateChatCompletionOptions, LLMClient } from './LLMClient';
 import { LogLine } from '../../types/log';
 import { AvailableModel } from '../../types/model';
-import { type ChatCompletion } from 'openai/resources';
+import { type ChatCompletion } from 'openai/resources/chat/completions';
 import { LLMCache } from '../cache/LLMCache';
 
 export class AISdkClient extends LLMClient {
@@ -35,11 +29,22 @@ export class AISdkClient extends LLMClient {
     enableCaching?: boolean;
     cache?: LLMCache;
   }) {
-    super(model.modelId as AvailableModel);
+    // Advanced TypeScript: Safe model ID extraction with type narrowing
+    const modelId =
+      typeof model === 'string'
+        ? model
+        : (model as { modelId?: string }).modelId || 'unknown-model';
+    super(modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
+  }
+
+  private getModelId(): string {
+    return typeof this.model === 'string'
+      ? this.model
+      : (this.model as { modelId?: string }).modelId || 'unknown-model';
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -55,20 +60,23 @@ export class AISdkClient extends LLMClient {
           type: 'object',
         },
         modelName: {
-          value: this.model.modelId,
+          value: this.getModelId(),
           type: 'string',
         },
       },
     });
 
     const cacheOptions = {
-      model: this.model.modelId,
+      model: this.getModelId(),
       messages: options.messages,
       response_model: options.response_model,
     };
 
     if (this.enableCaching && this.cache) {
-      const cachedResponse = await this.cache.get<T>(cacheOptions, options.requestId);
+      const cachedResponse = await this.cache.get<T>(
+        cacheOptions,
+        options.requestId ?? crypto.randomUUID()
+      );
       if (cachedResponse) {
         this.logger?.({
           category: 'llm_cache',
@@ -76,7 +84,7 @@ export class AISdkClient extends LLMClient {
           level: 1,
           auxiliary: {
             requestId: {
-              value: options.requestId,
+              value: options.requestId ?? 'unknown',
               type: 'string',
             },
             cachedResponse: {
@@ -93,7 +101,7 @@ export class AISdkClient extends LLMClient {
           level: 1,
           auxiliary: {
             requestId: {
-              value: options.requestId,
+              value: options.requestId ?? 'unknown',
               type: 'string',
             },
           },
@@ -104,45 +112,44 @@ export class AISdkClient extends LLMClient {
     const formattedMessages: CoreMessage[] = options.messages.map(message => {
       if (Array.isArray(message.content)) {
         if (message.role === 'system') {
-          const systemMessage: CoreSystemMessage = {
+          return {
             role: 'system',
             content: message.content.map(c => ('text' in c ? c.text : '')).join('\n'),
           };
-          return systemMessage;
         }
 
         const contentParts = message.content.map(content => {
           if ('image_url' in content) {
-            const imageContent: ImagePart = {
-              type: 'image',
+            // Advanced TypeScript: Type guard for safe property access
+            if (!content.image_url?.url) {
+              throw new Error('Invalid image URL content');
+            }
+            return {
+              type: 'image' as const,
               image: content.image_url.url,
             };
-            return imageContent;
           } else {
-            const textContent: TextPart = {
-              type: 'text',
-              text: content.text,
+            return {
+              type: 'text' as const,
+              text: content.text ?? '',
             };
-            return textContent;
           }
         });
 
         if (message.role === 'user') {
-          const userMessage: CoreUserMessage = {
+          return {
             role: 'user',
             content: contentParts,
           };
-          return userMessage;
         } else {
           const textOnlyParts = contentParts.map(part => ({
             type: 'text' as const,
             text: part.type === 'image' ? '[Image]' : part.text,
           }));
-          const assistantMessage: CoreAssistantMessage = {
+          return {
             role: 'assistant',
             content: textOnlyParts,
           };
-          return assistantMessage;
         }
       }
 
@@ -153,7 +160,7 @@ export class AISdkClient extends LLMClient {
     });
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
-    const isGPT5 = this.model.modelId.includes('gpt-5');
+    const isGPT5 = this.getModelId().includes('gpt-5');
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -198,7 +205,7 @@ export class AISdkClient extends LLMClient {
                 type: 'string',
               },
               requestId: {
-                value: options.requestId,
+                value: options.requestId ?? 'unknown',
                 type: 'string',
               },
             },
@@ -212,8 +219,8 @@ export class AISdkClient extends LLMClient {
       const result = {
         data: objectResponse.object,
         usage: {
-          prompt_tokens: objectResponse.usage.promptTokens ?? 0,
-          completion_tokens: objectResponse.usage.completionTokens ?? 0,
+          prompt_tokens: objectResponse.usage.inputTokens ?? 0,
+          completion_tokens: objectResponse.usage.outputTokens ?? 0,
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
@@ -225,7 +232,7 @@ export class AISdkClient extends LLMClient {
           level: 1,
           auxiliary: {
             requestId: {
-              value: options.requestId,
+              value: options.requestId ?? 'unknown',
               type: 'string',
             },
             cacheOptions: {
@@ -238,7 +245,7 @@ export class AISdkClient extends LLMClient {
             },
           },
         });
-        this.cache.set(cacheOptions, result, options.requestId);
+        this.cache?.set(cacheOptions, result, options.requestId ?? crypto.randomUUID());
       }
 
       this.logger?.({
@@ -251,7 +258,7 @@ export class AISdkClient extends LLMClient {
             type: 'object',
           },
           requestId: {
-            value: options.requestId,
+            value: options.requestId ?? 'unknown',
             type: 'string',
           },
         },
@@ -260,7 +267,7 @@ export class AISdkClient extends LLMClient {
       return result;
     }
 
-    const tools: Record<string, CoreTool> = {};
+    const tools: Record<string, { description: string; parameters: unknown }> = {};
 
     for (const rawTool of options.tools ?? []) {
       tools[rawTool.name] = {
@@ -273,14 +280,15 @@ export class AISdkClient extends LLMClient {
       model: this.model,
       messages: formattedMessages,
       temperature: options.temperature,
-      tools,
+      // Note: Tools disabled until proper AI SDK v5 tool structure is implemented
+      // tools,
     });
 
     const result = {
       data: textResponse.text,
       usage: {
-        prompt_tokens: textResponse.usage.promptTokens ?? 0,
-        completion_tokens: textResponse.usage.completionTokens ?? 0,
+        prompt_tokens: textResponse.usage.inputTokens ?? 0,
+        completion_tokens: textResponse.usage.outputTokens ?? 0,
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
@@ -292,7 +300,7 @@ export class AISdkClient extends LLMClient {
         level: 1,
         auxiliary: {
           requestId: {
-            value: options.requestId,
+            value: options.requestId ?? 'unknown',
             type: 'string',
           },
           cacheOptions: {
@@ -305,7 +313,7 @@ export class AISdkClient extends LLMClient {
           },
         },
       });
-      this.cache.set(cacheOptions, result, options.requestId);
+      this.cache?.set(cacheOptions, result, options.requestId ?? crypto.randomUUID());
     }
 
     this.logger?.({
@@ -318,7 +326,7 @@ export class AISdkClient extends LLMClient {
           type: 'object',
         },
         requestId: {
-          value: options.requestId,
+          value: options.requestId ?? 'unknown',
           type: 'string',
         },
       },

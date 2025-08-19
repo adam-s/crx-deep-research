@@ -1,4 +1,4 @@
-import { AgentAction, AgentExecuteOptions, AgentResult } from '../../agent';
+import { AgentAction, AgentExecuteOptions, AgentResult } from '../../types/agent';
 import { LogLine } from '../../types/log';
 import {
   OperatorResponse,

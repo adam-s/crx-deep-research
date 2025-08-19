@@ -77,10 +77,10 @@ export class GoogleClient extends LLMClient {
     super(modelName);
     if (!clientOptions?.apiKey) {
       // Try to get the API key from the environment variable GOOGLE_API_KEY
-      clientOptions.apiKey = loadApiKeyFromEnv('google_legacy', logger);
+      clientOptions = { ...clientOptions, apiKey: loadApiKeyFromEnv('google_legacy', logger) };
     }
     this.clientOptions = clientOptions;
-    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
+    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey as string });
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
@@ -216,7 +216,18 @@ export class GoogleClient extends LLMClient {
     logger,
     retries = 3,
   }: CreateChatCompletionOptions): Promise<T> {
-    const { image, requestId, response_model, tools, temperature, top_p, maxTokens } = options;
+    const {
+      image,
+      requestId: requestIdOriginal,
+      response_model,
+      tools,
+      temperature,
+      top_p,
+      maxTokens,
+    } = options;
+
+    // Advanced TypeScript: Ensure requestId is always defined
+    const requestId = requestIdOriginal ?? crypto.randomUUID();
 
     const cacheKeyOptions = {
       model: this.modelName,
@@ -230,7 +241,12 @@ export class GoogleClient extends LLMClient {
       response_model: response_model
         ? {
             name: response_model.name,
-            schema: JSON.stringify(zodToJsonSchema(response_model.schema)),
+            // Advanced TypeScript: Type assertion for Zod compatibility
+            schema: JSON.stringify(
+              zodToJsonSchema(
+                response_model.schema as unknown as Parameters<typeof zodToJsonSchema>[0]
+              )
+            ),
           }
         : undefined,
       tools: tools,
@@ -238,7 +254,7 @@ export class GoogleClient extends LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(cacheKeyOptions, requestId);
+      const cachedResponse = await this.cache?.get<T>(cacheKeyOptions, requestId);
       if (cachedResponse) {
         logger({
           category: 'llm_cache',
@@ -314,7 +330,7 @@ export class GoogleClient extends LLMClient {
         level: 0,
         auxiliary: {
           requestId: { value: requestId, type: 'string' },
-          error: { value: e.message, type: 'string' },
+          error: { value: e instanceof Error ? e.message : String(e), type: 'string' },
         },
       });
     }
@@ -336,22 +352,23 @@ export class GoogleClient extends LLMClient {
       });
 
       const finishReason = result.candidates?.[0]?.finishReason || 'unknown';
-      const toolCalls = result.functionCalls?.map((fc: FunctionCall, index: number) => ({
-        id: `tool_call_${requestId}_${index}`,
-        type: 'function' as const,
-        function: {
-          name: fc.name,
-          arguments: JSON.stringify(fc.args),
-        },
-      }));
+      const toolCalls =
+        result.functionCalls?.map((fc: FunctionCall, index: number) => ({
+          id: `tool_call_${requestId}_${index}`,
+          type: 'function' as const,
+          function: {
+            name: fc.name || 'unknown',
+            arguments: JSON.stringify(fc.args),
+          },
+        })) || [];
 
       let content: string | null = null;
       try {
-        content = result.text;
+        content = result.text || null;
       } catch (e) {
         logger({
           category: 'google',
-          message: `Could not extract text content: ${e.message}`,
+          message: `Could not extract text content: ${e instanceof Error ? e.message : String(e)}`,
           level: 1,
           auxiliary: { requestId: { value: requestId, type: 'string' } },
         });
@@ -360,7 +377,7 @@ export class GoogleClient extends LLMClient {
 
       // Construct LLMResponse shape
       const llmResponse: LLMResponse = {
-        id: result.candidates?.[0]?.index?.toString() || requestId,
+        id: result.candidates?.[0]?.index?.toString() || requestId || 'unknown',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: this.modelName,
@@ -392,7 +409,7 @@ export class GoogleClient extends LLMClient {
         } catch (e) {
           logger({
             category: 'google',
-            message: `Failed to parse JSON response: ${e.message}`,
+            message: `Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)}`,
             level: 0,
             auxiliary: {
               content: { value: content || 'null', type: 'string' },
@@ -406,7 +423,7 @@ export class GoogleClient extends LLMClient {
             });
           }
           throw new CreateChatCompletionResponseError(
-            `Failed to parse JSON response: ${e.message}`
+            `Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)}`
           );
         }
 
@@ -434,14 +451,14 @@ export class GoogleClient extends LLMClient {
           usage: llmResponse.usage,
         };
 
-        if (this.enableCaching) {
+        if (this.enableCaching && this.cache) {
           await this.cache.set(cacheKeyOptions, extractionResult, requestId);
         }
         return extractionResult as T;
       }
 
       // Cache the standard response if not using response_model
-      if (this.enableCaching) {
+      if (this.enableCaching && this.cache) {
         await this.cache.set(cacheKeyOptions, llmResponse, requestId);
       }
 
@@ -449,11 +466,11 @@ export class GoogleClient extends LLMClient {
     } catch (error) {
       logger({
         category: 'google',
-        message: `Error during Google AI chat completion: ${error.message}`,
+        message: `Error during Google AI chat completion: ${error instanceof Error ? error.message : String(error)}`,
         level: 0,
         auxiliary: {
           errorDetails: {
-            value: `Message: ${error.message}${error.stack ? '\nStack: ' + error.stack : ''}`,
+            value: `Message: ${error instanceof Error ? error.message : String(error)}${error instanceof Error && error.stack ? '\nStack: ' + error.stack : ''}`,
             type: 'string',
           },
           requestId: { value: requestId, type: 'string' },
@@ -479,7 +496,9 @@ export class GoogleClient extends LLMClient {
       if (error instanceof StagehandError) {
         throw error;
       }
-      throw new StagehandError(`Google AI API request failed: ${error.message}`);
+      throw new StagehandError(
+        `Google AI API request failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }

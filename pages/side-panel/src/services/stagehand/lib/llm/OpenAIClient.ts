@@ -25,7 +25,7 @@ import {
   CreateChatCompletionResponseError,
   StagehandError,
   ZodSchemaValidationError,
-} from '../../stagehandErrors';
+} from '../../types/stagehandErrors';
 
 export class OpenAIClient extends LLMClient {
   public type = 'openai' as const;
@@ -47,7 +47,7 @@ export class OpenAIClient extends LLMClient {
     clientOptions?: ClientOptions;
   }) {
     super(modelName);
-    this.clientOptions = clientOptions;
+    this.clientOptions = clientOptions || {};
     this.client = new OpenAI(clientOptions);
     this.cache = cache;
     this.enableCaching = enableCaching;
@@ -59,7 +59,18 @@ export class OpenAIClient extends LLMClient {
     logger,
     retries = 3,
   }: CreateChatCompletionOptions): Promise<T> {
-    let options: Partial<ChatCompletionOptions> = optionsInitial;
+    // Advanced TypeScript: Create mutable copy with guaranteed non-null properties
+    let options: Required<Pick<ChatCompletionOptions, 'requestId' | 'messages'>> &
+      ChatCompletionOptions = {
+      ...optionsInitial,
+      requestId: optionsInitial.requestId ?? crypto.randomUUID(),
+      messages: optionsInitial.messages ?? [],
+    };
+
+    // Ensure messages array exists
+    if (!options.messages) {
+      throw new StagehandError('Messages are required for chat completion');
+    }
 
     // O1 models do not support most of the options. So we override them.
     // For schema and tools, we add them as user messages.
@@ -72,6 +83,9 @@ export class OpenAIClient extends LLMClient {
         options);
       /* eslint-enable */
       // Remove unsupported options
+      if (!options.messages) {
+        throw new StagehandError('Messages are required for O1 models');
+      }
       options.messages = options.messages.map(message => ({
         ...message,
         role: 'user',
@@ -137,7 +151,7 @@ export class OpenAIClient extends LLMClient {
       response_model: options.response_model,
     };
 
-    if (this.enableCaching) {
+    if (this.enableCaching && this.cache) {
       const cachedResponse = await this.cache.get<T>(cacheOptions, options.requestId);
       if (cachedResponse) {
         logger({
@@ -193,7 +207,11 @@ export class OpenAIClient extends LLMClient {
       // For O1 models, we need to add the schema as a user message.
       if (this.modelName.startsWith('o1') || this.modelName.startsWith('o3')) {
         try {
-          const parsedSchema = JSON.stringify(zodToJsonSchema(options.response_model.schema));
+          // Advanced TypeScript: Type assertion for Zod compatibility
+          const zodSchema = options.response_model.schema as unknown as Parameters<
+            typeof zodToJsonSchema
+          >[0];
+          const parsedSchema = JSON.stringify(zodToJsonSchema(zodSchema));
           options.messages.push({
             role: 'user',
             content: `Respond in this zod schema format:\n${parsedSchema}\n
@@ -220,7 +238,7 @@ export class OpenAIClient extends LLMClient {
         }
       } else {
         responseFormat = zodResponseFormat(
-          options.response_model.schema,
+          options.response_model.schema as unknown as Parameters<typeof zodResponseFormat>[0],
           options.response_model.name
         );
       }
@@ -250,6 +268,10 @@ export class OpenAIClient extends LLMClient {
       if (Array.isArray(message.content)) {
         const contentParts = message.content.map(content => {
           if ('image_url' in content) {
+            // Advanced TypeScript: Type guard for safe property access
+            if (!content.image_url?.url) {
+              throw new StagehandError('Invalid image URL content');
+            }
             const imageContent: ChatCompletionContentPartImage = {
               image_url: {
                 url: content.image_url.url,
@@ -258,8 +280,9 @@ export class OpenAIClient extends LLMClient {
             };
             return imageContent;
           } else {
+            // Advanced TypeScript: Non-null assertion after type guard
             const textContent: ChatCompletionContentPartText = {
-              text: content.text,
+              text: content.text ?? '',
               type: 'text',
             };
             return textContent;
@@ -323,7 +346,12 @@ export class OpenAIClient extends LLMClient {
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {
       try {
-        const parsedContent = JSON.parse(response.choices[0].message.content);
+        // Advanced TypeScript: Type guard for null safety
+        const messageContent = response.choices[0].message.content;
+        if (!messageContent) {
+          throw new StagehandError('No message content available for parsing');
+        }
+        const parsedContent = JSON.parse(messageContent);
 
         response.choices[0].message.tool_calls = [
           {
@@ -343,11 +371,13 @@ export class OpenAIClient extends LLMClient {
           level: 0,
           auxiliary: {
             error: {
-              value: error.message,
+              // Advanced TypeScript: Type guard for unknown error
+              value: error instanceof Error ? error.message : String(error),
               type: 'string',
             },
             content: {
-              value: response.choices[0].message.content,
+              // Advanced TypeScript: Null coalescing for safe content access
+              value: response.choices[0].message.content ?? 'No content',
               type: 'string',
             },
           },
@@ -384,6 +414,10 @@ export class OpenAIClient extends LLMClient {
 
     if (options.response_model) {
       const extractedData = response.choices[0].message.content;
+      // Advanced TypeScript: Type guard for null safety before JSON.parse
+      if (!extractedData) {
+        throw new StagehandError('No content available for response model parsing');
+      }
       const parsedData = JSON.parse(extractedData);
 
       try {
@@ -421,7 +455,7 @@ export class OpenAIClient extends LLMClient {
         throw e;
       }
 
-      if (this.enableCaching) {
+      if (this.enableCaching && this.cache) {
         this.cache.set(
           cacheOptions,
           {
@@ -437,7 +471,7 @@ export class OpenAIClient extends LLMClient {
       } as T;
     }
 
-    if (this.enableCaching) {
+    if (this.enableCaching && this.cache) {
       logger({
         category: 'llm_cache',
         message: 'caching response',
