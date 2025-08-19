@@ -14,6 +14,10 @@ import {
   testStagehandLivePageDOM,
   quickStagehandLivePageTest,
 } from './playgroundTests/livePageDomTests';
+import {
+  runLivePageDomMainTests,
+  TestProgress as MainWorldTestProgress,
+} from './playgroundTests/livePageDomMainTests';
 import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
@@ -174,6 +178,10 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       const progress = new TestProgress('Live-Page');
 
       await testStagehandLivePageDOM(progress, testContext);
+
+      // Additional MAIN world specific Stagehand utility tests
+      const mainWorldProgress = new MainWorldTestProgress('Live-Page-MainWorld');
+      await runLivePageDomMainTests(mainWorldProgress, testContext);
 
       this.events.emit({
         timestamp: Date.now(),

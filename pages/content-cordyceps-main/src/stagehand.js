@@ -486,3 +486,25 @@ window.canElementScroll = canElementScroll;
 window.__stagehandInjected = true;
 
 console.log('🎭 Stagehand DOM utilities loaded in Chrome extension content script');
+// eslint-disable-next-line max-len
+console.log(`[stagehand.js] All functions exposed to window ######`);
+// eslint-disable-next-line max-len
+console.log(
+  `[stagehand.js] generateXPathsForElement: ${typeof window.generateXPathsForElement} ######`
+);
+// eslint-disable-next-line max-len
+console.log(
+  `[stagehand.js] getScrollableElementXpaths: ${typeof window.getScrollableElementXpaths} ######`
+);
+// eslint-disable-next-line max-len
+console.log(`[stagehand.js] getNodeFromXpath: ${typeof window.getNodeFromXpath} ######`);
+// eslint-disable-next-line max-len
+console.log(
+  `[stagehand.js] waitForElementScrollEnd: ${typeof window.waitForElementScrollEnd} ######`
+);
+// eslint-disable-next-line max-len
+console.log(`[stagehand.js] getScrollableElements: ${typeof window.getScrollableElements} ######`);
+// eslint-disable-next-line max-len
+console.log(`[stagehand.js] canElementScroll: ${typeof window.canElementScroll} ######`);
+// eslint-disable-next-line max-len
+console.log(`[stagehand.js] __stagehand__: ${typeof window.__stagehand__} ######`);

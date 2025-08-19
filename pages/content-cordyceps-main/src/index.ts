@@ -10,6 +10,7 @@ import { HandleManager } from '@shared/utils/handleManager';
 import { createStagehandAdapter, type StagehandCordycepsAdapter } from './stagehandAdapter';
 import { HandledInjectedScript } from './handledInjectedScript';
 import './browserUse.js';
+import './stagehand.js';
 
 declare global {
   interface Window {
@@ -176,6 +177,24 @@ function bootstrapHandledInjectedScript(handleManager: HandleManager): HandledIn
 async function bootstrapStagehandAdapter(
   handleManager: HandleManager
 ): Promise<StagehandCordycepsAdapter | null> {
+  // eslint-disable-next-line max-len
+  console.log(
+    `[bootstrapStagehandAdapter] Starting adapter bootstrap with stagehand availability check ######`
+  );
+  // eslint-disable-next-line max-len
+  console.log(
+    `[bootstrapStagehandAdapter] Window.__stagehandInjected: ${!!window.__stagehandInjected} ######`
+  );
+  const w = window as unknown as Record<string, unknown>;
+  // eslint-disable-next-line max-len
+  console.log(
+    `[bootstrapStagehandAdapter] generateXPathsForElement: ${typeof w.generateXPathsForElement} ######`
+  );
+  // eslint-disable-next-line max-len
+  console.log(
+    `[bootstrapStagehandAdapter] getScrollableElementXpaths: ${typeof w.getScrollableElementXpaths} ######`
+  );
+
   if (window.__stagehandCordycepsAdapter_main) return window.__stagehandCordycepsAdapter_main;
 
   try {
@@ -186,6 +205,8 @@ async function bootstrapStagehandAdapter(
     });
 
     const initialized = await adapter.initialize();
+    console.log(`[bootstrapStagehandAdapter] Adapter initialization result: ${initialized} ######`);
+
     if (initialized) {
       window.__stagehandCordycepsAdapter_main = adapter;
       console.log('🎭 StagehandCordycepsAdapter initialized in MAIN world');
@@ -201,20 +222,26 @@ async function bootstrapStagehandAdapter(
 }
 
 const loader = async (): Promise<void> => {
+  console.log(`[loader] Starting content-cordyceps-main loader ######`);
+
   // Initialize handle manager for MAIN world
   const handleManager = bootstrapHandleManager();
+  console.log(`[loader] Handle manager bootstrapped ######`);
 
   // Initialize history tracker following the bootstrap pattern
   const historyTracker = bootstrapHistoryTracker();
+  console.log(`[loader] History tracker bootstrapped ######`);
 
   // Initialize HandledInjectedScript for DOM operations
   const handledInjectedScript = bootstrapHandledInjectedScript(handleManager);
+  console.log(`[loader] HandledInjectedScript bootstrapped ######`);
 
   // BrowserUse script functionality is loaded via import
   console.log('🌳 BrowserUse DOM tree functionality loaded');
 
   // Initialize Stagehand adapter
   const stagehandAdapter = await bootstrapStagehandAdapter(handleManager);
+  console.log(`[loader] Stagehand adapter result: ${!!stagehandAdapter} ######`);
 
   console.log('🔧 Content cordyceps main loaded with:', {
     historyTracker,
