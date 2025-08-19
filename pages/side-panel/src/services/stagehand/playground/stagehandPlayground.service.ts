@@ -5,7 +5,7 @@ import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
 import { EventMessage, Severity } from '@src/utils/types';
 import { IStagehandService } from '../stagehand.service';
 import { ILogService } from '@shared/services/log.service';
-import { testStagehandDOMUtils, quickStagehandDOMUtilsTest } from './playgroundTests/domUtilsTests';
+import { quickStagehandDOMUtilsTest } from './playgroundTests/domUtilsTests';
 import {
   testStagehandCordycepsConversion,
   quickStagehandCordycepsConversionTest,
@@ -18,6 +18,19 @@ import {
   runLivePageDomMainTests,
   TestProgress as MainWorldTestProgress,
 } from './playgroundTests/livePageDomMainTests';
+import { testDOMUtilities, quickDOMUtilitiesTest } from './playgroundTests/domUtilitiesTests';
+import {
+  testLLMAndAIProcessing,
+  quickLLMAndAIProcessingTest,
+} from './playgroundTests/llmAiProcessingTests';
+import {
+  testUtilityFunctions,
+  quickUtilityFunctionsTest,
+} from './playgroundTests/utilityFunctionsTests';
+import {
+  testConfigurationAndValidation,
+  quickConfigurationAndValidationTest,
+} from './playgroundTests/configValidationTests';
 import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
@@ -110,26 +123,48 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
     this.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,
-      message: '🔧 Testing Stagehand DOM utilities (15% - no conversion needed)...',
+      message:
+        '🔧 Testing Stagehand DOM utilities and pure functions (15% - no conversion needed)...',
     });
 
     try {
       const testContext = { events: this.events };
       const progress = new TestProgress('DOM-Utils');
 
-      await testStagehandDOMUtils(progress, testContext);
+      // Run the comprehensive DOM utilities tests
+      await testDOMUtilities(progress, testContext);
+
+      // Run LLM & AI Processing tests
+      const llmProgress = new TestProgress('LLM-AI');
+      await testLLMAndAIProcessing(llmProgress, testContext);
+
+      // Run Utility Functions tests
+      const utilityProgress = new TestProgress('Utilities');
+      await testUtilityFunctions(utilityProgress, testContext);
+
+      // Run Configuration & Validation tests
+      const configProgress = new TestProgress('Config-Validation');
+      await testConfigurationAndValidation(configProgress, testContext);
 
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
-        message: '✅ DOM utilities tests completed',
-        details: { category: 'pure-functions' },
+        message: '✅ All DOM utilities and pure function tests completed',
+        details: {
+          category: 'pure-functions',
+          completedCategories: [
+            'DOM Utilities',
+            'LLM & AI Processing',
+            'Utility Functions',
+            'Configuration & Validation',
+          ],
+        },
       });
     } catch (error) {
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Error,
-        message: '❌ DOM utilities tests failed',
+        message: '❌ DOM utilities and pure function tests failed',
         details: { error: String(error) },
       });
       throw error;
@@ -208,20 +243,38 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
     });
 
     try {
+      // Original quick tests
       const domUtilsOk = await quickStagehandDOMUtilsTest();
       const cordycepsOk = await quickStagehandCordycepsConversionTest();
       const livePageOk = await quickStagehandLivePageTest();
 
-      const allPassed = domUtilsOk && cordycepsOk && livePageOk;
+      // New comprehensive quick tests (these return boolean)
+      const domUtilitiesOk = await quickDOMUtilitiesTest();
+      const llmAiOk = await quickLLMAndAIProcessingTest();
+
+      // These quick tests use TestContext and don't return boolean
+      const testContext = { events: this.events };
+      await quickUtilityFunctionsTest(testContext);
+      await quickConfigurationAndValidationTest(testContext);
+
+      const allPassed = domUtilsOk && cordycepsOk && livePageOk && domUtilitiesOk && llmAiOk;
 
       this.events.emit({
         timestamp: Date.now(),
         severity: allPassed ? Severity.Success : Severity.Warning,
-        message: allPassed ? '✅ Quick tests passed' : '⚠️ Some quick tests failed',
+        message: allPassed ? '✅ All quick tests passed' : '⚠️ Some quick tests failed',
         details: {
           domUtils: domUtilsOk,
           cordycepsConversion: cordycepsOk,
           livePage: livePageOk,
+          domUtilities: domUtilitiesOk,
+          llmAiProcessing: llmAiOk,
+          comprehensiveTestsRun: [
+            'DOM Utilities Quick Test',
+            'LLM & AI Processing Quick Test',
+            'Utility Functions Quick Test',
+            'Configuration & Validation Quick Test',
+          ],
         },
       });
 
