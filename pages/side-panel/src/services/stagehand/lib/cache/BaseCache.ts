@@ -1,7 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
 import { LogLine } from '../../types/log';
+import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
+import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
 
 export interface CacheEntry {
   timestamp: number;
@@ -13,14 +12,19 @@ export interface CacheStore {
   [key: string]: CacheEntry;
 }
 
+interface StagehandCacheStorageSchema extends SidePanelAppStorageSchema {
+  [key: string]: unknown;
+}
+
 export class BaseCache<T extends CacheEntry> {
   private readonly CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
   private readonly CLEANUP_PROBABILITY = 0.01; // 1% chance
 
-  protected cacheDir: string;
-  protected cacheFile: string;
-  protected lockFile: string;
+  protected cacheKey: string;
+  protected lockKey: string;
+  protected requestIdMapKey: string;
   protected logger: (message: LogLine) => void;
+  protected storage: ILocalAsyncStorage<StagehandCacheStorageSchema>;
 
   private readonly LOCK_TIMEOUT_MS = 1_000;
   protected lockAcquired = false;
@@ -31,68 +35,23 @@ export class BaseCache<T extends CacheEntry> {
 
   constructor(
     logger: (message: LogLine) => void,
-    cacheDir: string = path.join(process.cwd(), 'tmp', '.cache'),
-    cacheFile: string = 'cache.json'
+    storage: ILocalAsyncStorage<StagehandCacheStorageSchema>,
+    cachePrefix: string = 'stagehand_cache'
   ) {
     this.logger = logger;
-    this.cacheDir = cacheDir;
-    this.cacheFile = path.join(cacheDir, cacheFile);
-    this.lockFile = path.join(cacheDir, 'cache.lock');
-    this.ensureCacheDirectory();
-    this.setupProcessHandlers();
+    this.storage = storage;
+    this.cacheKey = `${cachePrefix}_data`;
+    this.lockKey = `${cachePrefix}_lock`;
+    this.requestIdMapKey = `${cachePrefix}_requestIdMap`;
   }
 
-  private setupProcessHandlers(): void {
-    const releaseLockAndExit = () => {
-      this.releaseLock();
-      process.exit();
-    };
-
-    process.on('exit', releaseLockAndExit);
-    process.on('SIGINT', releaseLockAndExit);
-    process.on('SIGTERM', releaseLockAndExit);
-    process.on('uncaughtException', err => {
-      this.logger({
-        category: 'base_cache',
-        message: 'uncaught exception',
-        level: 2,
-        auxiliary: {
-          error: {
-            value: err.message,
-            type: 'string',
-          },
-          trace: {
-            value: err.stack,
-            type: 'string',
-          },
-        },
-      });
-      if (this.lockAcquired) {
-        releaseLockAndExit();
-      }
-    });
-  }
-
-  protected ensureCacheDirectory(): void {
-    if (!fs.existsSync(this.cacheDir)) {
-      fs.mkdirSync(this.cacheDir, { recursive: true });
-      this.logger({
-        category: 'base_cache',
-        message: 'created cache directory',
-        level: 1,
-        auxiliary: {
-          cacheDir: {
-            value: this.cacheDir,
-            type: 'string',
-          },
-        },
-      });
-    }
-  }
-
-  protected createHash(data: unknown): string {
-    const hash = crypto.createHash('sha256');
-    return hash.update(JSON.stringify(data)).digest('hex');
+  protected async createHash(data: unknown): Promise<string> {
+    const jsonString = JSON.stringify(data);
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(jsonString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
   protected sleep(ms: number): Promise<void> {
@@ -103,19 +62,16 @@ export class BaseCache<T extends CacheEntry> {
     const startTime = Date.now();
     while (Date.now() - startTime < this.LOCK_TIMEOUT_MS) {
       try {
-        if (fs.existsSync(this.lockFile)) {
-          const lockAge = Date.now() - fs.statSync(this.lockFile).mtimeMs;
-          if (lockAge > this.LOCK_TIMEOUT_MS) {
-            fs.unlinkSync(this.lockFile);
-            this.logger({
-              category: 'base_cache',
-              message: 'Stale lock file removed',
-              level: 1,
-            });
-          }
+        const existingLock = await this.storage.get(
+          this.lockKey as keyof StagehandCacheStorageSchema
+        );
+        if (existingLock) {
+          // In Chrome storage, we'll use a simple timeout-based approach
+          await this.sleep(5);
+          continue;
         }
 
-        fs.writeFileSync(this.lockFile, process.pid.toString(), { flag: 'wx' });
+        await this.storage.set(this.lockKey as keyof StagehandCacheStorageSchema, true as never);
         this.lockAcquireFailures = 0;
         this.lockAcquired = true;
         this.logger({
@@ -124,18 +80,18 @@ export class BaseCache<T extends CacheEntry> {
           level: 1,
         });
         return true;
-      } catch (e) {
+      } catch (error) {
         this.logger({
           category: 'base_cache',
           message: 'error acquiring lock',
           level: 2,
           auxiliary: {
             trace: {
-              value: e.stack,
+              value: (error as Error).stack ?? 'No stack trace',
               type: 'string',
             },
             message: {
-              value: e.message,
+              value: (error as Error).message,
               type: 'string',
             },
           },
@@ -155,21 +111,19 @@ export class BaseCache<T extends CacheEntry> {
         message: 'Failed to acquire lock 3 times in a row. Releasing lock manually.',
         level: 1,
       });
-      this.releaseLock();
+      await this.releaseLock();
     }
     return false;
   }
 
-  public releaseLock(): void {
+  public async releaseLock(): Promise<void> {
     try {
-      if (fs.existsSync(this.lockFile)) {
-        fs.unlinkSync(this.lockFile);
-        this.logger({
-          category: 'base_cache',
-          message: 'Lock released',
-          level: 1,
-        });
-      }
+      await this.storage.delete(this.lockKey as keyof StagehandCacheStorageSchema);
+      this.logger({
+        category: 'base_cache',
+        message: 'Lock released',
+        level: 1,
+      });
       this.lockAcquired = false;
     } catch (error) {
       this.logger({
@@ -178,11 +132,11 @@ export class BaseCache<T extends CacheEntry> {
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
@@ -204,7 +158,7 @@ export class BaseCache<T extends CacheEntry> {
     }
 
     try {
-      const cache = this.readCache();
+      const cache = await this.readCache();
       const now = Date.now();
       let entriesRemoved = 0;
 
@@ -216,7 +170,7 @@ export class BaseCache<T extends CacheEntry> {
       }
 
       if (entriesRemoved > 0) {
-        this.writeCache(cache);
+        await this.writeCache(cache);
         this.logger({
           category: 'llm_cache',
           message: 'cleaned up stale cache entries',
@@ -236,68 +190,66 @@ export class BaseCache<T extends CacheEntry> {
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
       });
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
     }
   }
 
-  protected readCache(): CacheStore {
-    if (fs.existsSync(this.cacheFile)) {
-      try {
-        const data = fs.readFileSync(this.cacheFile, 'utf-8');
-        return JSON.parse(data) as CacheStore;
-      } catch (error) {
-        this.logger({
-          category: 'base_cache',
-          message: 'error reading cache file. resetting cache.',
-          level: 1,
-          auxiliary: {
-            error: {
-              value: error.message,
-              type: 'string',
-            },
-            trace: {
-              value: error.stack,
-              type: 'string',
-            },
-          },
-        });
-        this.resetCache();
-        return {};
-      }
-    }
-    return {};
-  }
-
-  protected writeCache(cache: CacheStore): void {
+  protected async readCache(): Promise<CacheStore> {
     try {
-      fs.writeFileSync(this.cacheFile, JSON.stringify(cache, null, 2));
+      const data = await this.storage.get(this.cacheKey as keyof StagehandCacheStorageSchema);
+      const result = (data as CacheStore) || {};
+      return result;
+    } catch (error) {
       this.logger({
         category: 'base_cache',
-        message: 'Cache written to file',
+        message: 'error reading cache. resetting cache.',
+        level: 1,
+        auxiliary: {
+          error: {
+            value: (error as Error).message,
+            type: 'string',
+          },
+          trace: {
+            value: (error as Error).stack ?? 'No stack trace',
+            type: 'string',
+          },
+        },
+      });
+      await this.resetCache();
+      return {};
+    }
+  }
+
+  protected async writeCache(cache: CacheStore): Promise<void> {
+    try {
+      await this.storage.set(this.cacheKey as keyof StagehandCacheStorageSchema, cache as never);
+      this.logger({
+        category: 'base_cache',
+        message: 'Cache written to storage',
         level: 1,
       });
     } catch (error) {
       this.logger({
         category: 'base_cache',
-        message: 'error writing cache file',
+        message: 'error writing cache to storage',
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
@@ -327,13 +279,30 @@ export class BaseCache<T extends CacheEntry> {
     }
 
     try {
-      const hash = this.createHash(hashObj);
-      const cache = this.readCache();
+      const hash = await this.createHash(hashObj);
+      const cache = await this.readCache();
+
+      this.logger({
+        category: 'base_cache',
+        message: `Debug get operation - hash: ${hash}, cache keys: ${Object.keys(cache).length}`,
+        level: 1,
+      });
 
       if (cache[hash]) {
+        this.logger({
+          category: 'base_cache',
+          message: `Cache hit for hash ${hash}`,
+          level: 1,
+        });
         this.trackRequestIdUsage(requestId, hash);
         return cache[hash].data;
       }
+
+      this.logger({
+        category: 'base_cache',
+        message: `Cache miss for hash ${hash}`,
+        level: 1,
+      });
       return null;
     } catch (error) {
       this.logger({
@@ -342,20 +311,20 @@ export class BaseCache<T extends CacheEntry> {
         level: 1,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
       });
 
-      this.resetCache();
+      await this.resetCache();
       return null;
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
     }
   }
 
@@ -380,15 +349,15 @@ export class BaseCache<T extends CacheEntry> {
     }
 
     try {
-      const hash = this.createHash(hashObj);
-      const cache = this.readCache();
+      const hash = await this.createHash(hashObj);
+      const cache = await this.readCache();
       cache[hash] = {
         data,
         timestamp: Date.now(),
         requestId,
       };
 
-      this.writeCache(cache);
+      await this.writeCache(cache);
       this.trackRequestIdUsage(requestId, hash);
     } catch (error) {
       this.logger({
@@ -397,19 +366,19 @@ export class BaseCache<T extends CacheEntry> {
         level: 1,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
       });
 
-      this.resetCache();
+      await this.resetCache();
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
 
       if (Math.random() < this.CLEANUP_PROBABILITY) {
         this.cleanupStaleEntries();
@@ -428,12 +397,12 @@ export class BaseCache<T extends CacheEntry> {
     }
 
     try {
-      const hash = this.createHash(hashObj);
-      const cache = this.readCache();
+      const hash = await this.createHash(hashObj);
+      const cache = await this.readCache();
 
       if (cache[hash]) {
         delete cache[hash];
-        this.writeCache(cache);
+        await this.writeCache(cache);
       } else {
         this.logger({
           category: 'base_cache',
@@ -448,17 +417,17 @@ export class BaseCache<T extends CacheEntry> {
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
       });
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
     }
   }
 
@@ -486,7 +455,7 @@ export class BaseCache<T extends CacheEntry> {
       return;
     }
     try {
-      const cache = this.readCache();
+      const cache = await this.readCache();
       const hashes = this.requestIdToUsedHashes[requestId] ?? [];
       let entriesRemoved = 0;
       for (const hash of hashes) {
@@ -496,7 +465,7 @@ export class BaseCache<T extends CacheEntry> {
         }
       }
       if (entriesRemoved > 0) {
-        this.writeCache(cache);
+        await this.writeCache(cache);
       } else {
         this.logger({
           category: 'base_cache',
@@ -519,11 +488,11 @@ export class BaseCache<T extends CacheEntry> {
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
           requestId: {
@@ -533,16 +502,16 @@ export class BaseCache<T extends CacheEntry> {
         },
       });
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
     }
   }
 
   /**
-   * Resets the entire cache by clearing the cache file.
+   * Resets the entire cache by clearing the cache storage.
    */
-  public resetCache(): void {
+  public async resetCache(): Promise<void> {
     try {
-      fs.writeFileSync(this.cacheFile, '{}');
+      await this.storage.delete(this.cacheKey as keyof StagehandCacheStorageSchema);
       this.requestIdToUsedHashes = {}; // Reset requestId tracking
     } catch (error) {
       this.logger({
@@ -551,17 +520,15 @@ export class BaseCache<T extends CacheEntry> {
         level: 2,
         auxiliary: {
           error: {
-            value: error.message,
+            value: (error as Error).message,
             type: 'string',
           },
           trace: {
-            value: error.stack,
+            value: (error as Error).stack ?? 'No stack trace',
             type: 'string',
           },
         },
       });
-    } finally {
-      this.releaseLock();
     }
   }
 }

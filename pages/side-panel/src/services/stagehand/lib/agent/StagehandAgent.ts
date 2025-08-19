@@ -1,5 +1,5 @@
-import { LogLine } from '../../log';
-import { AgentExecuteOptions, AgentResult, AgentExecutionOptions } from '../../agent';
+import { LogLine } from '../../types/log';
+import { AgentExecuteOptions, AgentResult, AgentExecutionOptions } from '../../types/agent';
 import { AgentClient } from './AgentClient';
 
 /**

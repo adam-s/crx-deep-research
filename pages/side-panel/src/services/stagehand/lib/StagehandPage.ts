@@ -22,8 +22,8 @@ import {
   StagehandDefaultError,
   ExperimentalApiConflictError,
 } from '../types/stagehandErrors';
-import { StagehandAPIError } from '../../stagehandApiErrors';
-import { scriptContent } from '@/lib/dom/build/scriptContent';
+import { StagehandAPIError } from '../types/stagehandApiErrors';
+import { scriptContent } from './dom/build/scriptContent';
 import type { Protocol } from 'devtools-protocol';
 
 async function getCurrentRootFrameId(session: CDPSession): Promise<string> {

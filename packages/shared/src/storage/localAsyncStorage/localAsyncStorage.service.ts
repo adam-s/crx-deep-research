@@ -67,7 +67,7 @@ export class LocalAsyncStorageService<S extends AsyncStorageSchema>
         chrome.storage.local.set({ [String(key)]: value }, () => {
           if (chrome.runtime.lastError) {
             this.logService.error(
-              `Error setting key ${String(key)}: ${chrome.runtime.lastError.message}`,
+              `Error setting key ${String(key)}: ${chrome.runtime.lastError.message}`
             );
             reject(chrome.runtime.lastError);
           } else {
@@ -85,22 +85,23 @@ export class LocalAsyncStorageService<S extends AsyncStorageSchema>
   async get<K extends keyof S>(key: K): Promise<S[K] | undefined>;
   async get<K extends keyof S>(key: K, defaultValue: S[K]): Promise<S[K]>;
   async get<K extends keyof S>(key: K, defaultValue?: S[K]): Promise<S[K] | undefined> {
-    return new Promise<S[K]>((resolve, reject) => {
+    return new Promise<S[K] | undefined>((resolve, reject) => {
       try {
         chrome.storage.local.get(String(key), result => {
           if (chrome.runtime.lastError) {
             this.logService.error(
-              `Error getting key ${String(key)}: ${chrome.runtime.lastError.message}`,
+              `Error getting key ${String(key)}: ${chrome.runtime.lastError.message}`
             );
             reject(chrome.runtime.lastError);
           } else {
             if (Object.hasOwn(result, String(key))) {
-              resolve(result[String(key)] as S[K]);
+              const value = result[String(key)] as S[K];
+              resolve(value);
             } else {
               if (defaultValue !== undefined) {
                 resolve(defaultValue);
               } else {
-                resolve(undefined as unknown as S[K]);
+                resolve(undefined);
               }
             }
           }
@@ -118,7 +119,7 @@ export class LocalAsyncStorageService<S extends AsyncStorageSchema>
         chrome.storage.local.remove(String(key), () => {
           if (chrome.runtime.lastError) {
             this.logService.error(
-              `Error deleting key ${String(key)}: ${chrome.runtime.lastError.message}`,
+              `Error deleting key ${String(key)}: ${chrome.runtime.lastError.message}`
             );
             reject(chrome.runtime.lastError);
           } else {
@@ -139,7 +140,7 @@ export class LocalAsyncStorageService<S extends AsyncStorageSchema>
         chrome.storage.local.get(String(key), result => {
           if (chrome.runtime.lastError) {
             this.logService.error(
-              `Error checking key ${String(key)}: ${chrome.runtime.lastError.message}`,
+              `Error checking key ${String(key)}: ${chrome.runtime.lastError.message}`
             );
             reject(chrome.runtime.lastError);
           } else {

@@ -22,7 +22,8 @@ import {
   StagehandIframeError,
   XPathResolutionError,
 } from '../../types/stagehandErrors';
-import { CDPSession, Frame } from 'playwright';
+import { Frame } from '../../../cordyceps/frame';
+import { CDPSession } from 'playwright';
 
 const IFRAME_STEP_RE = /iframe\[\d+]$/i;
 const PUA_START = 0xe000;

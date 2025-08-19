@@ -5,6 +5,8 @@ import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
 import { EventMessage, Severity } from '@src/utils/types';
 import { IStagehandService } from '../stagehand.service';
 import { ILogService } from '@shared/services/log.service';
+import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
+import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
 import { quickStagehandDOMUtilsTest } from './playgroundTests/domUtilsTests';
 import {
   testStagehandCordycepsConversion,
@@ -77,6 +79,8 @@ export interface IStagehandPlaygroundService {
   runQuickTests: () => Promise<boolean>;
   /** Run easy conversion category tests */
   runEasyConversionTests: () => Promise<void>;
+  /** Run cache system tests */
+  runCacheTests: () => Promise<void>;
 }
 
 export class StagehandPlaygroundService extends Disposable implements IStagehandPlaygroundService {
@@ -87,7 +91,8 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
 
   constructor(
     @IStagehandService private readonly _stagehandService: IStagehandService,
-    @ILogService private readonly _logService: ILogService
+    @ILogService private readonly _logService: ILogService,
+    @ILocalAsyncStorage private readonly _storage: ILocalAsyncStorage<SidePanelAppStorageSchema>
   ) {
     super();
     this._logService.info('StagehandPlaygroundService: constructed');
@@ -121,6 +126,9 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
 
       // Phase 4: Test easy conversion categories for implementation planning
       await this.runEasyConversionTests();
+
+      // Phase 5: Test cache system with Chrome extension storage
+      await this.runCacheTests();
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -308,7 +316,13 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       await testCoreStagehandQuick(conversionTestContext);
       await testAccessibilityAdvancedQuick(conversionTestContext);
 
-      const allPassed = domUtilsOk && cordycepsOk && livePageOk && domUtilitiesOk && llmAiOk;
+      // Test cache system
+      const { quickCacheSystemTest } = await import('./playgroundTests/cacheSystemTests');
+      const cacheTestContext = { events: this.events, storage: this._storage };
+      const cacheOk = await quickCacheSystemTest(cacheTestContext);
+
+      const allPassed =
+        domUtilsOk && cordycepsOk && livePageOk && domUtilitiesOk && llmAiOk && cacheOk;
 
       this.events.emit({
         timestamp: Date.now(),
@@ -320,6 +334,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           livePage: livePageOk,
           domUtilities: domUtilitiesOk,
           llmAiProcessing: llmAiOk,
+          cacheSystem: cacheOk,
           comprehensiveTestsRun: [
             'DOM Utilities Quick Test',
             'LLM & AI Processing Quick Test',
@@ -334,6 +349,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
             'Core Stagehand Conversion Quick Test',
             'Accessibility & Advanced Conversion Quick Test',
           ],
+          cacheTestsRun: ['Cache System Quick Test'],
         },
       });
 
@@ -423,6 +439,67 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         timestamp: Date.now(),
         severity: Severity.Error,
         message: '❌ Easy conversion category tests failed',
+        details: { error: String(error) },
+      });
+      throw error;
+    }
+  }
+
+  public async runCacheTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '💾 Testing Stagehand cache system with Chrome extension storage...',
+      details: {
+        cacheTypes: ['BaseCache', 'ActionCache', 'LLMCache'],
+        storageMethod: 'chrome.storage.local',
+      },
+    });
+
+    try {
+      // Import the cache test functions
+      const { testCacheSystemIntegration, quickCacheSystemTest } = await import(
+        './playgroundTests/cacheSystemTests'
+      );
+
+      const testContext = {
+        events: this.events,
+        storage: this._storage,
+      };
+      const progress = new TestProgress('Cache-System');
+
+      // Run comprehensive cache tests
+      await testCacheSystemIntegration(progress, testContext);
+
+      // Run quick validation
+      const quickTestPassed = await quickCacheSystemTest(testContext);
+
+      if (!quickTestPassed) {
+        throw new Error('Quick cache validation failed');
+      }
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ All cache system tests completed successfully',
+        details: {
+          testsCompleted: [
+            'BaseCache set/get operations',
+            'ActionCache action tracking',
+            'LLMCache response caching',
+            'Cache cleanup operations',
+            'Complex key hashing',
+            'Quick validation test',
+          ],
+          storageIntegration: 'chrome.storage.local',
+          diIntegration: 'ILocalAsyncStorage service',
+        },
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Cache system tests failed',
         details: { error: String(error) },
       });
       throw error;

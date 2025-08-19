@@ -1,4 +1,4 @@
-import { Locator } from 'playwright';
+import { Locator } from '../../../cordyceps/locator';
 import { LogLine } from '../../types/log';
 import {
   PlaywrightCommandException,
@@ -7,7 +7,7 @@ import {
 import { LLMClient } from '../llm/LLMClient';
 import { StagehandPage } from '../StagehandPage';
 import { ActResult, ObserveResult, ActOptions, ObserveOptions } from '../../types/stagehand';
-import { MethodHandlerContext, SupportedPlaywrightAction } from '../../act';
+import { MethodHandlerContext, SupportedPlaywrightAction } from '../../types/act';
 import { buildActObservePrompt } from '../prompt';
 import {
   methodHandlerMap,

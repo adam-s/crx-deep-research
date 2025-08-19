@@ -1,5 +1,5 @@
 import { LLMClient } from '../lib/llm/LLMClient';
-import { Locator } from 'playwright';
+import { Locator } from '../../cordyceps/locator';
 import { Logger } from './log';
 import { StagehandPage } from '@/lib/StagehandPage';
 

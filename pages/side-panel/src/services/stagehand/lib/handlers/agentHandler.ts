@@ -9,9 +9,9 @@ import {
   AgentResult,
   AgentHandlerOptions,
   ActionExecutionResult,
-} from '@/types/agent';
+} from '../../types/agent';
 import { Stagehand } from '../index';
-import { StagehandFunctionName } from '@/types/stagehand';
+import { StagehandFunctionName } from '../../types/stagehand';
 import { mapKeyToPlaywright } from '../agent/utils/cuaKeyMapping';
 
 export class StagehandAgentHandler {

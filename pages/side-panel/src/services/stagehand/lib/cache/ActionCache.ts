@@ -1,5 +1,11 @@
 import { LogLine } from '../../types/log';
 import { BaseCache, CacheEntry } from './BaseCache';
+import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
+import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
+
+interface StagehandCacheStorageSchema extends SidePanelAppStorageSchema {
+  [key: string]: unknown;
+}
 
 export interface PlaywrightCommand {
   method: string;
@@ -22,8 +28,12 @@ export interface ActionEntry extends CacheEntry {
  * ActionCache handles logging and retrieving actions along with their Playwright commands.
  */
 export class ActionCache extends BaseCache<ActionEntry> {
-  constructor(logger: (message: LogLine) => void, cacheDir?: string, cacheFile?: string) {
-    super(logger, cacheDir, cacheFile || 'action_cache.json');
+  constructor(
+    logger: (message: LogLine) => void,
+    storage: ILocalAsyncStorage<StagehandCacheStorageSchema>,
+    cachePrefix?: string
+  ) {
+    super(logger, storage, cachePrefix || 'action_cache');
   }
 
   public async addActionStep({

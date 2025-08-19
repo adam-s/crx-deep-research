@@ -1,12 +1,18 @@
 import { BaseCache, CacheEntry } from './BaseCache';
+import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
+import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
+
+interface StagehandCacheStorageSchema extends SidePanelAppStorageSchema {
+  [key: string]: unknown;
+}
 
 export class LLMCache extends BaseCache<CacheEntry> {
   constructor(
     logger: (message: { category?: string; message: string; level?: number }) => void,
-    cacheDir?: string,
-    cacheFile?: string
+    storage: ILocalAsyncStorage<StagehandCacheStorageSchema>,
+    cachePrefix?: string
   ) {
-    super(logger, cacheDir, cacheFile || 'llm_calls.json');
+    super(logger, storage, cachePrefix || 'llm_cache');
   }
 
   /**
