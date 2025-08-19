@@ -34,11 +34,15 @@ export class AISdkClient extends LLMClient {
       typeof model === 'string'
         ? model
         : (model as { modelId?: string }).modelId || 'unknown-model';
+    console.log(
+      `[AISdkClient.constructor] modelId=${modelId} enableCaching=${enableCaching} ######`
+    );
     super(modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
+    console.log(`[AISdkClient.constructor] initialized successfully ######`);
   }
 
   private getModelId(): string {
@@ -50,6 +54,9 @@ export class AISdkClient extends LLMClient {
   async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {
+    console.log(
+      `[AISdkClient.createChatCompletion] starting with model=${this.getModelId()} ######`
+    );
     this.logger?.({
       category: 'aisdk',
       message: 'creating chat completion',
@@ -163,6 +170,7 @@ export class AISdkClient extends LLMClient {
     const isGPT5 = this.getModelId().includes('gpt-5');
     if (options.response_model) {
       try {
+        console.log(`[AISdkClient.createChatCompletion] calling generateObject with AI SDK ######`);
         objectResponse = await generateObject({
           model: this.model,
           messages: formattedMessages,
@@ -177,6 +185,7 @@ export class AISdkClient extends LLMClient {
               }
             : undefined,
         });
+        console.log(`[AISdkClient.createChatCompletion] received generateObject response ######`);
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
@@ -276,6 +285,7 @@ export class AISdkClient extends LLMClient {
       };
     }
 
+    console.log(`[AISdkClient.createChatCompletion] calling generateText with AI SDK ######`);
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
@@ -283,6 +293,7 @@ export class AISdkClient extends LLMClient {
       // Note: Tools disabled until proper AI SDK v5 tool structure is implemented
       // tools,
     });
+    console.log(`[AISdkClient.createChatCompletion] received generateText response ######`);
 
     const result = {
       data: textResponse.text,

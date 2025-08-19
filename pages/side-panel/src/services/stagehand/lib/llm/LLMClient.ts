@@ -102,12 +102,16 @@ export abstract class LLMClient {
   public userProvidedInstructions?: string;
 
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
+    console.log(
+      `[LLMClient.constructor] modelName=${modelName} hasInstructions=${!!userProvidedInstructions} ######`
+    );
     this.modelName = modelName;
     this.userProvidedInstructions = userProvidedInstructions;
     // Initialize required properties with sensible defaults
     this.type = 'openai';
     this.hasVision = false;
     this.clientOptions = {};
+    console.log(`[LLMClient.constructor] initialized base class ######`);
   }
 
   abstract createChatCompletion<

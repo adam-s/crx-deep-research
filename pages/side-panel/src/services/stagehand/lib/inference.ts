@@ -9,7 +9,7 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
 } from './prompt';
-import { appendSummary, writeTimestampedTxtFile } from '@/lib/inferenceLogUtils';
+import { appendSummary, writeTimestampedTxtFile } from './inferenceLogUtils';
 
 /** Simple usage shape if your LLM returns usage tokens. */
 interface LLMUsage {

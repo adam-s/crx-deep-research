@@ -46,12 +46,36 @@ export class OpenAIClient extends LLMClient {
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
   }) {
+    console.log(
+      `[OpenAIClient.constructor] modelName=${modelName} enableCaching=${enableCaching} ######`
+    );
     super(modelName);
     this.clientOptions = clientOptions || {};
-    this.client = new OpenAI(clientOptions);
+
+    // In browser environment, we must explicitly pass the API key
+    // Cannot rely on environment variables like OPENAI_API_KEY
+    const openAiConfig: ConstructorParameters<typeof OpenAI>[0] = {
+      ...this.clientOptions,
+      // Ensure API key is explicitly set for browser environment
+      apiKey: this.clientOptions.apiKey,
+      // Browser-specific configuration
+      dangerouslyAllowBrowser: true,
+    };
+
+    console.log(
+      `[OpenAIClient.constructor] creating OpenAI client with apiKey=${!!openAiConfig.apiKey} ######`
+    );
+
+    // Validate API key before creating client
+    if (!openAiConfig.apiKey || typeof openAiConfig.apiKey !== 'string') {
+      throw new StagehandError('OpenAI API key is required but not provided or invalid');
+    }
+
+    this.client = new OpenAI(openAiConfig);
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
+    console.log(`[OpenAIClient.constructor] initialized successfully ######`);
   }
 
   async createChatCompletion<T = LLMResponse>({
@@ -59,6 +83,9 @@ export class OpenAIClient extends LLMClient {
     logger,
     retries = 3,
   }: CreateChatCompletionOptions): Promise<T> {
+    console.log(
+      `[OpenAIClient.createChatCompletion] starting with model=${this.modelName} retries=${retries} ######`
+    );
     // Advanced TypeScript: Create mutable copy with guaranteed non-null properties
     let options: Required<Pick<ChatCompletionOptions, 'requestId' | 'messages'>> &
       ChatCompletionOptions = {
@@ -246,11 +273,18 @@ export class OpenAIClient extends LLMClient {
 
     /* eslint-disable */
     // Remove unsupported options
-    const { response_model, ...openAiOptions } = {
+    const { response_model, ...tempOptions } = {
       ...optionsWithoutImageAndRequestId,
       model: this.modelName,
     };
     /* eslint-enable */
+
+    // Convert camelCase parameters to snake_case for OpenAI API
+    const { maxTokens, ...restOptions } = tempOptions;
+    const openAiOptions = {
+      ...restOptions,
+      ...(maxTokens !== undefined && { max_tokens: maxTokens }),
+    };
 
     logger({
       category: 'openai',
@@ -341,7 +375,11 @@ export class OpenAIClient extends LLMClient {
       })),
     };
 
+    console.log(
+      `[OpenAIClient.createChatCompletion] calling OpenAI API with model=${this.modelName} ######`
+    );
     const response = await this.client.chat.completions.create(body);
+    console.log(`[OpenAIClient.createChatCompletion] received response from OpenAI API ######`);
 
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {

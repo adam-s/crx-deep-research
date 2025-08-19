@@ -4,6 +4,8 @@
  */
 
 import { Severity } from '@src/utils/types';
+import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
+import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
 
 /**
  * Simple progress tracker for testing - matches browser-use pattern
@@ -29,4 +31,5 @@ export interface TestContext {
       error?: Error;
     }) => void;
   };
+  storage?: ILocalAsyncStorage<SidePanelAppStorageSchema>;
 }

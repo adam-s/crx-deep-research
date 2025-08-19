@@ -165,13 +165,13 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
     });
 
     try {
-      const testContext = { events: this.events };
+      const testContext = { events: this.events, storage: this._storage };
       const progress = new TestProgress('DOM-Utils');
 
       // Run the comprehensive DOM utilities tests
       await testDOMUtilities(progress, testContext);
 
-      // Run LLM & AI Processing tests
+      // Run LLM & AI Processing tests with storage access for API keys
       const llmProgress = new TestProgress('LLM-AI');
       await testLLMAndAIProcessing(llmProgress, testContext);
 
