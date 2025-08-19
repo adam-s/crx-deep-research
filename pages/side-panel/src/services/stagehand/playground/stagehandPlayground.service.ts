@@ -31,6 +31,30 @@ import {
   testConfigurationAndValidation,
   quickConfigurationAndValidationTest,
 } from './playgroundTests/configValidationTests';
+import {
+  testTypeDefinitionsConversion,
+  testTypeDefinitionsQuick,
+} from './playgroundTests/typeDefinitionsConversionTests';
+import {
+  testUtilityFunctionsConversion,
+  testUtilityFunctionsQuick,
+} from './playgroundTests/utilityFunctionsConversionTests';
+import {
+  testHandlerUtilitiesConversion,
+  testHandlerUtilitiesQuick,
+} from './playgroundTests/handlerUtilitiesConversionTests';
+import {
+  testStorageFileSystemConversion,
+  testStorageFileSystemQuick,
+} from './playgroundTests/storageFileSystemConversionTests';
+import {
+  testCoreStagehandConversion,
+  testCoreStagehandQuick,
+} from './playgroundTests/coreStagehandConversionTests';
+import {
+  testAccessibilityAdvancedConversion,
+  testAccessibilityAdvancedQuick,
+} from './playgroundTests/accessibilityAdvancedConversionTests';
 import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
@@ -51,6 +75,8 @@ export interface IStagehandPlaygroundService {
   runLivePageDOMTests: () => Promise<void>;
   /** Run quick validation tests */
   runQuickTests: () => Promise<boolean>;
+  /** Run easy conversion category tests */
+  runEasyConversionTests: () => Promise<void>;
 }
 
 export class StagehandPlaygroundService extends Disposable implements IStagehandPlaygroundService {
@@ -92,6 +118,9 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
 
       // Phase 3: Test with live page content
       await this.runLivePageDOMTests();
+
+      // Phase 4: Test easy conversion categories for implementation planning
+      await this.runEasyConversionTests();
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -257,6 +286,28 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       await quickUtilityFunctionsTest(testContext);
       await quickConfigurationAndValidationTest(testContext);
 
+      // New easy conversion quick tests
+      const conversionTestContext = {
+        progress: (_update: {
+          category: string;
+          test: string;
+          status: string;
+          message?: string;
+          details?: string;
+        }) => {
+          // Silent progress for quick tests
+        },
+        completed: () => {
+          // Silent completion for quick tests
+        },
+      };
+      await testTypeDefinitionsQuick(conversionTestContext);
+      await testUtilityFunctionsQuick(conversionTestContext);
+      await testHandlerUtilitiesQuick(conversionTestContext);
+      await testStorageFileSystemQuick(conversionTestContext);
+      await testCoreStagehandQuick(conversionTestContext);
+      await testAccessibilityAdvancedQuick(conversionTestContext);
+
       const allPassed = domUtilsOk && cordycepsOk && livePageOk && domUtilitiesOk && llmAiOk;
 
       this.events.emit({
@@ -275,6 +326,14 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
             'Utility Functions Quick Test',
             'Configuration & Validation Quick Test',
           ],
+          conversionTestsRun: [
+            'Type Definitions Conversion Quick Test',
+            'Utility Functions Conversion Quick Test',
+            'Handler Utilities Conversion Quick Test',
+            'Storage & File System Conversion Quick Test',
+            'Core Stagehand Conversion Quick Test',
+            'Accessibility & Advanced Conversion Quick Test',
+          ],
         },
       });
 
@@ -287,6 +346,86 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         details: { error: String(error) },
       });
       return false;
+    }
+  }
+
+  public async runEasyConversionTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🔧 Running easy conversion category tests...',
+      details: {
+        categories: [
+          'Type Definitions & Interface Files',
+          'Utility Functions',
+          'Handler Utilities',
+          'Storage & File System Adaptations',
+          'Core Stagehand Components (CRITICAL)',
+          'Accessibility & Advanced Features',
+        ],
+      },
+    });
+
+    try {
+      const testContext = {
+        progress: (update: {
+          category: string;
+          test: string;
+          status: string;
+          message?: string;
+          details?: string;
+        }) => {
+          this.events.emit({
+            timestamp: Date.now(),
+            severity: update.status === 'failed' ? Severity.Error : Severity.Info,
+            message: `${update.category}: ${update.test}`,
+            details: {
+              status: update.status,
+              message: update.message,
+              details: update.details,
+            },
+          });
+        },
+        completed: () => {
+          // Progress completion callback
+        },
+      };
+
+      // Category 1: Type Definitions & Interface Files (Minimal Changes)
+      await testTypeDefinitionsConversion(testContext);
+
+      // Category 2: Utility Functions (Low Impact Changes)
+      await testUtilityFunctionsConversion(testContext);
+
+      // Category 3: Handler Utilities (Direct API Conversion)
+      await testHandlerUtilitiesConversion(testContext);
+
+      // Category 4: Storage & File System Adaptations
+      await testStorageFileSystemConversion(testContext);
+
+      // Category 5: Core Stagehand Components (CRITICAL)
+      await testCoreStagehandConversion(testContext);
+
+      // Category 6: Accessibility & Advanced Features
+      await testAccessibilityAdvancedConversion(testContext);
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: '✅ All easy conversion category tests completed',
+        details: {
+          categoriesCompleted: 6,
+          nextPhase: 'implementation-phase',
+        },
+      });
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Easy conversion category tests failed',
+        details: { error: String(error) },
+      });
+      throw error;
     }
   }
 }
