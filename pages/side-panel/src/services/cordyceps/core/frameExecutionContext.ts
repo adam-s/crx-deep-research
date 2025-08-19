@@ -4,6 +4,7 @@ import { ElementHandle } from '../elementHandle';
 import type { Frame } from '../frame';
 import type { Session } from '../session';
 import { LongStandingScope } from '@injected/isomorphic/manualPromise';
+import { arrayBufferToBase64, type Base64FileData } from '@shared/utils/base64Utils';
 
 type ScriptInjectionResult<T> = chrome.scripting.InjectionResult<Awaited<T>> & {
   error?: { message: string };
@@ -26,7 +27,7 @@ interface CordycepsInjectedScript {
     parsedSelector: unknown,
     strict: boolean,
     scopeHandle: string | null,
-    selectorString: string,
+    selectorString: string
   ): {
     log: string;
     elementHandle: string | null;
@@ -38,13 +39,13 @@ interface CordycepsInjectedScript {
     parsedSelector: unknown,
     strict: boolean,
     scopeHandle: string | null,
-    selectorString: string,
+    selectorString: string
   ): string | null;
   getBoundingBox(handle: string): { x: number; y: number; width: number; height: number } | null;
   isChecked(handle: string): boolean;
   setChecked(
     handle: string,
-    state: boolean,
+    state: boolean
   ): {
     success: boolean;
     error?: string;
@@ -59,7 +60,7 @@ interface CordycepsInjectedScript {
       force?: boolean;
       button?: 'left' | 'right' | 'middle';
       clickCount?: number;
-    },
+    }
   ): { success: boolean; error?: string; needsForce?: boolean };
   tapElement(handle: string): { success: boolean; error?: string };
   tapElementWithOptions(
@@ -67,12 +68,12 @@ interface CordycepsInjectedScript {
     options: {
       position?: { x: number; y: number };
       force?: boolean;
-    },
+    }
   ): { success: boolean; error?: string; needsForce?: boolean };
   dispatchEvent(
     handle: string,
     type: string,
-    eventInit: Record<string, unknown>,
+    eventInit: Record<string, unknown>
   ): { success: boolean; error?: string };
   highlight(parsedSelector: unknown): void;
   hideHighlight(): void;
@@ -83,7 +84,7 @@ interface CordycepsInjectedScript {
     getPort(portId: string):
       | {
           getIncomingBuffer(
-            transferId: string,
+            transferId: string
           ): { buffer: ArrayBuffer; mimeType: string; name: string } | undefined;
         }
       | undefined;
@@ -91,7 +92,7 @@ interface CordycepsInjectedScript {
   setInputFiles(
     handle: string,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
-    options: { force?: boolean; directoryUpload?: boolean },
+    options: { force?: boolean; directoryUpload?: boolean }
   ): {
     success: boolean;
     error?: string;
@@ -120,7 +121,7 @@ export class FrameExecutionContext extends Disposable {
 
   async executeScript<T, Args extends unknown[]>(
     func: (...args: Args) => T,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN',
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
     try {
@@ -193,7 +194,7 @@ export class FrameExecutionContext extends Disposable {
   public async clickSelector(
     selector: string,
     rootElementHandle?: ElementHandle,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<void> {
     const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     await this.executeScript(
@@ -216,14 +217,14 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       selector,
-      rootHandle,
+      rootHandle
     );
   }
 
   public async elementExists(
     selector: string,
     rootElementHandle?: ElementHandle,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<boolean> {
     const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const result = await this.executeScript(
@@ -238,7 +239,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       selector,
-      rootHandle,
+      rootHandle
     );
     return result || false;
   }
@@ -246,7 +247,7 @@ export class FrameExecutionContext extends Disposable {
   public async querySelector(
     selector: string,
     rootElementHandle?: ElementHandle,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<ElementHandle | null> {
     const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const handle = await this.executeScript(
@@ -261,7 +262,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       selector,
-      rootHandle,
+      rootHandle
     );
 
     if (!handle) {
@@ -273,7 +274,7 @@ export class FrameExecutionContext extends Disposable {
   public async querySelectorAll(
     selector: string,
     rootElementHandle?: ElementHandle,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<ElementHandle[]> {
     const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const handles = await this.executeScript(
@@ -289,7 +290,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       selector,
-      rootHandle,
+      rootHandle
     );
 
     if (!handles) {
@@ -301,8 +302,8 @@ export class FrameExecutionContext extends Disposable {
   public async ariaSnapshot(
     forAI: boolean,
     refPrefix: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
-    rootElementHandle?: ElementHandle,
+    world: chrome.scripting.ExecutionWorld = 'MAIN',
+    rootElementHandle?: ElementHandle
   ): Promise<string | boolean> {
     const rootHandle = rootElementHandle ? rootElementHandle.remoteObject : null;
     const result = await this.executeScript(
@@ -322,7 +323,7 @@ export class FrameExecutionContext extends Disposable {
       world,
       forAI,
       refPrefix,
-      rootHandle,
+      rootHandle
     );
     return result ?? true;
   }
@@ -344,7 +345,7 @@ export class FrameExecutionContext extends Disposable {
     strict: boolean,
     scopeHandle: string | null,
     selectorString: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<
     | {
         log: string;
@@ -360,21 +361,21 @@ export class FrameExecutionContext extends Disposable {
         parsedSelector: unknown,
         strict: boolean,
         scopeHandle: string | null,
-        selectorString: string,
+        selectorString: string
       ) => {
         const injected = window.__cordyceps_handledInjectedScript;
         return injected.waitForSelectorEvaluation(
           parsedSelector,
           strict,
           scopeHandle,
-          selectorString,
+          selectorString
         );
       },
       world,
       parsedSelector,
       strict,
       scopeHandle,
-      selectorString,
+      selectorString
     );
 
     return result;
@@ -389,28 +390,28 @@ export class FrameExecutionContext extends Disposable {
     strict: boolean,
     scopeHandle: string | null,
     selectorString: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<string | null | undefined> {
     return this.executeScript(
       (
         parsedSelector: unknown,
         strict: boolean,
         scopeHandle: string | null,
-        selectorString: string,
+        selectorString: string
       ) => {
         const injected = window.__cordyceps_handledInjectedScript;
         return injected.frameSelectorEvaluation(
           parsedSelector,
           strict,
           scopeHandle,
-          selectorString,
+          selectorString
         );
       },
       world,
       parsedSelector,
       strict,
       scopeHandle,
-      selectorString,
+      selectorString
     );
   }
 
@@ -420,7 +421,7 @@ export class FrameExecutionContext extends Disposable {
    */
   public async getBoundingBox(
     handle: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ x: number; y: number; width: number; height: number } | null | undefined> {
     return this.executeScript(
       (handle: string) => {
@@ -428,7 +429,7 @@ export class FrameExecutionContext extends Disposable {
         return injected.getBoundingBox(handle);
       },
       world,
-      handle,
+      handle
     );
   }
 
@@ -438,7 +439,7 @@ export class FrameExecutionContext extends Disposable {
    */
   public async isChecked(
     handle: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<boolean | undefined> {
     return this.executeScript(
       (handle: string) => {
@@ -446,7 +447,7 @@ export class FrameExecutionContext extends Disposable {
         return injected.isChecked(handle);
       },
       world,
-      handle,
+      handle
     );
   }
 
@@ -457,7 +458,7 @@ export class FrameExecutionContext extends Disposable {
   public async setChecked(
     handle: string,
     state: boolean,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<
     | {
         success: boolean;
@@ -474,7 +475,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       handle,
-      state,
+      state
     );
   }
 
@@ -484,7 +485,7 @@ export class FrameExecutionContext extends Disposable {
    */
   public async clickElement(
     handle: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string } | undefined> {
     const result = this.executeScript(
       (handle: string) => {
@@ -492,7 +493,7 @@ export class FrameExecutionContext extends Disposable {
         return injected.clickElement(handle);
       },
       world,
-      handle,
+      handle
     );
 
     return result;
@@ -513,7 +514,7 @@ export class FrameExecutionContext extends Disposable {
       modifiers?: ('Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift')[];
       trial?: boolean;
     } = {},
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string; needsForce?: boolean } | undefined> {
     return this.executeScript(
       (
@@ -526,14 +527,14 @@ export class FrameExecutionContext extends Disposable {
           noWaitAfter?: boolean;
           modifiers?: ('Alt' | 'Control' | 'ControlOrMeta' | 'Meta' | 'Shift')[];
           trial?: boolean;
-        },
+        }
       ) => {
         const injected = window.__cordyceps_handledInjectedScript;
         return injected.clickElementWithOptions(handle, options);
       },
       world,
       handle,
-      options,
+      options
     );
   }
 
@@ -543,7 +544,7 @@ export class FrameExecutionContext extends Disposable {
    */
   public async tapElement(
     handle: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string } | undefined> {
     return this.executeScript(
       (h: string) => {
@@ -551,7 +552,7 @@ export class FrameExecutionContext extends Disposable {
         return injected.tapElement(h);
       },
       world,
-      handle,
+      handle
     );
   }
 
@@ -565,7 +566,7 @@ export class FrameExecutionContext extends Disposable {
       position?: { x: number; y: number };
       force?: boolean;
     } = {},
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string; needsForce?: boolean } | undefined> {
     return this.executeScript(
       (h: string, opts: { position?: { x: number; y: number }; force?: boolean }) => {
@@ -574,7 +575,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       handle,
-      options,
+      options
     );
   }
 
@@ -586,7 +587,7 @@ export class FrameExecutionContext extends Disposable {
     handle: string,
     type: string,
     eventInit: Record<string, unknown> = {},
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string } | undefined> {
     return this.executeScript(
       (handle: string, type: string, eventInit: Record<string, unknown>) => {
@@ -596,7 +597,7 @@ export class FrameExecutionContext extends Disposable {
       world,
       handle,
       type,
-      eventInit,
+      eventInit
     );
   }
 
@@ -605,7 +606,7 @@ export class FrameExecutionContext extends Disposable {
    */
   public async highlight(
     selector: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<void> {
     return this.executeScript(
       (selector: string) => {
@@ -614,14 +615,14 @@ export class FrameExecutionContext extends Disposable {
         return injected.highlight(parsed);
       },
       world,
-      selector,
+      selector
     );
   }
 
   /**
    * Hide any currently displayed highlights.
    */
-  public async hideHighlight(world: chrome.scripting.ExecutionWorld = 'ISOLATED'): Promise<void> {
+  public async hideHighlight(world: chrome.scripting.ExecutionWorld = 'MAIN'): Promise<void> {
     return this.executeScript(() => {
       const injected = window.__cordyceps_handledInjectedScript;
       return injected.hideHighlight();
@@ -635,7 +636,7 @@ export class FrameExecutionContext extends Disposable {
   public async markTargetElements(
     elementHandles: string[],
     callId: string,
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<void> {
     return this.executeScript(
       (handles: string[], callId: string) => {
@@ -655,7 +656,7 @@ export class FrameExecutionContext extends Disposable {
       },
       world,
       elementHandles,
-      callId,
+      callId
     );
   }
 
@@ -665,7 +666,7 @@ export class FrameExecutionContext extends Disposable {
    * @returns The port ID that can be used to communicate with the created port
    */
   public async createFileTransferPort(
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<string | undefined> {
     const portId = await this.executeScript(() => {
       const injected = window.__cordyceps_handledInjectedScript;
@@ -678,7 +679,9 @@ export class FrameExecutionContext extends Disposable {
 
   /**
    * Sets files on an input element using its handle, following Playwright patterns.
-   * This method validates the input element and sets the files with proper error handling.
+   * This method automatically chooses the appropriate file transfer mechanism:
+   * - MAIN world: Direct base64 conversion and DOM manipulation
+   * - ISOLATED world: Port-based buffer transfer system
    *
    * @param handle The element handle for the input element
    * @param files Array of file payloads to set
@@ -690,7 +693,7 @@ export class FrameExecutionContext extends Disposable {
     handle: string,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
     options: { force?: boolean; directoryUpload?: boolean } = {},
-    world: chrome.scripting.ExecutionWorld = 'ISOLATED',
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<
     | {
         success: boolean;
@@ -699,6 +702,46 @@ export class FrameExecutionContext extends Disposable {
       }
     | undefined
   > {
+    console.log(`[FrameExecutionContext.setInputFiles] Starting with world: ${world} ######`);
+
+    // Route to appropriate implementation based on execution world
+    if (world === 'MAIN') {
+      console.log(
+        `[FrameExecutionContext.setInputFiles] Using base64 approach for MAIN world ######`
+      );
+      return this.setInputFilesWithBase64(handle, files, options, world);
+    } else {
+      console.log(
+        `[FrameExecutionContext.setInputFiles] Using port-based approach for ISOLATED world ######`
+      );
+      return this._setInputFilesWithPorts(handle, files, options, world);
+    }
+  }
+
+  /**
+   * Sets files on an input element using the port-based transfer system.
+   * This is the original implementation that works in ISOLATED world.
+   */
+  private async _setInputFilesWithPorts(
+    handle: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
+    options: { force?: boolean; directoryUpload?: boolean } = {},
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
+  ): Promise<
+    | {
+        success: boolean;
+        error?: string;
+        filesSet: number;
+      }
+    | undefined
+  > {
+    // Enforce ISOLATED world for port-based file operations
+    if (world !== 'MAIN') {
+      throw new Error(
+        'Port-based file operations must run in ISOLATED world for Chrome extension security'
+      );
+    }
+
     // 1) Create a file transfer port in the content script
     const portId = await this.createFileTransferPort(world);
     if (!portId) {
@@ -732,15 +775,33 @@ export class FrameExecutionContext extends Disposable {
     }
 
     // 4) Execute setInputFiles in the content script with the transfer IDs
+    console.log(
+      `[FrameExecutionContext._setInputFilesWithPorts] About to execute script in ${world} world ######`
+    );
+    console.log(
+      `[FrameExecutionContext._setInputFilesWithPorts] handle: ${handle}, portId: ${portId} ######`
+    );
+    console.log(
+      `[FrameExecutionContext._setInputFilesWithPorts] transferIds: ${JSON.stringify(transferIds)} ######`
+    );
     const result = await this.executeScript(
       (
         handle: string,
         portId: string,
         transferIds: string[],
-        options: { force?: boolean; directoryUpload?: boolean },
+        options: { force?: boolean; directoryUpload?: boolean }
       ) => {
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] handle: ${handle}, portId: ${portId} ######`
+        );
         const injected = window.__cordyceps_handledInjectedScript;
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] Injected script available: ${!!injected} ######`
+        );
         const port = injected.fileTransferPortManager.getPort(portId);
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] Port available: ${!!port} ######`
+        );
         if (!port) {
           return { success: false, error: 'Transfer port not found', filesSet: 0 };
         }
@@ -749,6 +810,9 @@ export class FrameExecutionContext extends Disposable {
         const built: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
         for (const id of transferIds) {
           const data = port.getIncomingBuffer(id);
+          console.log(
+            `[FrameExecutionContext._setInputFilesWithPorts.script] Transfer data for ${id}: ${!!data} ######`
+          );
           if (!data) {
             return { success: false, error: 'Missing transferred data', filesSet: 0 };
           }
@@ -756,16 +820,180 @@ export class FrameExecutionContext extends Disposable {
           built.push({ name: data.name, mimeType: data.mimeType, buffer: data.buffer });
         }
 
-        return injected.setInputFiles(handle, built, options);
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] About to call setInputFiles ######`
+        );
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] handle: ${handle}, files: ${built.length} ######`
+        );
+        const result = injected.setInputFiles(handle, built, options);
+        console.log(
+          `[FrameExecutionContext._setInputFilesWithPorts.script] result: ${JSON.stringify(result)} ######`
+        );
+        return result;
       },
       world,
       handle,
       portId,
       transferIds,
-      options,
+      options
     );
 
+    console.log(`[FrameExecutionContext._setInputFilesWithPorts] Final result: ######`);
+    console.log(result);
+    console.log(`[FrameExecutionContext._setInputFilesWithPorts] Method complete ######`);
     return result;
+  }
+
+  /**
+   * Sets input files using base64 conversion instead of port-based transfer.
+   * This method is designed for MAIN world operations where port infrastructure
+   * is not available or desired. Files are converted to base64 and passed
+   * directly as script arguments.
+   *
+   * @param handle Element handle for the input element
+   * @param files Array of file payloads to set
+   * @param options Options for the operation
+   * @param world Execution world (should be 'MAIN' for this method)
+   * @returns Result of the operation
+   */
+  public async setInputFilesWithBase64(
+    handle: string,
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
+    options: { force?: boolean; directoryUpload?: boolean } = {},
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
+  ): Promise<{ success: boolean; error?: string; filesSet: number }> {
+    console.log(
+      `[FrameExecutionContext.setInputFilesWithBase64] Starting base64 file transfer ######`
+    );
+    console.log(
+      `[FrameExecutionContext.setInputFilesWithBase64] Handle: ${handle}, Files: ${files.length} ######`
+    );
+
+    try {
+      // 1) Convert files to base64 format
+      const base64Files: Base64FileData[] = [];
+      for (const file of files) {
+        const base64 = arrayBufferToBase64(file.buffer);
+        base64Files.push({
+          name: file.name,
+          mimeType: file.mimeType,
+          size: file.buffer.byteLength,
+          base64,
+        });
+        console.log(
+          `[FrameExecutionContext.setInputFilesWithBase64] Converted ${file.name} to base64 ` +
+            `(${base64.length} chars) ######`
+        );
+      }
+
+      // 2) Execute script directly with base64 data
+      console.log(
+        `[FrameExecutionContext.setInputFilesWithBase64] Executing script in ${world} world ######`
+      );
+      const result = await this.executeScript(
+        (
+          handle: string,
+          base64Files: Base64FileData[],
+          options: { force?: boolean; directoryUpload?: boolean }
+        ) => {
+          console.log(
+            `[FrameExecutionContext.setInputFilesWithBase64.script] Handle: ${handle}, ` +
+              `Files: ${base64Files.length} ######`
+          );
+
+          // Check if MAIN world injected script is available
+          const injected = window.__cordyceps_handledInjectedScript;
+          console.log(
+            `[FrameExecutionContext.setInputFilesWithBase64.script] Injected script available: ` +
+              `${!!injected} ######`
+          );
+
+          if (!injected) {
+            return {
+              success: false,
+              error: 'HandledInjectedScript not available in MAIN world',
+              filesSet: 0,
+            };
+          }
+
+          // Convert base64 files back to ArrayBuffer format expected by setInputFiles
+          const reconstructedFiles: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
+          for (const base64File of base64Files) {
+            try {
+              // Convert base64 back to ArrayBuffer
+              const binaryString = atob(base64File.base64);
+              const length = binaryString.length;
+              const bytes = new Uint8Array(length);
+
+              for (let i = 0; i < length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+
+              reconstructedFiles.push({
+                name: base64File.name,
+                mimeType: base64File.mimeType,
+                buffer: bytes.buffer,
+              });
+
+              console.log(
+                `[FrameExecutionContext.setInputFilesWithBase64.script] Reconstructed ` +
+                  `${base64File.name} from base64 ######`
+              );
+            } catch (error) {
+              console.error(
+                `[FrameExecutionContext.setInputFilesWithBase64.script] Failed to reconstruct ` +
+                  `${base64File.name}:`,
+                error
+              );
+              return {
+                success: false,
+                error: `Failed to reconstruct file: ${base64File.name}`,
+                filesSet: 0,
+              };
+            }
+          }
+
+          // Call the MAIN world setInputFiles method
+          console.log(
+            `[FrameExecutionContext.setInputFilesWithBase64.script] Calling setInputFiles with ` +
+              `${reconstructedFiles.length} files ######`
+          );
+          const result = injected.setInputFiles(handle, reconstructedFiles, options);
+          console.log(
+            `[FrameExecutionContext.setInputFilesWithBase64.script] Result: ` +
+              `${JSON.stringify(result)} ######`
+          );
+
+          return result;
+        },
+        world,
+        handle,
+        base64Files,
+        options
+      );
+
+      console.log(`[FrameExecutionContext.setInputFilesWithBase64] Final result: ######`);
+      console.log(result);
+      console.log(`[FrameExecutionContext.setInputFilesWithBase64] Method complete ######`);
+
+      return (
+        result || {
+          success: false,
+          error: 'Script execution returned undefined result',
+          filesSet: 0,
+        }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[FrameExecutionContext.setInputFilesWithBase64] Error:`, error);
+
+      return {
+        success: false,
+        error: `Base64 file transfer failed: ${errorMessage}`,
+        filesSet: 0,
+      };
+    }
   }
 
   public toString(): string {

@@ -6,7 +6,7 @@ import { TestContext } from '../api';
 export async function testDispatchEventFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -27,14 +27,14 @@ export async function testDispatchEventFunctionality(
         ((window as unknown as Record<string, unknown>).testCustomEventCount as number)++;
         console.log(
           'Custom event count:',
-          (window as unknown as Record<string, unknown>).testCustomEventCount,
+          (window as unknown as Record<string, unknown>).testCustomEventCount
         );
       };
       if (button) {
         button.addEventListener('customTest', handler);
         (window as unknown as Record<string, unknown>).testCustomEventHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const actionButtonLocator = page.locator('#action-button');
     await actionButtonLocator.dispatchEvent('customTest', {
@@ -48,7 +48,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testCustomEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (customEventCount !== 1) {
@@ -75,14 +75,14 @@ export async function testDispatchEventFunctionality(
         ((window as unknown as Record<string, unknown>).testInputEventCount as number)++;
         console.log(
           'Input event count:',
-          (window as unknown as Record<string, unknown>).testInputEventCount,
+          (window as unknown as Record<string, unknown>).testInputEventCount
         );
       };
       if (checkbox) {
         checkbox.addEventListener('input', handler);
         (window as unknown as Record<string, unknown>).testInputEventHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const checkboxLocator = page.locator('#test-checkbox');
     await checkboxLocator.dispatchEvent('input', {
@@ -97,7 +97,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testInputEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (inputEventCount !== 1) {
@@ -124,14 +124,14 @@ export async function testDispatchEventFunctionality(
         ((window as unknown as Record<string, unknown>).testFocusEventCount as number)++;
         console.log(
           'Focus event count:',
-          (window as unknown as Record<string, unknown>).testFocusEventCount,
+          (window as unknown as Record<string, unknown>).testFocusEventCount
         );
       };
       if (button) {
         button.addEventListener('focus', handler);
         (window as unknown as Record<string, unknown>).testFocusEventHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const toggleButtonLocator = page.locator('#toggle-button');
     await toggleButtonLocator.dispatchEvent('focus', {
@@ -144,7 +144,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testFocusEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (focusEventCount !== 1) {
@@ -165,7 +165,7 @@ export async function testDispatchEventFunctionality(
     // Reset custom event counter
     await page.mainFrame().context.executeScript(() => {
       (window as unknown as Record<string, unknown>).testCustomEventCount = 0;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Use page.dispatchEvent() directly
     await page.dispatchEvent('#action-button', 'customTest', {
@@ -178,7 +178,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testCustomEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (pageCustomEventCount !== 1) {
@@ -199,7 +199,7 @@ export async function testDispatchEventFunctionality(
     // Reset input event counter
     await page.mainFrame().context.executeScript(() => {
       (window as unknown as Record<string, unknown>).testInputEventCount = 0;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const mainFrame = page.mainFrame();
     await mainFrame.dispatchEvent('#test-checkbox', 'input', {
@@ -212,7 +212,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testInputEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (frameInputEventCount !== 1) {
@@ -239,14 +239,14 @@ export async function testDispatchEventFunctionality(
         ((window as unknown as Record<string, unknown>).testKeydownEventCount as number)++;
         console.log(
           'Keydown event count:',
-          (window as unknown as Record<string, unknown>).testKeydownEventCount,
+          (window as unknown as Record<string, unknown>).testKeydownEventCount
         );
       };
       if (button) {
         button.addEventListener('keydown', handler);
         (window as unknown as Record<string, unknown>).testKeydownEventHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const logButtonLocator = page.locator('#log-button');
     await logButtonLocator.dispatchEvent('keydown', {
@@ -262,7 +262,7 @@ export async function testDispatchEventFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testKeydownEventCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (keydownEventCount !== 1) {
@@ -320,7 +320,7 @@ export async function testDispatchEventFunctionality(
       delete win.testInputEventHandler;
       delete win.testFocusEventHandler;
       delete win.testKeydownEventHandler;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     context.events.emit({
       timestamp: Date.now(),

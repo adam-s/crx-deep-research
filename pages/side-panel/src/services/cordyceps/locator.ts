@@ -74,7 +74,7 @@ export class Locator {
 
   private async _withElement<R>(
     task: (handle: ElementHandle) => Promise<R>,
-    options: { title: string; internal?: boolean; timeout?: number },
+    options: { title: string; internal?: boolean; timeout?: number }
   ): Promise<R> {
     return executeWithElementHandle(this._frame, this._selector, task, {
       title: options.title,
@@ -95,7 +95,7 @@ export class Locator {
       this._selector,
       methodName as string,
       args,
-      DEFAULT_LOCATOR_TIMEOUT,
+      DEFAULT_LOCATOR_TIMEOUT
     );
   }
 
@@ -147,18 +147,26 @@ export class Locator {
    * await locator.setInputFiles([
    *   { name: 'data.json', mimeType: 'application/json', buffer: jsonBuffer }
    * ]);
+   *
+   * // Use ISOLATED world for complex file operations
+   * await locator.setInputFiles([file1], { world: 'ISOLATED' });
    * ```
    */
   async setInputFiles(
     files: FilePayload[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+    options?: {
+      force?: boolean;
+      directoryUpload?: boolean;
+      timeout?: number;
+      world?: chrome.scripting.ExecutionWorld;
+    }
   ): Promise<void> {
     return executeProgressElementOperation(
       this._selector,
       this._frame,
       async (h, progress) => h._setInputFiles(progress, files, options),
       'Set input files',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -167,7 +175,7 @@ export class Locator {
       async () => {
         await this._frame.context.highlight(this._selector);
       },
-      { timeout: resolveTimeout(options?.timeout) },
+      { timeout: resolveTimeout(options?.timeout) }
     );
   }
 
@@ -176,7 +184,7 @@ export class Locator {
       async () => {
         await this._frame.context.hideHighlight();
       },
-      { timeout: DEFAULT_LOCATOR_TIMEOUT },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT }
     );
   }
 
@@ -186,7 +194,7 @@ export class Locator {
       this._frame,
       async (h, progress) => h._click(progress, options),
       'Click',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -196,7 +204,7 @@ export class Locator {
       this._frame,
       async (h, progress) => h._dblclick(progress, options),
       'Double Click',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -206,21 +214,21 @@ export class Locator {
       this._frame,
       async (h, progress) => h._tap(progress, options),
       'Tap',
-      options?.timeout,
+      options?.timeout
     );
   }
 
   async dispatchEvent(
     type: string,
     eventInit: Record<string, unknown> = {},
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<void> {
     return executeProgressElementOperation(
       this._selector,
       this._frame,
       async (h, progress) => h._dispatchEvent(progress, type, eventInit),
       'Dispatch Event',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -249,7 +257,7 @@ export class Locator {
    */
   async dragTo(
     target: Locator,
-    options: FrameDragAndDropOptions & { timeout?: number } = {},
+    options: FrameDragAndDropOptions & { timeout?: number } = {}
   ): Promise<void> {
     // Check if both locators are on the same frame
     if (this._frame !== target._frame) {
@@ -266,22 +274,22 @@ export class Locator {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     pageFunction: (elements: Element[], arg: Arg) => R,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    arg?: Arg,
+    arg?: Arg
   ): Promise<R> {
     // Note: Due to Chrome extension CSP restrictions, we cannot pass functions as arguments
     // This is a simplified implementation that works for basic use cases
     throw new Error(
       createUnsupportedOperationError(
         'evaluateAll',
-        'Chrome extension function serialization restrictions. Use evaluate() instead for single elements.',
-      ),
+        'Chrome extension function serialization restrictions. Use evaluate() instead for single elements.'
+      )
     );
   }
 
   async evaluateHandle<R, Arg>(
     pageFunction: (element: Element, arg: Arg) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<ElementHandle | null> {
     return await this._withElement(h => h.evaluateHandle(pageFunction, arg, options), {
       title: 'EvaluateHandle',
@@ -294,7 +302,7 @@ export class Locator {
       return new Locator(
         this._frame,
         createChainedSelector(this._selector, selectorOrLocator),
-        options,
+        options
       );
 
     validateSameFrame(this._frame, selectorOrLocator._frame, 'locator');
@@ -302,7 +310,7 @@ export class Locator {
     return new Locator(
       this._frame,
       createInternalChainSelector(this._selector, selectorOrLocator._selector),
-      options,
+      options
     );
   }
 
@@ -355,7 +363,7 @@ export class Locator {
         }
         return handle;
       },
-      { timeout: resolveTimeout(options?.timeout) },
+      { timeout: resolveTimeout(options?.timeout) }
     );
   }
 
@@ -366,11 +374,11 @@ export class Locator {
         const handles = await this._frame.context.querySelectorAll(
           this._selector,
           undefined, // no root element handle
-          'ISOLATED',
+          'MAIN'
         );
         return handles || [];
       },
-      { timeout: DEFAULT_LOCATOR_TIMEOUT },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT }
     );
   }
 
@@ -400,7 +408,7 @@ export class Locator {
 
         return texts;
       },
-      { timeout: DEFAULT_LOCATOR_TIMEOUT },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT }
     );
   }
 
@@ -421,7 +429,7 @@ export class Locator {
 
         return texts;
       },
-      { timeout: DEFAULT_LOCATOR_TIMEOUT },
+      { timeout: DEFAULT_LOCATOR_TIMEOUT }
     );
   }
 
@@ -519,7 +527,7 @@ export class Locator {
    */
   async selectOption(
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[]> {
     return this._executeElementMethod<string[]>('selectOption', values, options);
   }
@@ -541,7 +549,7 @@ export class Locator {
         return 'done';
       },
       'SelectText',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -551,7 +559,7 @@ export class Locator {
 
   async setChecked(
     checked: boolean,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     if (checked) {
       await this.check(options);
@@ -649,7 +657,7 @@ export class Locator {
           handle.dispose();
         }
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -685,7 +693,7 @@ export class Locator {
           handle.dispose();
         }
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -715,7 +723,7 @@ export class Locator {
    * ```
    */
   waitFor(
-    options: WaitForElementOptions & TimeoutOptions & { state: 'attached' | 'visible' },
+    options: WaitForElementOptions & TimeoutOptions & { state: 'attached' | 'visible' }
   ): Promise<void>;
   waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void>;
   async waitFor(options?: WaitForElementOptions & TimeoutOptions): Promise<void> {
@@ -731,7 +739,7 @@ export class Locator {
           ...options,
         });
       },
-      { timeout },
+      { timeout }
     );
   }
 

@@ -72,7 +72,7 @@ export class ElementHandle extends JSHandle {
   async waitForSelector(
     progress: Progress,
     selector: string,
-    options: WaitForElementOptions,
+    options: WaitForElementOptions
   ): Promise<ElementHandle | null> {
     return await this.frame.waitForSelector(progress, selector, true, options, this);
   }
@@ -95,7 +95,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._setChecked(progress, true),
       'Check',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -107,7 +107,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._setChecked(progress, false),
       'Uncheck',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -115,7 +115,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._click(progress, options),
       'Click',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -134,7 +134,7 @@ export class ElementHandle extends JSHandle {
           throw new Error(createOperationFailedError('Click', result));
         }
       },
-      { timeout: 30000 },
+      { timeout: 30000 }
     );
   }
 
@@ -147,7 +147,7 @@ export class ElementHandle extends JSHandle {
           force: options?.force,
           button: options?.button,
           clickCount: options?.clickCount,
-        }),
+        })
       );
 
       if (isResultDisconnected(clickResult)) {
@@ -183,7 +183,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._dblclick(progress, options),
       'Double click',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -196,7 +196,7 @@ export class ElementHandle extends JSHandle {
 
   async _dblclick(
     progress: Progress,
-    options?: ClickOptions,
+    options?: ClickOptions
   ): Promise<'error:notconnected' | 'done'> {
     // Merge options with clickCount: 2 for double click
     const dblclickOptions: ClickOptions = {
@@ -212,7 +212,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._tap(progress, options),
       'Tap',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -235,7 +235,7 @@ export class ElementHandle extends JSHandle {
           force: options?.force,
           // Note: button and clickCount may not apply to touch interactions
           // but we keep them for consistency with click options
-        }),
+        })
       );
 
       if (isResultDisconnected(tapResult)) {
@@ -344,8 +344,8 @@ export class ElementHandle extends JSHandle {
           }
           return null;
         },
-        'ISOLATED',
-        this.remoteObject,
+        'MAIN',
+        this.remoteObject
       );
       return !!resultHandle;
     } catch (e) {
@@ -356,10 +356,10 @@ export class ElementHandle extends JSHandle {
   async _dispatchEvent(
     progress: Progress,
     type: string,
-    eventInit: Record<string, unknown> = {},
+    eventInit: Record<string, unknown> = {}
   ): Promise<'error:notconnected' | 'done'> {
     const result = await progress.race(
-      this._context.dispatchEvent(this.remoteObject, type, eventInit),
+      this._context.dispatchEvent(this.remoteObject, type, eventInit)
     );
 
     if (!result) {
@@ -376,14 +376,14 @@ export class ElementHandle extends JSHandle {
   async dispatchEvent(type: string, eventInit: Record<string, unknown> = {}): Promise<void> {
     return executeElementOperation(
       async progress => await this._dispatchEvent(progress, type, eventInit),
-      'Dispatch event',
+      'Dispatch event'
     );
   }
 
   async dispatchEventWithProgress(
     progress: Progress,
     type: string,
-    eventInit: Record<string, unknown> = {},
+    eventInit: Record<string, unknown> = {}
   ): Promise<void> {
     const result = await this._dispatchEvent(progress, type, eventInit);
     if (result !== 'done') {
@@ -401,14 +401,14 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._fill(progress, value, options),
       'Fill',
-      options?.timeout,
+      options?.timeout
     );
   }
 
   async fillWithProgress(
     progress: Progress,
     value: string,
-    options?: { force?: boolean },
+    options?: { force?: boolean }
   ): Promise<void> {
     const result = await this._fill(progress, value, options);
     if (result !== 'done') {
@@ -419,7 +419,7 @@ export class ElementHandle extends JSHandle {
   async _fill(
     progress: Progress,
     value: string,
-    options?: { force?: boolean },
+    options?: { force?: boolean }
   ): Promise<'error:notconnected' | 'done'> {
     progress.log(`  fill("${value}")`);
 
@@ -430,11 +430,11 @@ export class ElementHandle extends JSHandle {
       const result = await progress.race(
         this._context.executeScript(
           fillElement,
-          'ISOLATED',
+          'MAIN',
           this.remoteObject,
           value,
-          options?.force || false,
-        ),
+          options?.force || false
+        )
       );
       return result === 'done' ? 'done' : 'error:notconnected';
     } catch (error) {
@@ -455,19 +455,20 @@ export class ElementHandle extends JSHandle {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     pageFunction: (elements: Element[], arg: Arg) => R,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    arg?: Arg,
+    arg?: Arg
   ): Promise<R> {
     // Note: Due to Chrome extension CSP restrictions, we cannot pass functions as arguments
     // This is a simplified implementation that works for basic use cases
     throw new Error(
-      'evaluateAll is not implemented due to Chrome extension function serialization restrictions. Use evaluate() instead for single elements.',
+      'evaluateAll is unsupported in Chrome extension due to function serialization; ' +
+        'use evaluate() for single elements.'
     );
   }
 
   async evaluateHandle<R, Arg>(
     pageFunction: (element: Element, arg: Arg) => R,
     arg?: Arg,
-    options?: { timeout?: number },
+    options?: { timeout?: number }
   ): Promise<ElementHandle | null> {
     return await executeWithProgress(
       async () => {
@@ -490,12 +491,7 @@ export class ElementHandle extends JSHandle {
             return null;
           };
 
-          return await this._context.evaluateHandle(
-            wrapperWithArg,
-            'ISOLATED',
-            this.remoteObject,
-            arg,
-          );
+          return await this._context.evaluateHandle(wrapperWithArg, 'MAIN', this.remoteObject, arg);
         } else {
           // Create wrapper function for case without argument
           const wrapperNoArg = (handle: string) => {
@@ -515,10 +511,10 @@ export class ElementHandle extends JSHandle {
             return null;
           };
 
-          return await this._context.evaluateHandle(wrapperNoArg, 'ISOLATED', this.remoteObject);
+          return await this._context.evaluateHandle(wrapperNoArg, 'MAIN', this.remoteObject);
         }
       },
-      { timeout: options?.timeout || 30000 },
+      { timeout: options?.timeout || 30000 }
     );
   }
 
@@ -529,19 +525,19 @@ export class ElementHandle extends JSHandle {
       async () => {
         const result = await this._context.executeScript(
           executeElementOp,
-          'ISOLATED',
+          'MAIN',
           this.remoteObject,
-          action,
+          action
         );
         return result as T;
       },
-      { timeout: STANDARD_TIMEOUT },
+      { timeout: STANDARD_TIMEOUT }
     );
   }
 
   async setChecked(
     checked: boolean,
-    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number },
+    options?: { force?: boolean; position?: { x: number; y: number }; timeout?: number }
   ): Promise<void> {
     if (checked) {
       await this.check(options);
@@ -551,21 +547,21 @@ export class ElementHandle extends JSHandle {
   }
   async selectOption(
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[]> {
     return executeWithProgress(
       async progress => {
         const result = await this._selectOption(progress, values, options);
         return throwRetargetableDOMError(result);
       },
-      { timeout: options?.timeout || STANDARD_TIMEOUT },
+      { timeout: options?.timeout || STANDARD_TIMEOUT }
     );
   }
 
   async selectOptionWithProgress(
     progress: Progress,
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[]> {
     const result = await this._selectOption(progress, values, options);
     return throwRetargetableDOMError(result);
@@ -574,7 +570,7 @@ export class ElementHandle extends JSHandle {
   async _selectOption(
     progress: Progress,
     values: SelectOption | SelectOption[],
-    options?: SelectOptionOptions,
+    options?: SelectOptionOptions
   ): Promise<string[] | 'error:notconnected'> {
     const valuesArray = normalizeSelectOptions(values);
     progress.log(`  selectOption(${JSON.stringify(valuesArray)})`);
@@ -586,11 +582,11 @@ export class ElementHandle extends JSHandle {
       const result = await progress.race(
         this._context.evaluate(
           selectOptionScript,
-          'ISOLATED',
+          'MAIN',
           this.remoteObject,
           valuesArray,
-          options?.force || false,
-        ),
+          options?.force || false
+        )
       );
 
       if (isElementDisconnected(result)) {
@@ -616,7 +612,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._selectText(progress, options),
       'SelectText',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -629,7 +625,7 @@ export class ElementHandle extends JSHandle {
 
   async _selectText(
     progress: Progress,
-    options?: CommonActionOptions,
+    options?: CommonActionOptions
   ): Promise<'error:notconnected' | 'done'> {
     progress.log('  selectText()');
 
@@ -638,12 +634,7 @@ export class ElementHandle extends JSHandle {
 
     try {
       const result = await progress.race(
-        this._context.evaluate(
-          selectTextScript,
-          'ISOLATED',
-          this.remoteObject,
-          options?.force || false,
-        ),
+        this._context.evaluate(selectTextScript, 'MAIN', this.remoteObject, options?.force || false)
       );
 
       if (isElementDisconnected(result)) {
@@ -726,7 +717,7 @@ export class ElementHandle extends JSHandle {
         const result = await this.getAttribute(name);
         return result !== null;
       },
-      { timeout: STANDARD_TIMEOUT },
+      { timeout: STANDARD_TIMEOUT }
     );
   }
 
@@ -764,12 +755,12 @@ export class ElementHandle extends JSHandle {
 
     try {
       await progress.race(
-        this._context.markTargetElements([this.remoteObject], progressWithMetadata.metadata.id),
+        this._context.markTargetElements([this.remoteObject], progressWithMetadata.metadata.id)
       );
     } catch (error) {
       // Silently ignore marking errors to not interfere with the main operation
       progress.log(
-        `Warning: Failed to mark target element: ${error instanceof Error ? error.message : String(error)}`,
+        `Warning: Failed to mark target element: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -828,11 +819,11 @@ export class ElementHandle extends JSHandle {
         const dispatch = async (type: string) => {
           const result = await this._context.executeScript(
             keyboardEventScript,
-            'ISOLATED',
+            'MAIN',
             this.remoteObject,
             type,
             key,
-            isPrintableChar,
+            isPrintableChar
           );
           return result;
         };
@@ -842,7 +833,7 @@ export class ElementHandle extends JSHandle {
         if (options.delay) await progress.race(new Promise(r => setTimeout(r, options.delay)));
         await dispatch('keyup');
       },
-      { timeout: STANDARD_TIMEOUT },
+      { timeout: STANDARD_TIMEOUT }
     );
   }
 
@@ -864,7 +855,7 @@ export class ElementHandle extends JSHandle {
           }
         }
       },
-      { timeout: STANDARD_TIMEOUT },
+      { timeout: STANDARD_TIMEOUT }
     );
   }
 
@@ -879,7 +870,7 @@ export class ElementHandle extends JSHandle {
   /** Convenience alias for getTextContent */
   async textContent(): Promise<string> {
     console.log(
-      `[ElementHandle.textContent] Convenience alias called, delegating to getTextContent()`,
+      `[ElementHandle.textContent] Convenience alias called, delegating to getTextContent()`
     );
     const result = await this.getTextContent();
     return result;
@@ -891,7 +882,7 @@ export class ElementHandle extends JSHandle {
     return executeElementOperation(
       async progress => await this._scrollIntoViewIfNeeded(progress),
       'ScrollIntoViewIfNeeded',
-      options?.timeout,
+      options?.timeout
     );
   }
 
@@ -899,7 +890,7 @@ export class ElementHandle extends JSHandle {
     try {
       const scrollIntoViewScript = createScrollIntoViewScript();
       const result = await progress.race(
-        this._context.executeScript(scrollIntoViewScript, 'ISOLATED', this.remoteObject),
+        this._context.executeScript(scrollIntoViewScript, 'MAIN', this.remoteObject)
       );
 
       if (!result) {
@@ -936,10 +927,10 @@ export class ElementHandle extends JSHandle {
 
     return executeWithProgress(
       async () => {
-        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED', this);
+        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'MAIN', this);
         return typeof result === 'string' ? result : '';
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -948,12 +939,17 @@ export class ElementHandle extends JSHandle {
    * This method provides a high-level interface for setting files with proper validation and progress tracking.
    *
    * @param files Array of file payloads or File objects to set
-   * @param options Options for the operation
+   * @param options Options for the operation, including execution world
    * @returns Promise that resolves when files are set
    */
   async setInputFiles(
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean; timeout?: number },
+    options?: {
+      force?: boolean;
+      directoryUpload?: boolean;
+      timeout?: number;
+      world?: chrome.scripting.ExecutionWorld;
+    }
   ): Promise<void> {
     const timeout = options?.timeout ?? 30000;
 
@@ -961,7 +957,7 @@ export class ElementHandle extends JSHandle {
       async progress => {
         return this.setInputFilesWithProgress(progress, files, options);
       },
-      { timeout },
+      { timeout }
     );
   }
 
@@ -972,7 +968,11 @@ export class ElementHandle extends JSHandle {
   async _setInputFiles(
     progress: Progress,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean },
+    options?: {
+      force?: boolean;
+      directoryUpload?: boolean;
+      world?: chrome.scripting.ExecutionWorld;
+    }
   ): Promise<OperationResult> {
     try {
       await this.setInputFilesWithProgress(progress, files, options);
@@ -997,19 +997,33 @@ export class ElementHandle extends JSHandle {
   async setInputFilesWithProgress(
     progress: Progress,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
-    options?: { force?: boolean; directoryUpload?: boolean },
+    options?: {
+      force?: boolean;
+      directoryUpload?: boolean;
+      world?: chrome.scripting.ExecutionWorld;
+    }
   ): Promise<void> {
     progress.log(`setInputFiles(${files.length} files)`);
 
     // Convert File objects to our payload format if needed
     const filePayloads = await this._convertToFilePayloads(files);
 
+    // Determine execution world - use MAIN by default for better performance
+    const world = options?.world ?? 'MAIN';
+
+    console.log(`[ElementHandle.setInputFilesWithProgress] Using ${world} world ######`);
+
     // Set the files on the input element
     const result = await progress.race(
-      this._context.setInputFiles(this.remoteObject, filePayloads, {
-        force: options?.force,
-        directoryUpload: options?.directoryUpload,
-      }),
+      this._context.setInputFiles(
+        this.remoteObject,
+        filePayloads,
+        {
+          force: options?.force,
+          directoryUpload: options?.directoryUpload,
+        },
+        world
+      )
     );
 
     if (!result?.success) {
@@ -1024,7 +1038,7 @@ export class ElementHandle extends JSHandle {
    * This handles both File objects (from file inputs) and our custom payload format.
    */
   private async _convertToFilePayloads(
-    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[],
+    files: { name: string; mimeType: string; buffer: ArrayBuffer }[] | File[]
   ): Promise<{ name: string; mimeType: string; buffer: ArrayBuffer }[]> {
     const payloads: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
 

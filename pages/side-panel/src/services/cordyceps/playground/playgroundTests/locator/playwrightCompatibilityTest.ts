@@ -10,7 +10,7 @@ import { TestContext } from '../api';
 export async function testPlaywrightCompatibility(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -65,7 +65,7 @@ export async function testPlaywrightCompatibility(
       });
 
       (window as unknown as Record<string, unknown>).locatorTestHandler = handler;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test 1a: Basic click to establish baseline
     const actionButtonLocator = page.locator('#action-button');
@@ -75,7 +75,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.basicClick !== 1) {
@@ -97,7 +97,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.noWaitAfterClick !== 1) {
@@ -117,7 +117,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.modifierClick !== 1) {
@@ -145,7 +145,7 @@ export async function testPlaywrightCompatibility(
       results.noWaitAfterClick = 0;
       results.modifierClick = 0;
       results.modifierInfo = null;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test Frame methods
     const frame = page.mainFrame();
@@ -160,7 +160,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.noWaitAfterClick !== 1) {
@@ -179,7 +179,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.modifierClick !== 1) {
@@ -205,7 +205,7 @@ export async function testPlaywrightCompatibility(
       >;
       results.basicClick = 0;
       results.modifierInfo = null;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const elementHandle = await page.elementHandle('#action-button');
     if (!elementHandle) {
@@ -229,7 +229,7 @@ export async function testPlaywrightCompatibility(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'ISOLATED',
+        'MAIN'
       )) as Record<string, unknown>;
 
     if (results.basicClick !== 1) {
@@ -254,7 +254,7 @@ export async function testPlaywrightCompatibility(
         unknown
       >;
       results.basicClick = 0;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     try {
       // Test trial mode - should validate but not click
@@ -267,14 +267,14 @@ export async function testPlaywrightCompatibility(
         .mainFrame()
         .context.executeScript(
           () => (window as unknown as Record<string, unknown>).locatorTestResults,
-          'ISOLATED',
+          'MAIN'
         )) as Record<string, unknown>;
 
       if (results.basicClick === 0) {
         progress.log('✓ Trial mode correctly prevented actual click');
       } else {
         progress.log(
-          `⚠ Trial mode still executed click (count: ${results.basicClick}) - may not be fully implemented`,
+          `⚠ Trial mode still executed click (count: ${results.basicClick}) - may not be fully implemented`
         );
       }
 
@@ -285,7 +285,7 @@ export async function testPlaywrightCompatibility(
       });
     } catch (error) {
       progress.log(
-        `Trial mode test note: ${error instanceof Error ? error.message : String(error)}`,
+        `Trial mode test note: ${error instanceof Error ? error.message : String(error)}`
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -311,7 +311,7 @@ export async function testPlaywrightCompatibility(
 
       delete (window as unknown as Record<string, unknown>).locatorTestResults;
       delete (window as unknown as Record<string, unknown>).locatorTestHandler;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     context.events.emit({
       timestamp: Date.now(),

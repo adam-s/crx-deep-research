@@ -4,7 +4,7 @@ window.__cordyceps_buildDomTree = (
     focusHighlightIndex: -1,
     viewportExpansion: 0,
     debugMode: false,
-  },
+  }
 ) => {
   const { doHighlightElements, focusHighlightIndex, viewportExpansion, debugMode } = args;
   debugMode && console.log('Building DOM tree with args:', args);
@@ -340,7 +340,7 @@ window.__cordyceps_buildDomTree = (
       if (cleanupFn) {
         // Keep a reference to cleanup functions in a global array
         (window._highlightCleanupFunctions = window._highlightCleanupFunctions || []).push(
-          cleanupFn,
+          cleanupFn
         );
       }
     }
@@ -372,7 +372,7 @@ window.__cordyceps_buildDomTree = (
     const tagName = currentElement.nodeName.toLowerCase();
 
     const siblings = Array.from(currentElement.parentElement.children).filter(
-      sib => sib.nodeName.toLowerCase() === tagName,
+      sib => sib.nodeName.toLowerCase() === tagName
     );
 
     if (siblings.length === 1) {
@@ -1071,12 +1071,12 @@ window.__cordyceps_buildDomTree = (
 
     // Check for semantic class names suggesting interactivity
     const hasInteractiveClass = /\b(btn|clickable|menu|item|entry|link)\b/i.test(
-      element.className || '',
+      element.className || ''
     );
 
     // Determine whether the element is inside a known interactive container
     const isInKnownContainer = Boolean(
-      element.closest('button,a,[role="button"],.menu,.dropdown,.list,.toolbar'),
+      element.closest('button,a,[role="button"],.menu,.dropdown,.list,.toolbar')
     );
 
     // Ensure the element has at least one visible child (to avoid marking empty wrappers)
@@ -1418,7 +1418,7 @@ window.__cordyceps_buildDomTree = (
             nodeData,
             node,
             parentIframe,
-            isParentHighlighted,
+            isParentHighlighted
           );
         }
       }

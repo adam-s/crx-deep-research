@@ -33,7 +33,7 @@ export class FrameSelectors {
   async resolveInjectedForSelector(
     selector: string,
     options?: { strict?: boolean; mainWorld?: boolean },
-    scope?: ElementHandle,
+    scope?: ElementHandle
   ): Promise<
     | {
         context: FrameExecutionContext;
@@ -58,7 +58,7 @@ export class FrameSelectors {
   async resolveFrameForSelector(
     selector: string,
     options: StrictOptions = {},
-    scope?: ElementHandle,
+    scope?: ElementHandle
   ): Promise<SelectorInFrame | null> {
     let frame: Frame = this._frame;
     scope; // get rid of typescript error
@@ -68,7 +68,7 @@ export class FrameSelectors {
     console.log(`🔍 Resolving frame selector: "${selector}"`);
     console.log(
       `   Split into ${frameChunks.length} chunks:`,
-      frameChunks.map(chunk => stringifySelector(chunk)),
+      frameChunks.map(chunk => stringifySelector(chunk))
     );
 
     for (const chunk of frameChunks) {
@@ -76,7 +76,7 @@ export class FrameSelectors {
         if (nested && part.name === 'internal:control' && part.body === 'enter-frame') {
           const locator = asLocator('javascript', selector);
           throw new InvalidSelectorError(
-            `Frame locators are not allowed inside composite locators, while querying "${locator}"`,
+            `Frame locators are not allowed inside composite locators, while querying "${locator}"`
           );
         }
       });
@@ -98,7 +98,7 @@ export class FrameSelectors {
         info.strict,
         i === 0 && scope?.remoteObject ? scope.remoteObject : null,
         frameChunk,
-        info.world,
+        info.world
       );
 
       if (!handleId) {
@@ -127,7 +127,7 @@ export class FrameSelectors {
 
   private _parseSelector(
     selector: string | ParsedSelector,
-    options: StrictOptions = {},
+    options: StrictOptions = {}
   ): SelectorInfo {
     // 1. determine strictness
     const strict = typeof options.strict === 'boolean' ? options.strict : false;
@@ -137,7 +137,7 @@ export class FrameSelectors {
       typeof selector === 'string' ? parseSelector(selector) : selector;
 
     // 3. walk parts and decide if we need MAIN world
-    let needsMain = false;
+    let needsMain = true;
     visitAllSelectorParts(parsed, part => {
       // adjust these rules to taste — here any “_”-prefixed or “internal:” engine
       // will force MAIN. Everything else is ISOLATED.
@@ -193,7 +193,7 @@ export class FrameSelectors {
           return injected.querySelectorAll(parsedSelector, document).length;
         },
         resolved.info.world,
-        resolved.info.parsed,
+        resolved.info.parsed
       )) || 0
     );
   }

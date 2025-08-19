@@ -10,6 +10,25 @@
 
 import { HandleManager } from '@shared/utils/handleManager';
 
+// Global type declarations for Stagehand utilities in MAIN world
+declare global {
+  interface Window {
+    // Stagehand DOM utilities
+    __stagehandInjected?: boolean;
+    getScrollableElementXpaths?: (topN?: number) => Promise<string[]>;
+    getNodeFromXpath?: (xpath: string) => Node | null;
+    waitForElementScrollEnd?: (element: HTMLElement, idleMs?: number) => Promise<void>;
+    generateXPathsForElement?: (element: Node) => Promise<string[]>;
+    getScrollableElements?: (topN?: number) => HTMLElement[];
+    canElementScroll?: (elem: HTMLElement) => boolean;
+    __stagehand__?: {
+      getClosedRoot: (host: Element) => ShadowRoot | null;
+      queryClosed: (host: Element, selector: string) => Element | null;
+      xpathClosed: (host: Element, xpath: string) => Node | null;
+    };
+  }
+}
+
 /**
  * Configuration options for the Stagehand adapter
  */

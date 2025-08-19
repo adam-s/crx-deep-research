@@ -7,7 +7,7 @@ import { handleTestError } from './testUtils';
 export async function testDragToFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -37,14 +37,14 @@ export async function testDragToFunctionality(
           });
           console.log(
             'Drag started on:',
-            (e.target as HTMLElement).id || (e.target as HTMLElement).getAttribute('data-testid'),
+            (e.target as HTMLElement).id || (e.target as HTMLElement).getAttribute('data-testid')
           );
         });
       });
 
       // Track drop events on drop zones AND sortable containers/items
       const dropZones = document.querySelectorAll(
-        '.drop-zone, .sortable-container, .sortable-item',
+        '.drop-zone, .sortable-container, .sortable-item'
       );
       dropZones.forEach(zone => {
         zone.addEventListener('dragover', e => {
@@ -71,11 +71,11 @@ export async function testDragToFunctionality(
           });
           console.log(
             'Drop completed on:',
-            (e.target as HTMLElement).id || (e.target as HTMLElement).getAttribute('data-testid'),
+            (e.target as HTMLElement).id || (e.target as HTMLElement).getAttribute('data-testid')
           );
         });
       });
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Perform drag and drop operation
     const sourceLocator = page.locator('[data-testid="drag-item-1"]');
@@ -88,7 +88,7 @@ export async function testDragToFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).dragDropEvents,
-        'ISOLATED',
+        'MAIN'
       );
 
     progress.log(`Drag and drop events captured: ${JSON.stringify(dragDropEvents)}`);
@@ -98,10 +98,10 @@ export async function testDragToFunctionality(
     }
 
     const hasStartEvent = dragDropEvents.some(
-      (event: unknown) => (event as { type: string }).type === 'dragstart',
+      (event: unknown) => (event as { type: string }).type === 'dragstart'
     );
     const hasDropEvent = dragDropEvents.some(
-      (event: unknown) => (event as { type: string }).type === 'drop',
+      (event: unknown) => (event as { type: string }).type === 'drop'
     );
 
     if (!hasStartEvent) {
@@ -119,7 +119,7 @@ export async function testDragToFunctionality(
     // Clear previous events
     await page.mainFrame().context.executeScript(() => {
       (window as unknown as Record<string, unknown>).dragDropEvents = [];
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const sourceLocator2 = page.locator('[data-testid="drag-item-2"]');
     const targetLocator2 = page.locator('[data-testid="drop-zone-2"]');
@@ -134,7 +134,7 @@ export async function testDragToFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).dragDropEvents,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (!Array.isArray(dragDropEvents2) || dragDropEvents2.length === 0) {
@@ -157,7 +157,7 @@ export async function testDragToFunctionality(
       sortableItems.forEach((item, index) => {
         console.log(
           `Setting up listeners for sortable item ${index}:`,
-          item.getAttribute('data-testid'),
+          item.getAttribute('data-testid')
         );
 
         item.addEventListener('dragstart', e => {
@@ -198,7 +198,7 @@ export async function testDragToFunctionality(
           });
         });
       });
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const sortItemA = page.locator('[data-testid="sort-item-a"]');
     const sortItemD = page.locator('[data-testid="sort-item-d"]');
@@ -210,7 +210,7 @@ export async function testDragToFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).dragDropEvents,
-        'ISOLATED',
+        'MAIN'
       );
 
     progress.log(`Sortable drag and drop events captured: ${JSON.stringify(sortEvents)}`);
@@ -228,7 +228,7 @@ export async function testDragToFunctionality(
           sortAText: sortA ? sortA.textContent : null,
           sortDText: sortD ? sortD.textContent : null,
         };
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Element debug info: ${JSON.stringify(elementInfo)}`);
       throw new Error('No sortable drag and drop events were captured - see debug info above');
@@ -248,7 +248,7 @@ export async function testDragToFunctionality(
       throw new Error('Expected error for invalid target, but operation succeeded');
     } catch (error) {
       progress.log(
-        `Test 4 caught error: ${error instanceof Error ? error.message : String(error)}`,
+        `Test 4 caught error: ${error instanceof Error ? error.message : String(error)}`
       );
       if (
         error instanceof Error &&
@@ -305,7 +305,7 @@ export async function testDragToFunctionality(
 export async function testDragToAdvanced(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({

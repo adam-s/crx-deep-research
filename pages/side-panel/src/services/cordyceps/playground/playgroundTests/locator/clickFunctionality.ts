@@ -6,7 +6,7 @@ import { TestContext } from '../api';
 export async function testClickFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -27,14 +27,14 @@ export async function testClickFunctionality(
         ((window as unknown as Record<string, unknown>).testClickCount as number)++;
         console.log(
           'Action button clicked, count:',
-          (window as unknown as Record<string, unknown>).testClickCount,
+          (window as unknown as Record<string, unknown>).testClickCount
         );
       };
       if (button) {
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testActionHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const actionButtonLocator = page.locator('#action-button');
     await actionButtonLocator.click();
@@ -44,7 +44,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testClickCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (clickCountResult !== 1) {
@@ -71,14 +71,14 @@ export async function testClickFunctionality(
         ((window as unknown as Record<string, unknown>).testToggleCount as number)++;
         console.log(
           'Toggle button clicked, count:',
-          (window as unknown as Record<string, unknown>).testToggleCount,
+          (window as unknown as Record<string, unknown>).testToggleCount
         );
       };
       if (button) {
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testToggleHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const toggleButtonLocator = page.locator('#toggle-button');
     await toggleButtonLocator.click({
@@ -93,7 +93,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testToggleCount,
-        'ISOLATED',
+        'MAIN'
       );
     if (toggleCount !== 1) {
       throw new Error(`Expected 1 toggle click, but got ${toggleCount}`);
@@ -119,14 +119,14 @@ export async function testClickFunctionality(
         ((window as unknown as Record<string, unknown>).testLogCount as number)++;
         console.log(
           'Log button clicked, count:',
-          (window as unknown as Record<string, unknown>).testLogCount,
+          (window as unknown as Record<string, unknown>).testLogCount
         );
       };
       if (button) {
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testLogHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const logButtonLocator = page.locator('#log-button');
     await logButtonLocator.click({
@@ -139,7 +139,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testLogCount,
-        'ISOLATED',
+        'MAIN'
       );
     if (logCount !== 2) {
       throw new Error(`Expected 2 clicks for double click, but got ${logCount}`);
@@ -167,7 +167,7 @@ export async function testClickFunctionality(
         ((window as unknown as Record<string, unknown>).testRightClickCount as number)++;
         console.log(
           'Container right-clicked, count:',
-          (window as unknown as Record<string, unknown>).testRightClickCount,
+          (window as unknown as Record<string, unknown>).testRightClickCount
         );
       };
       if (container) {
@@ -177,7 +177,7 @@ export async function testClickFunctionality(
       } else {
         console.error('Container element not found!');
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     const containerLocator = page.locator('.container');
     progress.log('Performing right-click on container...');
@@ -194,7 +194,7 @@ export async function testClickFunctionality(
       const count = (window as unknown as Record<string, unknown>).testRightClickCount;
       console.log('Final right-click count:', count);
       return count;
-    }, 'ISOLATED');
+    }, 'MAIN');
     if (rightClickCount !== 1) {
       throw new Error(`Expected 1 right click, but got ${rightClickCount}`);
     }
@@ -213,7 +213,7 @@ export async function testClickFunctionality(
     // Reset action button counter
     await page.mainFrame().context.executeScript(() => {
       (window as unknown as Record<string, unknown>).testClickCount = 0;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Use page.click() directly
     await page.click('#action-button');
@@ -223,7 +223,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testClickCount,
-        'ISOLATED',
+        'MAIN'
       );
     if (pageClickCount !== 1) {
       throw new Error(`Expected 1 page click, but got ${pageClickCount}`);
@@ -234,7 +234,7 @@ export async function testClickFunctionality(
     // Reset toggle button counter
     await page.mainFrame().context.executeScript(() => {
       (window as unknown as Record<string, unknown>).testToggleCount = 0;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     await page.click('#toggle-button', {
       force: true,
@@ -246,7 +246,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testToggleCount,
-        'ISOLATED',
+        'MAIN'
       );
     if (pageToggleCount !== 1) {
       throw new Error(`Expected 1 page toggle click, but got ${pageToggleCount}`);
@@ -294,14 +294,14 @@ export async function testClickFunctionality(
         ((window as unknown as Record<string, unknown>).testElementHandleClickCount as number)++;
         console.log(
           'ElementHandle click count:',
-          (window as unknown as Record<string, unknown>).testElementHandleClickCount,
+          (window as unknown as Record<string, unknown>).testElementHandleClickCount
         );
       };
       if (button) {
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testElementHandleHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Get ElementHandle and test click with timeout
     const actionButtonElement = await page.elementHandle('#action-button');
@@ -317,12 +317,12 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testElementHandleClickCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (elementHandleClickCount !== 1) {
       throw new Error(
-        `ElementHandle click test failed: expected 1 click, got ${elementHandleClickCount}`,
+        `ElementHandle click test failed: expected 1 click, got ${elementHandleClickCount}`
       );
     }
 
@@ -350,7 +350,7 @@ export async function testClickFunctionality(
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testNoWaitAfterHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test with noWaitAfter: true (should complete faster)
     const startTime = Date.now();
@@ -364,7 +364,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testNoWaitAfterCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (noWaitAfterCount !== 1) {
@@ -393,7 +393,7 @@ export async function testClickFunctionality(
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testModifierClickHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test with modifiers (these may or may not actually set the modifier keys depending on implementation)
     await page.click('#log-button', {
@@ -405,7 +405,7 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testModifierClickCount,
-        'ISOLATED',
+        'MAIN'
       );
 
     if (modifierClickCount !== 1) {
@@ -416,11 +416,11 @@ export async function testClickFunctionality(
       .mainFrame()
       .context.executeScript(
         () => (window as unknown as Record<string, unknown>).testModifierInfo,
-        'ISOLATED',
+        'MAIN'
       );
 
     progress.log(
-      `Successfully tested modifiers option, modifier info: ${JSON.stringify(modifierInfo)}`,
+      `Successfully tested modifiers option, modifier info: ${JSON.stringify(modifierInfo)}`
     );
 
     // Test trial option
@@ -436,7 +436,7 @@ export async function testClickFunctionality(
         button.addEventListener('click', handler);
         (window as unknown as Record<string, unknown>).testTrialClickHandler = handler;
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test with trial: true (should validate but not actually click)
     try {
@@ -450,13 +450,13 @@ export async function testClickFunctionality(
         .mainFrame()
         .context.executeScript(
           () => (window as unknown as Record<string, unknown>).testTrialClickCount,
-          'ISOLATED',
+          'MAIN'
         );
 
       // For trial mode, we expect the click count to remain 0 since it's just validation
       if (trialClickCount !== 0) {
         progress.log(
-          `Trial mode still triggered click (count: ${trialClickCount}) - this may be expected if trial is not fully implemented`,
+          `Trial mode still triggered click (count: ${trialClickCount}) - this may be expected if trial is not fully implemented`
         );
       } else {
         progress.log('Successfully tested trial option - no actual click occurred');
@@ -464,7 +464,7 @@ export async function testClickFunctionality(
     } catch (error) {
       // Trial mode might not be fully implemented, which is acceptable
       progress.log(
-        `Trial option test completed with note: ${error instanceof Error ? error.message : String(error)}`,
+        `Trial option test completed with note: ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
@@ -492,7 +492,7 @@ export async function testClickFunctionality(
           visible: checkbox ? getComputedStyle(checkbox).display !== 'none' : false,
           disabled: (checkbox as HTMLInputElement)?.disabled || false,
         };
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Checkbox diagnostic: ${JSON.stringify(checkboxExists)}`);
 
@@ -512,7 +512,7 @@ export async function testClickFunctionality(
       const initialState = await page.mainFrame().context.executeScript(() => {
         const checkbox = document.getElementById('test-checkbox') as HTMLInputElement;
         return checkbox ? checkbox.checked : null;
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Initial checkbox state: ${initialState}`);
 
@@ -528,7 +528,7 @@ export async function testClickFunctionality(
       const finalState = await page.mainFrame().context.executeScript(() => {
         const checkbox = document.getElementById('test-checkbox') as HTMLInputElement;
         return checkbox ? checkbox.checked : null;
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Final checkbox state: ${finalState}`);
 
@@ -554,7 +554,7 @@ export async function testClickFunctionality(
         }
       } catch (simpleError) {
         progress.log(
-          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`,
+          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`
         );
       }
 
@@ -583,7 +583,7 @@ export async function testClickFunctionality(
           visible: radio ? getComputedStyle(radio).display !== 'none' : false,
           disabled: (radio as HTMLInputElement)?.disabled || false,
         };
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Radio button diagnostic: ${JSON.stringify(radioExists)}`);
 
@@ -602,14 +602,14 @@ export async function testClickFunctionality(
       // Get initial state of all radio buttons in the group
       const initialStates = await page.mainFrame().context.executeScript(() => {
         const radios = document.querySelectorAll(
-          'input[name="size"]',
+          'input[name="size"]'
         ) as NodeListOf<HTMLInputElement>;
         const states: Record<string, boolean> = {};
         radios.forEach(radio => {
           states[radio.id] = radio.checked;
         });
         return states;
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Initial radio states: ${JSON.stringify(initialStates)}`);
 
@@ -624,14 +624,14 @@ export async function testClickFunctionality(
       // Verify state changed
       const finalStates = await page.mainFrame().context.executeScript(() => {
         const radios = document.querySelectorAll(
-          'input[name="size"]',
+          'input[name="size"]'
         ) as NodeListOf<HTMLInputElement>;
         const states: Record<string, boolean> = {};
         radios.forEach(radio => {
           states[radio.id] = radio.checked;
         });
         return states;
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       progress.log(`Final radio states: ${JSON.stringify(finalStates)}`);
 
@@ -657,7 +657,7 @@ export async function testClickFunctionality(
         }
       } catch (simpleError) {
         progress.log(
-          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`,
+          `clickSimple() also failed: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}`
         );
       }
 
@@ -688,8 +688,8 @@ export async function testClickFunctionality(
             const checkbox = document.querySelector(sel) as HTMLInputElement;
             return checkbox ? checkbox.checked : null;
           },
-          'ISOLATED',
-          selector,
+          'MAIN',
+          selector
         );
 
         // Click the checkbox
@@ -701,8 +701,8 @@ export async function testClickFunctionality(
             const checkbox = document.querySelector(sel) as HTMLInputElement;
             return checkbox ? checkbox.checked : null;
           },
-          'ISOLATED',
-          selector,
+          'MAIN',
+          selector
         );
 
         const result = {
@@ -714,7 +714,7 @@ export async function testClickFunctionality(
 
         checkboxResults.push(result);
         progress.log(
-          `${selector}: ${initialState} -> ${finalState} (${result.success ? 'SUCCESS' : 'FAILED'})`,
+          `${selector}: ${initialState} -> ${finalState} (${result.success ? 'SUCCESS' : 'FAILED'})`
         );
       } catch (error) {
         const result = {
@@ -756,14 +756,14 @@ export async function testClickFunctionality(
         // Verify this radio is selected and others are not
         const radioStates = await page.mainFrame().context.executeScript(() => {
           const radios = document.querySelectorAll(
-            'input[name="size"]',
+            'input[name="size"]'
           ) as NodeListOf<HTMLInputElement>;
           const states: Record<string, boolean> = {};
           radios.forEach(radio => {
             states[radio.id] = radio.checked;
           });
           return states;
-        }, 'ISOLATED');
+        }, 'MAIN');
 
         const result = {
           selector,
@@ -773,7 +773,7 @@ export async function testClickFunctionality(
 
         radioResults.push(result);
         progress.log(
-          `${selector}: Selected=${result.success}, States=${JSON.stringify(radioStates)}`,
+          `${selector}: Selected=${result.success}, States=${JSON.stringify(radioStates)}`
         );
       } catch (error) {
         const result = {
@@ -862,7 +862,7 @@ export async function testClickFunctionality(
           button.addEventListener('click', handler);
           (window as unknown as Record<string, unknown>).clickSimpleHandler = handler;
         }
-      }, 'ISOLATED');
+      }, 'MAIN');
 
       const element = await page.elementHandle('#action-button');
       if (!element) {
@@ -877,7 +877,7 @@ export async function testClickFunctionality(
         .mainFrame()
         .context.executeScript(
           () => (window as unknown as Record<string, unknown>).clickSimpleCount,
-          'ISOLATED',
+          'MAIN'
         );
 
       if (clickSimpleCount !== 1) {
@@ -982,7 +982,7 @@ export async function testClickFunctionality(
       delete win.testModifierClickHandler;
       delete win.testTrialClickHandler;
       delete win.clickSimpleHandler;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     context.events.emit({
       timestamp: Date.now(),

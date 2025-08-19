@@ -37,7 +37,7 @@ export interface IFrameContext {
     evaluate: (
       func: (handle: string) => unknown,
       world: chrome.scripting.ExecutionWorld,
-      handle: string,
+      handle: string
     ) => Promise<unknown>;
   };
 }
@@ -68,7 +68,7 @@ export function isJavaScriptErrorInEvaluate(error: unknown): boolean {
   ];
 
   return jsErrorPatterns.some(
-    pattern => error.name.includes(pattern) || error.message.includes(pattern),
+    pattern => error.name.includes(pattern) || error.message.includes(pattern)
   );
 }
 
@@ -105,8 +105,8 @@ export async function extractIframeSrc(handle: IFrameContext): Promise<string | 
       }
       return null;
     },
-    'ISOLATED',
-    handle.remoteObject,
+    'MAIN',
+    handle.remoteObject
   );
 
   return result as string | null;
@@ -135,7 +135,7 @@ export function findFrameByUrl(frameManager: FrameManager, url: string): Frame |
  */
 export async function getContentFrameId(
   handle: IFrameContext,
-  frameManager: FrameManager,
+  frameManager: FrameManager
 ): Promise<number | null> {
   const src = await extractIframeSrc(handle);
 
@@ -246,7 +246,7 @@ export async function snapshotFrameForAI(
   progress: Progress,
   frame: Frame,
   frameOrdinal: number,
-  frameIds: number[],
+  frameIds: number[]
 ): Promise<string[]> {
   // Only await the topmost navigations, inner frames will be empty when racing.
   const snapshot = await frame._retryWithProgressAndTimeouts<string>(
@@ -257,16 +257,14 @@ export async function snapshotFrameForAI(
         const context = frame.context;
         const refPrefix = generateFrameRefPrefix(frameOrdinal);
         const forAI = true;
-        const snapshotOrRetry = await progress.race(
-          context.ariaSnapshot(forAI, refPrefix, 'ISOLATED'),
-        );
+        const snapshotOrRetry = await progress.race(context.ariaSnapshot(forAI, refPrefix, 'MAIN'));
         if (typeof snapshotOrRetry === 'boolean') return continuePolling;
         return snapshotOrRetry;
       } catch (e) {
         if (e instanceof Error && frame.isNonRetriableError(e)) throw e;
         return continuePolling;
       }
-    },
+    }
   );
 
   const lines = snapshot.split('\n');
@@ -287,12 +285,12 @@ export async function snapshotFrameForAI(
     let child;
     try {
       child = await progress.race(
-        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
+        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true })
       );
     } catch (error) {
       console.warn(
         `⚠️  Failed to resolve iframe reference ${ref}:`,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       );
       console.warn(`   Skipping iframe expansion and keeping original line`);
       result.push(line);
@@ -313,7 +311,7 @@ export async function snapshotFrameForAI(
         progress,
         child.frame,
         newFrameOrdinal,
-        frameIds,
+        frameIds
       );
       const processedLines = processIframeLine(line, childSnapshot);
       result.push(...processedLines);
@@ -340,7 +338,7 @@ export async function snapshotFrameForAI(
 export async function createPageSnapshotForAI(
   progress: Progress,
   mainFrame: Frame,
-  frameIds?: number[],
+  frameIds?: number[]
 ): Promise<string> {
   const frameIdsArray = frameIds || [];
   const snapshot = await snapshotFrameForAI(progress, mainFrame, 0, frameIdsArray);

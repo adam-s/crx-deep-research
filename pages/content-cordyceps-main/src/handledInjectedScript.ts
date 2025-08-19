@@ -9,7 +9,6 @@ declare global {
 import { InjectedScript } from '@injected/injectedScript';
 import type { ParsedSelector } from '@injected/isomorphic/selectorParser';
 import type { SelectorEngine } from '@injected/selectorEngine';
-import { FileTransferPortManager } from './fileTransferPortManager';
 import { HandleManager } from '@shared/utils/handleManager';
 
 /**
@@ -26,7 +25,6 @@ import { HandleManager } from '@shared/utils/handleManager';
 export class HandledInjectedScript {
   private readonly _injectedScript: InjectedScript;
   private readonly _handleManager: HandleManager;
-  private readonly _fileTransferPortManager: FileTransferPortManager;
 
   constructor(
     window: Window & typeof globalThis,
@@ -48,7 +46,6 @@ export class HandledInjectedScript {
     });
 
     this._handleManager = handleManager || new HandleManager();
-    this._fileTransferPortManager = new FileTransferPortManager();
   }
 
   // Delegate all non-overridden methods to the wrapped InjectedScript
@@ -621,16 +618,30 @@ export class HandledInjectedScript {
    * This method handles the core click logic.
    */
   clickElement(handle: string): { success: boolean; error?: string } {
+    console.log(
+      `🔍 HandledInjectedScript.clickElement: Attempting to click element with handle: ${handle}`
+    );
+
     const element = this.getElementByHandle(handle);
     if (!element) {
+      console.log(`❌ HandledInjectedScript.clickElement: Element not found for handle: ${handle}`);
+      console.log(`🔍 HandleManager cache status:`, {
+        cacheSize: this._handleManager.cacheSize,
+        isHandleValid: this._handleManager.isHandleValid(handle),
+      });
       return {
         success: false,
         error: 'Element not found',
       };
     }
 
+    console.log(`✅ HandledInjectedScript.clickElement: Element found:`, element);
+
     // Check if element is connected to the DOM
     if (!(element as Element).isConnected) {
+      console.log(
+        `❌ HandledInjectedScript.clickElement: Element is not connected to DOM for handle: ${handle}`
+      );
       return {
         success: false,
         error: 'Element is not attached to the DOM',
@@ -638,9 +649,12 @@ export class HandledInjectedScript {
     }
 
     try {
+      console.log(`🖱️ HandledInjectedScript.clickElement: Executing click on element`);
       (element as HTMLElement).click();
+      console.log(`✅ HandledInjectedScript.clickElement: Click successful`);
       return { success: true };
     } catch (error) {
+      console.log(`❌ HandledInjectedScript.clickElement: Click failed:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to click element',
@@ -876,69 +890,36 @@ export class HandledInjectedScript {
   }
 
   /**
-   * Highlight elements matching the given parsed selector.
-   */
-  highlight(parsedSelector: unknown): void {
-    this._injectedScript.highlight(parsedSelector as ParsedSelector);
-  }
-
-  /**
-   * Hide any currently displayed highlights.
-   */
-  hideHighlight(): void {
-    this._injectedScript.hideHighlight();
-  }
-
-  /**
-   * Creates a new file transfer port for communication with the side panel.
-   * This allows for transferring files and buffers between content script and side panel.
-   *
-   * @returns The port ID that can be used by the side panel to communicate with this port
-   */
-  createFileTransferPort(): string {
-    const port = this._fileTransferPortManager.createPort();
-    return port.portId;
-  }
-
-  /**
-   * Sets files on an input element following Playwright patterns.
-   * This method validates the input element and creates File objects from the provided data.
-   *
-   * @param handle The element handle for the input element
-   * @param files Array of file payloads to set
-   * @param options Options for the operation
-   * @returns Result of the operation
+   * Sets files on an input element in MAIN world using direct DOM manipulation.
+   * This implementation handles file operations without requiring port transfers.
+   * Files are converted from ArrayBuffer to File objects and set directly.
    */
   setInputFiles(
     handle: string,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
     options: { force?: boolean; directoryUpload?: boolean } = {}
-  ): {
-    success: boolean;
-    error?: string;
-    filesSet: number;
-  } {
-    console.log(`[HandledInjectedScript.setInputFiles] Called with handle: ${handle} ######`);
-    console.log(`[HandledInjectedScript.setInputFiles] Files count: ${files.length} ######`);
-    console.log(`[HandledInjectedScript.setInputFiles] Options: ######`);
-    console.log(options);
+  ): { success: boolean; error?: string; filesSet: number } {
+    console.log(
+      `[HandledInjectedScript.setInputFiles] MAIN world - Handle: ${handle}, Files: ${files.length} ######`
+    );
 
     try {
+      // Get the element by handle
       const element = this.getElementByHandle(handle);
       console.log(`[HandledInjectedScript.setInputFiles] Element found: ${!!element} ######`);
 
       if (!element) {
-        console.log(
-          `[HandledInjectedScript.setInputFiles] Returning element not found error ######`
-        );
+        console.log(`[HandledInjectedScript.setInputFiles] Element not found for handle ######`);
         return {
           success: false,
           error: 'Element not found for handle',
           filesSet: 0,
         };
       }
+
       // Check if element is connected to the DOM
       if (!element.isConnected) {
+        console.log(`[HandledInjectedScript.setInputFiles] Element not connected to DOM ######`);
         return {
           success: false,
           error: 'Element is not connected to the DOM',
@@ -948,6 +929,7 @@ export class HandledInjectedScript {
 
       // Validate it's an input element
       if (element.tagName !== 'INPUT') {
+        console.log(`[HandledInjectedScript.setInputFiles] Element is not INPUT ######`);
         return {
           success: false,
           error: 'Element is not an INPUT element',
@@ -959,6 +941,7 @@ export class HandledInjectedScript {
 
       // Validate input type
       if (inputElement.type !== 'file') {
+        console.log(`[HandledInjectedScript.setInputFiles] Input type is not file ######`);
         return {
           success: false,
           error: 'Input element is not of type "file"',
@@ -969,6 +952,7 @@ export class HandledInjectedScript {
       // Validate multiple files support
       const multiple = files.length > 1;
       if (multiple && !inputElement.multiple && !inputElement.webkitdirectory) {
+        console.log(`[HandledInjectedScript.setInputFiles] Multiple files not supported ######`);
         return {
           success: false,
           error: 'Input element does not support multiple files',
@@ -978,6 +962,7 @@ export class HandledInjectedScript {
 
       // Validate directory upload
       if (options.directoryUpload && !inputElement.webkitdirectory) {
+        console.log(`[HandledInjectedScript.setInputFiles] Directory upload not supported ######`);
         return {
           success: false,
           error: 'Input element does not support directory upload (webkitdirectory)',
@@ -986,6 +971,9 @@ export class HandledInjectedScript {
       }
 
       if (!options.directoryUpload && inputElement.webkitdirectory) {
+        console.log(
+          `[HandledInjectedScript.setInputFiles] Directory input requires directoryUpload option ######`
+        );
         return {
           success: false,
           error: 'Directory input requires directoryUpload option',
@@ -995,6 +983,7 @@ export class HandledInjectedScript {
 
       // Check if element is disabled (unless forced)
       if (!options.force && inputElement.disabled) {
+        console.log(`[HandledInjectedScript.setInputFiles] Input element is disabled ######`);
         return {
           success: false,
           error: 'Input element is disabled',
@@ -1003,7 +992,8 @@ export class HandledInjectedScript {
       }
 
       // Check if element is visible (unless forced)
-      if (!options.force && !this._injectedScript.utils.isElementVisible(element)) {
+      if (!options.force && !this._isElementVisible(element)) {
+        console.log(`[HandledInjectedScript.setInputFiles] Input element is not visible ######`);
         return {
           success: false,
           error: 'Input element is not visible',
@@ -1014,10 +1004,12 @@ export class HandledInjectedScript {
       // Convert ArrayBuffers to File objects
       const fileObjects: File[] = files.map(fileData => {
         const blob = new Blob([fileData.buffer], { type: fileData.mimeType });
-        const file = new File([blob], fileData.name, { type: fileData.mimeType });
-
-        return file;
+        return new File([blob], fileData.name, { type: fileData.mimeType });
       });
+
+      console.log(
+        `[HandledInjectedScript.setInputFiles] Created ${fileObjects.length} File objects ######`
+      );
 
       // Create a new FileList-like object
       const fileList = this._createFileList(fileObjects);
@@ -1032,24 +1024,39 @@ export class HandledInjectedScript {
       // Dispatch input and change events to notify the page
       this._dispatchFileEvents(inputElement);
 
-      const result = {
+      console.log(
+        `[HandledInjectedScript.setInputFiles] Successfully set ${files.length} files ######`
+      );
+      return {
         success: true,
         filesSet: files.length,
       };
-
-      console.log(
-        `[HandledInjectedScript.setInputFiles] Success! Files set: ${files.length} ######`
-      );
-      return result;
     } catch (error) {
-      console.log(`[HandledInjectedScript.setInputFiles] Caught error: ######`);
-      console.log(error);
+      console.error(`[HandledInjectedScript.setInputFiles] Error:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         filesSet: 0,
       };
     }
+  }
+
+  /**
+   * Helper method to check if an element is visible.
+   * This is a simplified version for MAIN world use.
+   */
+  private _isElementVisible(element: Element): boolean {
+    const htmlElement = element as HTMLElement;
+    const rect = htmlElement.getBoundingClientRect();
+    const style = window.getComputedStyle(htmlElement);
+
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.visibility !== 'hidden' &&
+      style.display !== 'none' &&
+      style.opacity !== '0'
+    );
   }
 
   /**
@@ -1106,6 +1113,8 @@ export class HandledInjectedScript {
    * This ensures that event listeners on the page are properly notified.
    */
   private _dispatchFileEvents(inputElement: HTMLInputElement): void {
+    console.log(`[HandledInjectedScript._dispatchFileEvents] Dispatching file events ######`);
+
     // Dispatch input event (fires during the file selection)
     const inputEvent = new Event('input', {
       bubbles: true,
@@ -1119,12 +1128,21 @@ export class HandledInjectedScript {
       cancelable: false,
     });
     inputElement.dispatchEvent(changeEvent);
+
+    console.log(`[HandledInjectedScript._dispatchFileEvents] Events dispatched ######`);
   }
 
   /**
-   * Gets access to the file transfer port manager for advanced operations.
+   * Highlight elements matching the given parsed selector.
    */
-  get fileTransferPortManager(): FileTransferPortManager {
-    return this._fileTransferPortManager;
+  highlight(parsedSelector: unknown): void {
+    this._injectedScript.highlight(parsedSelector as ParsedSelector);
+  }
+
+  /**
+   * Hide any currently displayed highlights.
+   */
+  hideHighlight(): void {
+    this._injectedScript.hideHighlight();
   }
 }

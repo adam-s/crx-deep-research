@@ -74,7 +74,7 @@ export class ScreenshotMath {
     totalWidth: number,
     totalHeight: number,
     viewportWidth: number,
-    viewportHeight: number,
+    viewportHeight: number
   ): { xSegments: number; ySegments: number } {
     return {
       xSegments: Math.ceil(totalWidth / viewportWidth),
@@ -86,7 +86,7 @@ export class ScreenshotMath {
     index: number,
     totalSegments: number,
     viewportSize: number,
-    totalSize: number,
+    totalSize: number
   ): number {
     if (index === totalSegments - 1) {
       return Math.max(0, totalSize - viewportSize);
@@ -106,7 +106,7 @@ export class ScreenshotMath {
     const result = { x: p1.x, y: p1.y, width: p2.x - p1.x, height: p2.y - p1.y };
     assert(
       result.width && result.height,
-      'Clipped area is either empty or outside the resulting image',
+      'Clipped area is either empty or outside the resulting image'
     );
     return result;
   }
@@ -135,7 +135,7 @@ export class ScreenshotUtils {
   static nextBackoffMs(current: number): number {
     return Math.min(
       MAX_CAPTURE_INTERVAL_MS,
-      Math.floor(current * 1.5) + Math.floor(Math.random() * 120),
+      Math.floor(current * 1.5) + Math.floor(Math.random() * 120)
     );
   }
 }
@@ -175,7 +175,7 @@ class BrowserBuffer {
 
   toString(encoding: 'base64' | 'utf8' = 'utf8'): string {
     console.log(
-      `[BrowserBuffer.toString] encoding: ${encoding}, data length: ${this._data.length}`,
+      `[BrowserBuffer.toString] encoding: ${encoding}, data length: ${this._data.length}`
     );
 
     if (encoding === 'base64') {
@@ -243,7 +243,7 @@ export class ScreenshotCanvas {
   static async canvasToBlob(
     canvas: HTMLCanvasElement,
     mime: string,
-    quality?: number,
+    quality?: number
   ): Promise<Blob> {
     return new Promise((resolve, reject) => {
       canvas.toBlob(
@@ -255,7 +255,7 @@ export class ScreenshotCanvas {
           }
         },
         mime,
-        quality,
+        quality
       );
     });
   }
@@ -266,7 +266,7 @@ export class ScreenshotCanvas {
     dx: number,
     dy: number,
     dw: number,
-    dh: number,
+    dh: number
   ): void {
     if (dw > 0 && dh > 0) {
       ctx.drawImage(img, 0, 0, dw, dh, dx, dy, dw, dh);
@@ -292,7 +292,7 @@ export class ScreenshotCanvas {
       outputFormat?: 'png' | 'jpeg';
       quality?: number; // 0-100
       dpr?: number; // defaults to 1
-    },
+    }
   ): Promise<BrowserBuffer> {
     const dpr = options.dpr ?? 1;
     const sourceMime = ScreenshotEncoding.inferMime(options.sourceFormat);
@@ -347,7 +347,7 @@ const captureLimiter = new CaptureRateLimiter();
 
 async function safeCaptureVisibleTab(
   opts: chrome.tabs.CaptureVisibleTabOptions,
-  maxRetries = 4,
+  maxRetries = 4
 ): Promise<string> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     await captureLimiter.wait();
@@ -389,7 +389,7 @@ function inPagePrepareForScreenshots(
   screenshotStyle: string,
   hideCaret: boolean,
   disableAnimations: boolean,
-  syncAnimations: boolean,
+  syncAnimations: boolean
 ) {
   // In WebKit, sync the animations.
   if (syncAnimations) {
@@ -404,7 +404,7 @@ function inPagePrepareForScreenshots(
 
   const collectRoots = (
     root: Document | ShadowRoot,
-    roots: (Document | ShadowRoot)[] = [],
+    roots: (Document | ShadowRoot)[] = []
   ): (Document | ShadowRoot)[] => {
     roots.push(root);
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -513,7 +513,7 @@ function inPageScrollAndCapture() {
   const originalScrollX = window.scrollX;
   const originalScrollY = window.scrollY;
   console.log(
-    `[inPageScrollAndCapture] original scroll position: (${originalScrollX}, ${originalScrollY})`,
+    `[inPageScrollAndCapture] original scroll position: (${originalScrollX}, ${originalScrollY})`
   );
 
   // Disable smooth scrolling for faster, more predictable scrolling
@@ -531,7 +531,7 @@ function inPageScrollAndCapture() {
     document.body.offsetWidth,
     document.documentElement.offsetWidth,
     document.body.clientWidth,
-    document.documentElement.clientWidth,
+    document.documentElement.clientWidth
   );
   const totalHeight = Math.max(
     document.body.scrollHeight,
@@ -539,7 +539,7 @@ function inPageScrollAndCapture() {
     document.body.offsetHeight,
     document.documentElement.offsetHeight,
     document.body.clientHeight,
-    document.documentElement.clientHeight,
+    document.documentElement.clientHeight
   );
 
   console.log(`[inPageScrollAndCapture] total page size: ${totalWidth}x${totalHeight}`);
@@ -587,7 +587,7 @@ function inPageScrollToSegment(xIndex: number, yIndex: number) {
     document.body.offsetWidth,
     document.documentElement.offsetWidth,
     document.body.clientWidth,
-    document.documentElement.clientWidth,
+    document.documentElement.clientWidth
   );
   const totalHeight = Math.max(
     document.body.scrollHeight,
@@ -595,7 +595,7 @@ function inPageScrollToSegment(xIndex: number, yIndex: number) {
     document.body.offsetHeight,
     document.documentElement.offsetHeight,
     document.body.clientHeight,
-    document.documentElement.clientHeight,
+    document.documentElement.clientHeight
   );
 
   const xSegments = Math.ceil(totalWidth / viewportWidth);
@@ -633,7 +633,7 @@ function inPageRestoreScroll() {
   }
 
   console.log(
-    `[inPageRestoreScroll] restoring to (${state.originalScrollX}, ${state.originalScrollY})`,
+    `[inPageRestoreScroll] restoring to (${state.originalScrollX}, ${state.originalScrollY})`
   );
   document.documentElement.style.scrollBehavior = state.originalScrollBehavior;
   window.scrollTo(state.originalScrollX, state.originalScrollY);
@@ -684,7 +684,7 @@ export class Screenshotter {
         this._page.mainFrame(),
         options.style,
         options.caret !== 'initial',
-        options.animations === 'disabled',
+        options.animations === 'disabled'
       );
       if (options.fullPage) {
         const fullPageSize = await this._fullPageSize(progress);
@@ -701,7 +701,7 @@ export class Screenshotter {
           documentRect,
           undefined,
           fitsViewport,
-          options,
+          options
         );
         await this._restorePageAfterScreenshot();
         return buffer;
@@ -715,7 +715,7 @@ export class Screenshotter {
         undefined,
         viewportRect,
         true,
-        options,
+        options
       );
       await this._restorePageAfterScreenshot();
       return buffer;
@@ -728,7 +728,7 @@ export class Screenshotter {
     documentRect: Rect | undefined,
     viewportRect: Rect | undefined,
     fitsViewport: boolean,
-    options: ScreenshotOptions,
+    options: ScreenshotOptions
   ): Promise<BufferLike> {
     const cleanupHighlight = await this._maskElements(progress, options);
     const quality = format === 'jpeg' ? (options.quality ?? 80) : undefined;
@@ -739,7 +739,7 @@ export class Screenshotter {
       viewportRect,
       quality,
       fitsViewport,
-      options.scale || 'device',
+      options.scale || 'device'
     );
     await cleanupHighlight();
     return buffer;
@@ -750,19 +750,19 @@ export class Screenshotter {
     frame: Frame,
     screenshotStyle: string | undefined,
     hideCaret: boolean,
-    disableAnimations: boolean,
+    disableAnimations: boolean
   ) {
     if (disableAnimations) progress.log('  disabled all CSS animations');
     const syncAnimations = true;
     progress.cleanupWhenAborted(() => this._restorePageAfterScreenshot());
     await this._page.safeNonStallingEvaluateInAllFrames(
       inPagePrepareForScreenshots,
-      'ISOLATED',
+      'MAIN',
       {},
       screenshotStyle || '',
       hideCaret,
       disableAnimations,
-      syncAnimations,
+      syncAnimations
     );
   }
 
@@ -771,12 +771,12 @@ export class Screenshotter {
       if (window.__pwCleanupScreenshot) {
         window.__pwCleanupScreenshot();
       }
-    }, 'ISOLATED');
+    }, 'MAIN');
   }
 
   async _maskElements(
     progress: Progress,
-    options: ScreenshotOptions,
+    options: ScreenshotOptions
   ): Promise<() => Promise<void>> {
     if (!options.mask || !options.mask.length) return () => Promise.resolve();
 
@@ -786,7 +786,7 @@ export class Screenshotter {
       await Promise.all(
         [...framesToParsedSelectors.keys()].map(async frame => {
           await frame.hideHighlight();
-        }),
+        })
       );
     };
     progress.cleanupWhenAborted(cleanup);
@@ -796,8 +796,8 @@ export class Screenshotter {
         (options.mask || []).map(async ({ frame, selector }) => {
           const pair = await frame.selectors.resolveFrameForSelector(selector);
           if (pair) framesToParsedSelectors.set(pair.frame, pair.info.parsed);
-        }),
-      ),
+        })
+      )
     );
 
     await progress.race(
@@ -805,10 +805,10 @@ export class Screenshotter {
         [...framesToParsedSelectors.keys()].map(async frame => {
           await frame.maskSelectors(
             framesToParsedSelectors.get(frame),
-            options.maskColor || '#F0F',
+            options.maskColor || '#F0F'
           );
-        }),
-      ),
+        })
+      )
     );
     return cleanup;
   }
@@ -816,7 +816,7 @@ export class Screenshotter {
   async screenshotElement(
     progress: Progress,
     handle: ElementHandle,
-    options: ScreenshotOptions,
+    options: ScreenshotOptions
   ): Promise<BufferLike> {
     progress.log('taking element screenshot');
 
@@ -846,7 +846,7 @@ export class Screenshotter {
     viewportRect: Rect | undefined,
     quality: number | undefined,
     fitsViewport: boolean,
-    scale: 'css' | 'device',
+    scale: 'css' | 'device'
   ): Promise<BufferLike> {
     console.log(`[Screenshotter.takeScreenshot] starting with params:`, {
       format,
@@ -861,14 +861,13 @@ export class Screenshotter {
 
     // Get device pixel ratio for proper scaling
     const dpr =
-      (await this._page
-        .mainFrame()
-        .context.executeScript(() => window.devicePixelRatio, 'ISOLATED')) ?? 1;
+      (await this._page.mainFrame().context.executeScript(() => window.devicePixelRatio, 'MAIN')) ??
+      1;
 
     // Chrome extension limitation: captureVisibleTab can only capture visible content
     if (!fitsViewport && documentRect) {
       console.log(
-        `[Screenshotter.takeScreenshot] content doesn't fit viewport, using scroll-and-stitch`,
+        `[Screenshotter.takeScreenshot] content doesn't fit viewport, using scroll-and-stitch`
       );
       progress.log('content extends beyond viewport, using scroll-and-stitch approach');
       return await this._takeFullPageScreenshot(progress, format, quality, scale, dpr);
@@ -876,7 +875,7 @@ export class Screenshotter {
     try {
       // Use Chrome's captureVisibleTab API for screenshot capture
       console.log(
-        `[Screenshotter.takeScreenshot] calling safeCaptureVisibleTab with format: ${format}, quality: ${quality}`,
+        `[Screenshotter.takeScreenshot] calling safeCaptureVisibleTab with format: ${format}, quality: ${quality}`
       );
       const dataUrl = await safeCaptureVisibleTab({
         format: format === 'png' ? 'png' : 'jpeg',
@@ -903,7 +902,7 @@ export class Screenshotter {
       return buffer;
     } catch (error) {
       throw new Error(
-        `Failed to take screenshot: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to take screenshot: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -913,10 +912,11 @@ export class Screenshotter {
     format: string,
     quality: number | undefined,
     scale: 'css' | 'device',
-    dpr: number,
+    dpr: number
   ): Promise<BufferLike> {
     console.log(
-      `[Screenshotter._takeFullPageScreenshot] starting with format: ${format}, quality: ${quality}, scale: ${scale}, dpr: ${dpr}`,
+      `[Screenshotter._takeFullPageScreenshot] starting with format: ${format}, ` +
+        `quality: ${quality}, scale: ${scale}, dpr: ${dpr}`
     );
     progress.log('capturing full page using scroll-and-stitch method');
 
@@ -924,7 +924,7 @@ export class Screenshotter {
     console.log(`[Screenshotter._takeFullPageScreenshot] initializing scroll capture`);
     const scrollInfo = await this._page
       .mainFrame()
-      .context.executeScript(inPageScrollAndCapture, 'ISOLATED');
+      .context.executeScript(inPageScrollAndCapture, 'MAIN');
 
     console.log(`[Screenshotter._takeFullPageScreenshot] scrollInfo:`, scrollInfo);
 
@@ -936,7 +936,7 @@ export class Screenshotter {
       scrollInfo;
 
     progress.log(
-      `capturing ${xSegments}x${ySegments} segments (total: ${totalWidth}x${totalHeight})`,
+      `capturing ${xSegments}x${ySegments} segments (total: ${totalWidth}x${totalHeight})`
     );
 
     const screenshots: Array<{
@@ -950,24 +950,26 @@ export class Screenshotter {
     try {
       // Capture each segment
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] capturing ${xSegments} x ${ySegments} = ${xSegments * ySegments} segments`,
+        `[Screenshotter._takeFullPageScreenshot] capturing ${xSegments} x ${ySegments} = ` +
+          `${xSegments * ySegments} segments`
       );
       for (let yIndex = 0; yIndex < ySegments; yIndex++) {
         for (let xIndex = 0; xIndex < xSegments; xIndex++) {
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] capturing segment ${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`,
+            `[Screenshotter._takeFullPageScreenshot] capturing segment ` +
+              `${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`
           );
           progress.log(
-            `capturing segment ${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`,
+            `capturing segment ${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`
           );
 
           // Scroll to this segment
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] scrolling to segment (${xIndex}, ${yIndex})`,
+            `[Screenshotter._takeFullPageScreenshot] scrolling to segment (${xIndex}, ${yIndex})`
           );
           const segmentInfo = await this._page
             .mainFrame()
-            .context.executeScript(inPageScrollToSegment, 'ISOLATED', xIndex, yIndex);
+            .context.executeScript(inPageScrollToSegment, 'MAIN', xIndex, yIndex);
 
           console.log(`[Screenshotter._takeFullPageScreenshot] segmentInfo:`, segmentInfo);
           if (!segmentInfo) {
@@ -979,7 +981,7 @@ export class Screenshotter {
 
           // Capture this segment
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] capturing segment at (${segmentInfo.x}, ${segmentInfo.y})`,
+            `[Screenshotter._takeFullPageScreenshot] capturing segment at (${segmentInfo.x}, ${segmentInfo.y})`
           );
           const dataUrl = await safeCaptureVisibleTab({
             format: format === 'png' ? 'png' : 'jpeg',
@@ -987,15 +989,16 @@ export class Screenshotter {
           });
 
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] captured dataUrl length: ${dataUrl?.length || 'null'}`,
+            `[Screenshotter._takeFullPageScreenshot] captured dataUrl length: ${dataUrl?.length || 'null'}`
           );
           const base64Data = dataUrl.split(',')[1];
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] segment ${segmentInfo.xIndex},${segmentInfo.yIndex} base64Data length: ${base64Data?.length}`,
+            `[Screenshotter._takeFullPageScreenshot] segment ` +
+              `${segmentInfo.xIndex},${segmentInfo.yIndex} base64Data length: ${base64Data?.length}`
           );
           const buffer = BufferPolyfill.from(base64Data, 'base64');
           console.log(
-            `[Screenshotter._takeFullPageScreenshot] segment buffer length: ${buffer.length}`,
+            `[Screenshotter._takeFullPageScreenshot] segment buffer length: ${buffer.length}`
           );
 
           screenshots.push({
@@ -1011,10 +1014,10 @@ export class Screenshotter {
       // Stitch all screenshots together
       progress.log('stitching segments together');
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] stitching ${screenshots.length} screenshots together`,
+        `[Screenshotter._takeFullPageScreenshot] stitching ${screenshots.length} screenshots together`
       );
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] total canvas size: ${totalWidth}x${totalHeight}`,
+        `[Screenshotter._takeFullPageScreenshot] total canvas size: ${totalWidth}x${totalHeight}`
       );
       const stitchedBuffer = await this._stitchScreenshots(
         screenshots,
@@ -1022,21 +1025,21 @@ export class Screenshotter {
         totalHeight,
         dpr,
         format as 'png' | 'jpeg',
-        quality,
+        quality
       );
 
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] final stitched buffer size: ${stitchedBuffer.length} bytes`,
+        `[Screenshotter._takeFullPageScreenshot] final stitched buffer size: ${stitchedBuffer.length} bytes`
       );
       return stitchedBuffer;
     } finally {
       // Always restore original scroll position
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] restoring scroll position in finally block`,
+        `[Screenshotter._takeFullPageScreenshot] restoring scroll position in finally block`
       );
-      await this._page.mainFrame().context.executeScript(inPageRestoreScroll, 'ISOLATED');
+      await this._page.mainFrame().context.executeScript(inPageRestoreScroll, 'MAIN');
       console.log(
-        `[Screenshotter._takeFullPageScreenshot] scroll position restored in finally block`,
+        `[Screenshotter._takeFullPageScreenshot] scroll position restored in finally block`
       );
     }
   }
@@ -1047,7 +1050,7 @@ export class Screenshotter {
     totalHeightCss: number,
     dpr: number,
     format: 'png' | 'jpeg',
-    quality?: number,
+    quality?: number
   ): Promise<BufferLike> {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -1087,7 +1090,7 @@ export class Screenshotter {
     const buffer = await ScreenshotCanvas.blobToBuffer(blob);
 
     console.log(
-      `[Screenshotter._stitchScreenshots] created BrowserBuffer with size: ${buffer.length}`,
+      `[Screenshotter._stitchScreenshots] created BrowserBuffer with size: ${buffer.length}`
     );
 
     return buffer;
@@ -1102,7 +1105,7 @@ export class Screenshotter {
     clipRect: Rect,
     dpr: number,
     format: string,
-    quality?: number,
+    quality?: number
   ): Promise<BufferLike> {
     const mime = ScreenshotEncoding.inferMime(format as 'png' | 'jpeg');
     const qualityPercent = ScreenshotEncoding.qualityPercent(quality);
@@ -1142,7 +1145,7 @@ export class Screenshotter {
       0,
       0,
       clippedRect.width,
-      clippedRect.height,
+      clippedRect.height
     );
 
     // Convert to buffer
@@ -1150,7 +1153,7 @@ export class Screenshotter {
     const resultBuffer = await ScreenshotCanvas.blobToBuffer(blob);
 
     console.log(
-      `[Screenshotter._clipScreenshot] created BrowserBuffer with size: ${resultBuffer.length}`,
+      `[Screenshotter._clipScreenshot] created BrowserBuffer with size: ${resultBuffer.length}`
     );
 
     return resultBuffer;
@@ -1164,7 +1167,7 @@ export class Screenshotter {
         width: window.innerWidth,
         height: window.innerHeight,
       }),
-      'ISOLATED',
+      'MAIN'
     );
 
     if (!viewportSize) {
@@ -1188,7 +1191,7 @@ export class Screenshotter {
           document.body.offsetWidth,
           document.documentElement.offsetWidth,
           document.body.clientWidth,
-          document.documentElement.clientWidth,
+          document.documentElement.clientWidth
         ),
         height: Math.max(
           document.body.scrollHeight,
@@ -1196,14 +1199,14 @@ export class Screenshotter {
           document.body.offsetHeight,
           document.documentElement.offsetHeight,
           document.body.clientHeight,
-          document.documentElement.clientHeight,
+          document.documentElement.clientHeight
         ),
       };
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     if (!fullPageSize) {
       throw new Error(
-        'Failed to get full page size - document.body or document.documentElement not available',
+        'Failed to get full page size - document.body or document.documentElement not available'
       );
     }
 
@@ -1218,7 +1221,7 @@ export function validateScreenshotOptions(options: ScreenshotOptions): 'png' | '
   if (options.type) {
     assert(
       options.type === 'png' || options.type === 'jpeg',
-      'Unknown options.type value: ' + options.type,
+      'Unknown options.type value: ' + options.type
     );
     format = options.type;
   }
@@ -1229,30 +1232,30 @@ export function validateScreenshotOptions(options: ScreenshotOptions): 'png' | '
     assert(format === 'jpeg', 'options.quality is unsupported for the ' + format + ' screenshots');
     assert(
       typeof options.quality === 'number',
-      'Expected options.quality to be a number but found ' + typeof options.quality,
+      'Expected options.quality to be a number but found ' + typeof options.quality
     );
     assert(Number.isInteger(options.quality), 'Expected options.quality to be an integer');
     assert(
       options.quality >= 0 && options.quality <= 100,
-      'Expected options.quality to be between 0 and 100 (inclusive), got ' + options.quality,
+      'Expected options.quality to be between 0 and 100 (inclusive), got ' + options.quality
     );
   }
   if (options.clip) {
     assert(
       typeof options.clip.x === 'number',
-      'Expected options.clip.x to be a number but found ' + typeof options.clip.x,
+      'Expected options.clip.x to be a number but found ' + typeof options.clip.x
     );
     assert(
       typeof options.clip.y === 'number',
-      'Expected options.clip.y to be a number but found ' + typeof options.clip.y,
+      'Expected options.clip.y to be a number but found ' + typeof options.clip.y
     );
     assert(
       typeof options.clip.width === 'number',
-      'Expected options.clip.width to be a number but found ' + typeof options.clip.width,
+      'Expected options.clip.width to be a number but found ' + typeof options.clip.width
     );
     assert(
       typeof options.clip.height === 'number',
-      'Expected options.clip.height to be a number but found ' + typeof options.clip.height,
+      'Expected options.clip.height to be a number but found ' + typeof options.clip.height
     );
     assert(options.clip.width !== 0, 'Expected options.clip.width not to be 0.');
     assert(options.clip.height !== 0, 'Expected options.clip.height not to be 0.');

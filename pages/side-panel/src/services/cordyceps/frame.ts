@@ -1333,7 +1333,7 @@ export class Frame extends Disposable {
 
           await this.context.executeScript(
             createDragAndDropScript(),
-            'ISOLATED',
+            'MAIN',
             source,
             target,
             sourcePosition,
@@ -1369,7 +1369,7 @@ export class Frame extends Disposable {
             });
           });
         });
-      }, 'ISOLATED')
+      }, 'MAIN')
       .then(() => {})
       .catch(error => {
         throw error;
@@ -1624,12 +1624,12 @@ export class Frame extends Disposable {
         }
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
-          const result = await this.context.executeScript(pageFunction, 'ISOLATED', arg);
+          const result = await this.context.executeScript(pageFunction, 'MAIN', arg);
           return result as R;
         } else {
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
-          const result = await this.context.executeScript(noArgFunction, 'ISOLATED');
+          const result = await this.context.executeScript(noArgFunction, 'MAIN');
           return result as R;
         }
       },
@@ -1646,12 +1646,12 @@ export class Frame extends Disposable {
       async () => {
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
-          const result = await this.context.evaluateHandle(pageFunction, 'ISOLATED', arg);
+          const result = await this.context.evaluateHandle(pageFunction, 'MAIN', arg);
           return result;
         } else {
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
-          const result = await this.context.evaluateHandle(noArgFunction, 'ISOLATED');
+          const result = await this.context.evaluateHandle(noArgFunction, 'MAIN');
           return result;
         }
       },
@@ -1827,12 +1827,12 @@ export class Frame extends Disposable {
         if (!this._context) {
           throw new Error('Frame context not available');
         }
-        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED', handle);
+        const result = await this._context.ariaSnapshot(forAI, refPrefix, 'MAIN', handle);
         return typeof result === 'string' ? result : '';
       });
     } else {
       // Get snapshot for entire frame
-      const result = await this._context.ariaSnapshot(forAI, refPrefix, 'ISOLATED');
+      const result = await this._context.ariaSnapshot(forAI, refPrefix, 'MAIN');
       return typeof result === 'string' ? result : '';
     }
   }
@@ -1890,7 +1890,7 @@ export class Frame extends Disposable {
           injected.maskSelectors(parsedSelectors, maskColor);
         }
       },
-      'ISOLATED',
+      'MAIN',
       selectors as unknown[],
       color
     );

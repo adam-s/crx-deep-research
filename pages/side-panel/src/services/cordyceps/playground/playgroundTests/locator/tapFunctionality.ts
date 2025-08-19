@@ -6,7 +6,7 @@ import { TestContext } from '../api';
 export async function testTapFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -112,7 +112,7 @@ export async function testTapFunctionality(
       }
 
       console.log('Event listeners set up for tap testing');
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     // Test 1: Basic tap on locator
     progress.log('Test 1: Basic tap on locator (#action-button)');
@@ -124,7 +124,7 @@ export async function testTapFunctionality(
     const test1Events = await page.mainFrame().context.executeScript(() => {
       const win = window as unknown as Record<string, unknown>;
       return win.tapEventCounts as Record<string, number>;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     progress.log(`Test 1 - Events captured: ${JSON.stringify(test1Events)}`);
 
@@ -137,7 +137,7 @@ export async function testTapFunctionality(
       });
     } else {
       throw new Error(
-        `Test 1 failed: Expected action button tap events, got: ${JSON.stringify(test1Events)}`,
+        `Test 1 failed: Expected action button tap events, got: ${JSON.stringify(test1Events)}`
       );
     }
 
@@ -153,7 +153,7 @@ export async function testTapFunctionality(
     const test2Events = await page.mainFrame().context.executeScript(() => {
       const win = window as unknown as Record<string, unknown>;
       return win.tapEventCounts as Record<string, number>;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     progress.log(`Test 2 - Events captured: ${JSON.stringify(test2Events)}`);
 
@@ -166,7 +166,7 @@ export async function testTapFunctionality(
       });
     } else {
       throw new Error(
-        `Test 2 failed: Expected at least 2 action button taps, got: ${JSON.stringify(test2Events)}`,
+        `Test 2 failed: Expected at least 2 action button taps, got: ${JSON.stringify(test2Events)}`
       );
     }
 
@@ -179,7 +179,7 @@ export async function testTapFunctionality(
     const test3Events = await page.mainFrame().context.executeScript(() => {
       const win = window as unknown as Record<string, unknown>;
       return win.tapEventCounts as Record<string, number>;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     progress.log(`Test 3 - Events captured: ${JSON.stringify(test3Events)}`);
 
@@ -192,7 +192,7 @@ export async function testTapFunctionality(
       });
     } else {
       throw new Error(
-        `Test 3 failed: Expected toggle button tap events, got: ${JSON.stringify(test3Events)}`,
+        `Test 3 failed: Expected toggle button tap events, got: ${JSON.stringify(test3Events)}`
       );
     }
 
@@ -206,7 +206,7 @@ export async function testTapFunctionality(
     const test4Events = await page.mainFrame().context.executeScript(() => {
       const win = window as unknown as Record<string, unknown>;
       return win.tapEventCounts as Record<string, number>;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     progress.log(`Test 4 - Events captured: ${JSON.stringify(test4Events)}`);
 
@@ -219,7 +219,7 @@ export async function testTapFunctionality(
       });
     } else {
       throw new Error(
-        `Test 4 failed: Expected log button tap events, got: ${JSON.stringify(test4Events)}`,
+        `Test 4 failed: Expected log button tap events, got: ${JSON.stringify(test4Events)}`
       );
     }
 
@@ -234,7 +234,7 @@ export async function testTapFunctionality(
     const test5Events = await page.mainFrame().context.executeScript(() => {
       const win = window as unknown as Record<string, unknown>;
       return win.tapEventCounts as Record<string, number>;
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     progress.log(`Test 5 - Events captured: ${JSON.stringify(test5Events)}`);
 
@@ -247,7 +247,7 @@ export async function testTapFunctionality(
       });
     } else {
       throw new Error(
-        `Test 5 failed: Expected at least 3 action button taps, got: ${JSON.stringify(test5Events)}`,
+        `Test 5 failed: Expected at least 3 action button taps, got: ${JSON.stringify(test5Events)}`
       );
     }
 
@@ -261,7 +261,7 @@ export async function testTapFunctionality(
       if (actionButton && win.actionTouchStartHandler) {
         actionButton.removeEventListener(
           'touchstart',
-          win.actionTouchStartHandler as EventListener,
+          win.actionTouchStartHandler as EventListener
         );
         actionButton.removeEventListener('touchend', win.actionTouchEndHandler as EventListener);
         actionButton.removeEventListener('click', win.actionClickHandler as EventListener);
@@ -272,7 +272,7 @@ export async function testTapFunctionality(
       if (toggleButton && win.toggleTouchStartHandler) {
         toggleButton.removeEventListener(
           'touchstart',
-          win.toggleTouchStartHandler as EventListener,
+          win.toggleTouchStartHandler as EventListener
         );
         toggleButton.removeEventListener('touchend', win.toggleTouchEndHandler as EventListener);
         toggleButton.removeEventListener('click', win.toggleClickHandler as EventListener);
@@ -299,7 +299,7 @@ export async function testTapFunctionality(
       delete win.logClickHandler;
 
       console.log('Event listeners cleaned up');
-    }, 'ISOLATED');
+    }, 'MAIN');
 
     context.events.emit({
       timestamp: Date.now(),
