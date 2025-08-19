@@ -41,9 +41,19 @@ export class HandleManager {
 
   /**
    * Retrieves a DOM Element by its UUID handle.
+   * Returns undefined if element is destroyed or disconnected.
    */
   getElementByHandle(handle: string): Element | undefined {
-    return this._elementCache.get(handle);
+    const element = this._elementCache.get(handle);
+
+    // Check if element is still connected to the DOM
+    if (element && !element.isConnected) {
+      // Element was destroyed, clean up the stale reference
+      this._elementCache.delete(handle);
+      return undefined;
+    }
+
+    return element;
   }
 
   /**
@@ -74,7 +84,7 @@ export class HandleManager {
    */
   convertHandleToElement(value: unknown): unknown {
     if (typeof value === 'string' && this._elementCache.has(value)) {
-      return this._elementCache.get(value);
+      return this.getElementByHandle(value);
     }
 
     if (Array.isArray(value)) {
@@ -138,6 +148,32 @@ export class HandleManager {
   }
 
   /**
+   * Validates and cleans up destroyed elements from the cache.
+   * Call this periodically to prevent memory leaks.
+   * @returns Number of elements cleaned up
+   */
+  cleanupDestroyedElements(): number {
+    let cleanedCount = 0;
+
+    for (const [handle, element] of this._elementCache.entries()) {
+      if (!element.isConnected) {
+        this._elementCache.delete(handle);
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
+  }
+
+  /**
+   * Checks if a handle points to a valid, connected element.
+   */
+  isHandleValid(handle: string): boolean {
+    const element = this._elementCache.get(handle);
+    return element ? element.isConnected : false;
+  }
+
+  /**
    * Clears all cached Elements and handles.
    */
   clear(): void {
@@ -178,7 +214,7 @@ export class HandledInjectedScript {
     stableRafCount: number,
     browserName: string,
     customEngines: { name: string; engine: SelectorEngine }[],
-    handleManager?: HandleManager,
+    handleManager?: HandleManager
   ) {
     this._injectedScript = new InjectedScript(window, {
       isUnderTest,
@@ -296,7 +332,7 @@ export class HandledInjectedScript {
     options: {
       position?: { x: number; y: number };
       force?: boolean;
-    } = {},
+    } = {}
   ): { success: boolean; error?: string; needsForce?: boolean } {
     const element = this.getElementByHandle(handle);
     if (!element) {
@@ -416,7 +452,7 @@ export class HandledInjectedScript {
     const element = this._injectedScript.querySelector(
       parsedSelector as ParsedSelector,
       root,
-      strict,
+      strict
     );
     if (!element) {
       return null;
@@ -492,7 +528,7 @@ export class HandledInjectedScript {
     parsedSelector: unknown,
     strict: boolean,
     scopeHandle: string | null,
-    selectorString: string,
+    selectorString: string
   ): {
     log: string;
     elementHandle: string | null;
@@ -539,12 +575,17 @@ export class HandledInjectedScript {
             elementHandle: null,
             visible: false,
             attached: false,
-            error: `Selector "${selectorString}" resolved to ${elements.length} elements. Use a more specific selector.`,
+            error:
+              `Selector "${selectorString}" resolved to ${elements.length} elements. ` +
+              'Use a more specific selector.',
           };
         }
         const firstElement = elements[0];
         if (firstElement) {
-          log = `  locator resolved to ${elements.length} elements. Proceeding with the first one: ${this._injectedScript.previewNode(firstElement)}`;
+          const previewText = this._injectedScript.previewNode(firstElement);
+          log =
+            `  locator resolved to ${elements.length} elements. ` +
+            `Proceeding with the first one: ${previewText}`;
         }
       } else if (element) {
         log = `  locator resolved to ${visible ? 'visible' : 'hidden'} ${this._injectedScript.previewNode(element)}`;
@@ -578,7 +619,7 @@ export class HandledInjectedScript {
     parsedSelector: unknown,
     strict: boolean,
     scopeHandle: string | null,
-    selectorString: string,
+    selectorString: string
   ): string | null {
     const root = scopeHandle ? this.getElementByHandle(scopeHandle) : this.document;
     if (!root) {
@@ -595,8 +636,8 @@ export class HandledInjectedScript {
       // This will throw inside the content script, and the error will be propagated.
       throw this._injectedScript.createStacklessError(
         `Selector "${selectorString}" resolved to ${this._injectedScript.previewNode(
-          element,
-        )}, but an <iframe> was expected`,
+          element
+        )}, but an <iframe> was expected`
       );
     }
     return elementHandle;
@@ -667,7 +708,7 @@ export class HandledInjectedScript {
    */
   setChecked(
     handle: string,
-    state: boolean,
+    state: boolean
   ): {
     success: boolean;
     error?: string;
@@ -796,7 +837,7 @@ export class HandledInjectedScript {
       force?: boolean;
       button?: 'left' | 'right' | 'middle';
       clickCount?: number;
-    } = {},
+    } = {}
   ): { success: boolean; error?: string; needsForce?: boolean } {
     const element = this.getElementByHandle(handle);
     if (!element) {
@@ -939,7 +980,7 @@ export class HandledInjectedScript {
   dispatchEvent(
     handle: string,
     type: string,
-    eventInit: Record<string, unknown> = {},
+    eventInit: Record<string, unknown> = {}
   ): { success: boolean; error?: string } {
     const element = this.getElementByHandle(handle);
     if (!element) {
@@ -1049,7 +1090,7 @@ export class HandledInjectedScript {
   setInputFiles(
     handle: string,
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
-    options: { force?: boolean; directoryUpload?: boolean } = {},
+    options: { force?: boolean; directoryUpload?: boolean } = {}
   ): {
     success: boolean;
     error?: string;
