@@ -255,7 +255,7 @@ export class BaseCache<T extends CacheEntry> {
         },
       });
     } finally {
-      this.releaseLock();
+      await this.releaseLock();
     }
   }
 
