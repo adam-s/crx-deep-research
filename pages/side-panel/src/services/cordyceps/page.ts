@@ -794,7 +794,8 @@ export class Page extends Disposable {
       frames.map(async frame => {
         try {
           // Use frame's execution context to safely evaluate the function
-          await frame.context.executeScript(func, world, ...args);
+          const context = await frame.getContext();
+          await context.executeScript(func, world, ...args);
         } catch (e) {
           // Only throw if it's a JavaScript error and throwOnJSErrors is true
           if (options.throwOnJSErrors && isJavaScriptErrorInEvaluate(e)) {

@@ -845,9 +845,8 @@ export class Screenshotter {
     progress.log('taking screenshot via Chrome extension API');
 
     // Get device pixel ratio for proper scaling
-    const dpr =
-      (await this._page.mainFrame().context.executeScript(() => window.devicePixelRatio, 'MAIN')) ??
-      1;
+    const mainFrameContext = await this._page.mainFrame().getContext();
+    const dpr = (await mainFrameContext.executeScript(() => window.devicePixelRatio, 'MAIN')) ?? 1;
 
     // Chrome extension limitation: captureVisibleTab can only capture visible content
     if (!fitsViewport && documentRect) {
@@ -901,9 +900,8 @@ export class Screenshotter {
     progress.log('capturing full page using scroll-and-stitch method');
 
     // Initialize scroll capture in the page
-    const scrollInfo = await this._page
-      .mainFrame()
-      .context.executeScript(inPageScrollAndCapture, 'MAIN');
+    const mainFrameContext = await this._page.mainFrame().getContext();
+    const scrollInfo = await mainFrameContext.executeScript(inPageScrollAndCapture, 'MAIN');
 
     if (!scrollInfo) {
       throw new Error('Failed to initialize scroll capture');
@@ -944,9 +942,12 @@ export class Screenshotter {
           console.log(
             `[Screenshotter._takeFullPageScreenshot] scrolling to segment (${xIndex}, ${yIndex})`
           );
-          const segmentInfo = await this._page
-            .mainFrame()
-            .context.executeScript(inPageScrollToSegment, 'MAIN', xIndex, yIndex);
+          const segmentInfo = await mainFrameContext.executeScript(
+            inPageScrollToSegment,
+            'MAIN',
+            xIndex,
+            yIndex
+          );
 
           console.log(`[Screenshotter._takeFullPageScreenshot] segmentInfo:`, segmentInfo);
           if (!segmentInfo) {
@@ -1014,7 +1015,8 @@ export class Screenshotter {
       console.log(
         `[Screenshotter._takeFullPageScreenshot] restoring scroll position in finally block`
       );
-      await this._page.mainFrame().context.executeScript(inPageRestoreScroll, 'MAIN');
+      const mainFrameContext = await this._page.mainFrame().getContext();
+      await mainFrameContext.executeScript(inPageRestoreScroll, 'MAIN');
       console.log(
         `[Screenshotter._takeFullPageScreenshot] scroll position restored in finally block`
       );
@@ -1139,7 +1141,8 @@ export class Screenshotter {
   private async _originalViewportSize(progress: Progress): Promise<Size> {
     progress.log('getting viewport size');
 
-    const viewportSize = await this._page.mainFrame().context.executeScript(
+    const mainFrameContext = await this._page.mainFrame().getContext();
+    const viewportSize = await mainFrameContext.executeScript(
       () => ({
         width: window.innerWidth,
         height: window.innerHeight,
@@ -1157,7 +1160,8 @@ export class Screenshotter {
   private async _fullPageSize(progress: Progress): Promise<Size> {
     progress.log('getting full page size');
 
-    const fullPageSize = await this._page.mainFrame().context.executeScript(() => {
+    const mainFrameContext = await this._page.mainFrame().getContext();
+    const fullPageSize = await mainFrameContext.executeScript(() => {
       if (!document.body || !document.documentElement) {
         return null;
       }

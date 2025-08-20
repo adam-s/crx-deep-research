@@ -172,8 +172,9 @@ export class Locator {
 
   async highlight(options?: { timeout?: number }): Promise<void> {
     return await executeWithProgress(
-      async () => {
-        await this._frame.context.highlight(this._selector);
+      async progress => {
+        const context = await this._frame.getContext(progress);
+        await context.highlight(this._selector);
       },
       { timeout: resolveTimeout(options?.timeout) }
     );
@@ -181,8 +182,9 @@ export class Locator {
 
   async hideHighlight(): Promise<void> {
     return await executeWithProgress(
-      async () => {
-        await this._frame.context.hideHighlight();
+      async progress => {
+        const context = await this._frame.getContext(progress);
+        await context.hideHighlight();
       },
       { timeout: DEFAULT_LOCATOR_TIMEOUT }
     );
@@ -371,7 +373,8 @@ export class Locator {
     return await executeWithProgress(
       async () => {
         // Use the frame's context to get all elements matching the selector
-        const handles = await this._frame.context.querySelectorAll(
+        const context = await this._frame.getContext();
+        const handles = await context.querySelectorAll(
           this._selector,
           undefined, // no root element handle
           'MAIN'

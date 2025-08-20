@@ -927,12 +927,62 @@ export class Frame extends Disposable {
     this._context = context;
   }
 
+  /**
+   * Get execution context with automatic content script readiness.
+   * This is the primary way to access the frame's execution context.
+   *
+   * @deprecated Use `await frame.getContext()` instead for automatic readiness handling
+   */
   get context(): FrameExecutionContext {
     if (!this._context) {
-      throw new Error(`Frame ${this.frameId} has no execution context`);
+      throw new Error(
+        `Frame ${this.frameId} has no execution context. Use 'await frame.getContext()' for automatic readiness handling.`
+      );
+    }
+    return this._context;
+  }
+
+  /**
+   * Get execution context with automatic content script readiness check.
+   * This is the recommended way to access frame context in all operations.
+   *
+   * @param progress Optional progress controller for timeout and cancellation
+   * @returns Promise resolving to the frame's execution context
+   */
+  async getContext(progress?: Progress): Promise<FrameExecutionContext> {
+    if (this._context) {
+      return this._context;
     }
 
-    return this._context;
+    // Wait for content script readiness and execution context creation
+    await this.waitForContentScriptReady(progress);
+
+    // Handle edge case where context creation is delayed
+    if (!this._context) {
+      await this._waitForContextCreation();
+    }
+
+    return this._context!;
+  }
+
+  /**
+   * Internal helper to wait for execution context creation with timeout
+   */
+  private async _waitForContextCreation(): Promise<void> {
+    const timeout = 5000;
+    const pollInterval = 50;
+    const startTime = Date.now();
+
+    while (!this._context && Date.now() - startTime < timeout) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    if (!this._context) {
+      throw new Error(
+        `Frame ${this.frameId} execution context was not created within ${timeout}ms after content script readiness. ` +
+          `This may indicate a content script loading issue.`
+      );
+    }
   }
 
   /**
@@ -1219,8 +1269,8 @@ export class Frame extends Disposable {
           const targetPosition = options.targetPosition || calculateCenterPosition(targetBox);
 
           // Use the improved drag and drop simulation with DataTransfer
-
-          await this.context.executeScript(
+          const context = await this.getContext(progress);
+          await context.executeScript(
             createDragAndDropScript(),
             'MAIN',
             source,
@@ -1470,8 +1520,9 @@ export class Frame extends Disposable {
 
   async highlight(selector: string, options?: { timeout?: number }): Promise<void> {
     return await executeWithProgress(
-      async () => {
-        await this.context.highlight(selector);
+      async progress => {
+        const context = await this.getContext(progress);
+        await context.highlight(selector);
       },
       { timeout: options?.timeout || 30000 }
     );
@@ -1479,8 +1530,9 @@ export class Frame extends Disposable {
 
   async hideHighlight(): Promise<void> {
     return await executeWithProgress(
-      async () => {
-        await this.context.hideHighlight();
+      async progress => {
+        const context = await this.getContext(progress);
+        await context.hideHighlight();
       },
       { timeout: 30000 }
     );
@@ -1493,32 +1545,17 @@ export class Frame extends Disposable {
   ): Promise<R> {
     return await executeWithProgress(
       async p => {
-        // Ensure execution context is available. During history navigations
-        // (e.g. goBack/goForward), the content script may not yet be reloaded
-        // for the new document, causing this._context to be undefined briefly.
-        // Wait a short period for the context to be re-created instead of
-        // throwing synchronously.
-        if (!this._context) {
-          await this._retryWithProgressAndTimeouts(
-            p,
-            [50, 100, 200, 400, 800, 1200, 2000],
-            async continuePolling => {
-              return this._context ? true : continuePolling;
-            }
-          );
-        }
+        // Ensure execution context is ready
+        const context = await this.getContext(p);
 
-        if (!this._context) {
-          throw new Error(`Frame ${this.frameId} has no execution context`);
-        }
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
-          const result = await this.context.executeScript(pageFunction, 'MAIN', arg);
+          const result = await context.executeScript(pageFunction, 'MAIN', arg);
           return result as R;
         } else {
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
-          const result = await this.context.executeScript(noArgFunction, 'MAIN');
+          const result = await context.executeScript(noArgFunction, 'MAIN');
           return result as R;
         }
       },
@@ -1532,15 +1569,18 @@ export class Frame extends Disposable {
     options?: { timeout?: number }
   ): Promise<ElementHandle | null> {
     return await executeWithProgress(
-      async () => {
+      async progress => {
+        // Ensure execution context is ready
+        const context = await this.getContext(progress);
+
         // Pass function directly, args as rest parameters
         if (arg !== undefined) {
-          const result = await this.context.evaluateHandle(pageFunction, 'MAIN', arg);
+          const result = await context.evaluateHandle(pageFunction, 'MAIN', arg);
           return result;
         } else {
           // Cast to no-arg function when no argument provided
           const noArgFunction = pageFunction as () => R;
-          const result = await this.context.evaluateHandle(noArgFunction, 'MAIN');
+          const result = await context.evaluateHandle(noArgFunction, 'MAIN');
           return result;
         }
       },

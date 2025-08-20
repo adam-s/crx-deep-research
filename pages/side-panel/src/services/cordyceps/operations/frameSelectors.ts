@@ -47,8 +47,12 @@ export class FrameSelectors {
     if (!resolved) {
       return undefined;
     }
+
+    // Ensure the frame has an execution context before accessing it
+    const context = await resolved.frame.getContext();
+
     return {
-      context: resolved.frame.context,
+      context: context,
       info: resolved.info,
       frame: resolved.frame,
       scope: resolved.scope,
