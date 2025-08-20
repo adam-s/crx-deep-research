@@ -162,7 +162,7 @@ export async function extract({
   const {
     data: { completed: metadataResponseCompleted, progress: metadataResponseProgress },
     usage: metadataResponseUsage,
-  } = metadataResponse as LLMParsedResponse<MetadataResponse>;
+  } = metadataResponse as unknown as LLMParsedResponse<MetadataResponse>;
 
   let metadataResponseFile = '';
   if (logInferenceToFile) {
@@ -306,7 +306,7 @@ export async function observe({
   const usageTimeMs = end - start;
 
   const { data: observeData, usage: observeUsage } =
-    rawResponse as LLMParsedResponse<ObserveResponse>;
+    rawResponse as unknown as LLMParsedResponse<ObserveResponse>;
   const promptTokens = observeUsage?.prompt_tokens ?? 0;
   const completionTokens = observeUsage?.completion_tokens ?? 0;
 
