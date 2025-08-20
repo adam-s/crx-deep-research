@@ -17,18 +17,12 @@ export class BrowserWindow extends Disposable {
     super();
     this.windowId = windowId;
     this.session = this._register(new Session(windowId));
-    console.log(`✅ BrowserWindow created for window ${windowId}`);
   }
 
   dispose(): void {
-    console.log(`🗑️ Disposing BrowserWindow for window ${this.windowId}`);
-    console.log(
-      `🗑️ BrowserWindow disposing ${this._pages.size} pages: [${Array.from(this._pages.keys()).join(', ')}]`
-    );
     for (const p of this._pages.values()) p.dispose();
     this._pages.clear();
     super.dispose();
-    console.log(`✅ BrowserWindow for window ${this.windowId} disposed successfully`);
   }
 
   static async create(): Promise<BrowserWindow> {
@@ -45,7 +39,6 @@ export class BrowserWindow extends Disposable {
     const activeTab = tabs.find(tab => tab.active);
     if (activeTab?.id) {
       this._activeTabId = activeTab.id;
-      console.log(`📋 Initial active tab: ${activeTab.id} in window ${this.windowId}`);
     }
 
     for (const tab of tabs) {
@@ -75,10 +68,6 @@ export class BrowserWindow extends Disposable {
           try {
             frame = page.frameManager.mainFrame();
           } catch (error) {
-            // Main frame not yet attached, skip this event
-            console.log(
-              `Skipping completed event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
-            );
             return;
           }
         }
@@ -99,10 +88,6 @@ export class BrowserWindow extends Disposable {
           try {
             frame = page.frameManager.mainFrame();
           } catch (error) {
-            // Main frame not yet attached, skip this event
-            console.log(
-              `Skipping DOMContentLoaded event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
-            );
             return;
           }
         }
@@ -132,12 +117,9 @@ export class BrowserWindow extends Disposable {
 
     this._register(
       this.session.onTabRemoved(({ tabId }) => {
-        console.log(`🗑️ Tab ${tabId} removed - starting cleanup`);
-
         // Clear active tab cache if the removed tab was the active one
         if (this._activeTabId === tabId) {
           this._activeTabId = undefined;
-          console.log(`📋 Cleared active tab cache (removed tab ${tabId} was active)`);
         }
 
         const page = this._pages.get(tabId);
@@ -160,14 +142,8 @@ export class BrowserWindow extends Disposable {
           return;
         }
         if (tab.windowId === this.windowId && tab.id) {
-          try {
-            this._createPage(tab.id);
-            // New tabs start with just a main frame, let navigation events handle the rest
-          } catch (error) {
-            console.log(
-              `Failed to create page for new tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
+          this._createPage(tab.id);
+          // New tabs start with just a main frame, let navigation events handle the rest
         }
       })
     );
@@ -177,7 +153,6 @@ export class BrowserWindow extends Disposable {
       this.session.onTabActivated(activeInfo => {
         if (activeInfo.windowId === this.windowId) {
           this._activeTabId = activeInfo.tabId;
-          console.log(`📋 Active tab changed to ${activeInfo.tabId} in window ${this.windowId}`);
         }
       })
     );
@@ -194,10 +169,6 @@ export class BrowserWindow extends Disposable {
           try {
             frame = page.frameManager.mainFrame();
           } catch (error) {
-            // Main frame not yet attached, skip this event
-            console.log(
-              `Skipping history state updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
-            );
             return;
           }
         }
@@ -216,10 +187,6 @@ export class BrowserWindow extends Disposable {
           try {
             frame = page.frameManager.mainFrame();
           } catch (error) {
-            // Main frame not yet attached, skip this event
-            console.log(
-              `Skipping reference fragment updated event for tab ${d.tabId}, frame ${d.frameId}: main frame not ready`
-            );
             return;
           }
         }
@@ -235,9 +202,6 @@ export class BrowserWindow extends Disposable {
     try {
       // Check if this BrowserWindow has been disposed
       if (this._store.isDisposed) {
-        console.log(
-          `⚠️ Skipping navigation event for tab ${details.tabId} - BrowserWindow already disposed`
-        );
         return;
       }
 
@@ -327,7 +291,6 @@ export class BrowserWindow extends Disposable {
             // Continue processing other frames even if one fails
           }
         }
-        console.log(`After attachment, page has ${page.frameManager.frames().length} frames`);
       }
     } catch (error) {
       console.warn(`Failed to get all frames for tab ${page.tabId}:`, error);
@@ -355,11 +318,10 @@ export class BrowserWindow extends Disposable {
           main._onClearLifecycle();
         }
       } catch (error) {
-        console.log(`Main frame not ready yet for tab ${tabId}, will be processed when attached`);
+        // Main frame not ready yet, will be processed when attached
       }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.log(`Failed to handle main frame navigation for tab ${tabId}: ${errMsg}`);
+      // Failed to handle main frame navigation
     }
   }
 

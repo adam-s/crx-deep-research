@@ -85,15 +85,10 @@ export class Session extends Disposable {
     this._setupMessageListener();
     this._setupTabListeners();
     this._setupWebNavigationListeners();
-    console.log(`✅ Session created for window ${windowId}`);
   }
 
   dispose(): void {
-    console.log(`🗑️ Disposing Session for window ${this.windowId}`);
-    console.log(`🗑️ Session removing Chrome API listeners`);
-
     super.dispose();
-    console.log(`✅ Session for window ${this.windowId} disposed successfully`);
   }
 
   private _setupMessageListener(): void {

@@ -221,11 +221,8 @@ export class Page extends Disposable {
    * Also removes the actual Chrome tab.
    */
   close(): void {
-    console.log(`🚪 Explicitly closing Page for tab ${this.tabId}`);
-
     // Update closed state before disposing to prevent race conditions
     if (this._closedState === 'closed') {
-      console.log(`⚠️ Page for tab ${this.tabId} already closed`);
       return;
     }
 
@@ -343,24 +340,15 @@ export class Page extends Disposable {
 
   async reload(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      console.log(`[Page.reload] Starting reload for tab ${this.tabId}, options:`, options);
       return this.mainFrame().raceNavigationAction(p, async () => {
-        console.log(`[Page.reload] Inside raceNavigationAction for tab ${this.tabId}`);
         // Note: waitForNavigation may fail before we get response to reload(),
         // so we should await it immediately.
-        console.log(
-          `[Page.reload] Starting Promise.all with _waitForNavigation and chrome.tabs.reload for tab ${this.tabId}`
-        );
         const [response] = await Promise.all([
           // Reload must be a new document, and should not be confused with a stray pushState.
           this.mainFrame()._waitForNavigation(p, true /* requiresNewDocument */, options || {}),
           // chrome.tabs.reload is synchronous, just wrap in Promise.resolve for consistency
           Promise.resolve(chrome.tabs.reload(this.tabId)),
         ]);
-        console.log(
-          `[Page.reload] Promise.all completed for tab ${this.tabId}, response:`,
-          response
-        );
         return response;
       });
     }, options);
@@ -368,27 +356,18 @@ export class Page extends Disposable {
 
   async goBack(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      console.log(`[Page.goBack] Starting goBack for tab ${this.tabId}, options:`, options);
       return this.mainFrame().raceNavigationAction(p, async () => {
-        console.log(`[Page.goBack] Inside raceNavigationAction for tab ${this.tabId}`);
         // Note: waitForNavigation may fail before we get response to goBack,
         // so we should catch it immediately.
         let error: Error | undefined;
-        console.log(`[Page.goBack] Starting _waitForNavigation for tab ${this.tabId}`);
         const waitPromise = this.mainFrame()
           ._waitForNavigation(p, false /* requiresNewDocument */, options || {})
           .catch(e => {
-            console.log(`[Page.goBack] _waitForNavigation caught error for tab ${this.tabId}:`, e);
             error = e;
             return null;
           });
 
         try {
-          // Use content script injection to navigate back in JavaScript history
-          // This matches the navigation method used in Frame.goto() with window.location.assign()
-          console.log(
-            `[Page.goBack] Calling window.history.back() via content script for tab ${this.tabId}`
-          );
           try {
             await chrome.scripting.executeScript({
               target: { tabId: this.tabId, allFrames: false },
@@ -408,18 +387,10 @@ export class Page extends Disposable {
             );
             chrome.tabs.goBack(this.tabId);
           }
-          console.log(
-            `[Page.goBack] Navigation completed for tab ${this.tabId}, waiting for navigation...`
-          );
           const response = await waitPromise;
-          console.log(
-            `[Page.goBack] waitPromise resolved for tab ${this.tabId}, response:`,
-            response
-          );
           if (error) throw error;
           return response;
         } catch (e) {
-          console.log(`[Page.goBack] Exception in try block for tab ${this.tabId}:`, e);
           waitPromise.catch(() => {}); // Avoid an unhandled rejection.
           throw e;
         }
@@ -429,20 +400,13 @@ export class Page extends Disposable {
 
   async goForward(options?: NavigateOptionsWithProgress): Promise<NavigationResponse | null> {
     return executeWithProgress(async p => {
-      console.log(`[Page.goForward] Starting goForward for tab ${this.tabId}, options:`, options);
       return this.mainFrame().raceNavigationAction(p, async () => {
-        console.log(`[Page.goForward] Inside raceNavigationAction for tab ${this.tabId}`);
         // Note: waitForNavigation may fail before we get response to goForward,
         // so we should catch it immediately.
         let error: Error | undefined;
-        console.log(`[Page.goForward] Starting _waitForNavigation for tab ${this.tabId}`);
         const waitPromise = this.mainFrame()
           ._waitForNavigation(p, false /* requiresNewDocument */, options || {})
           .catch(e => {
-            console.log(
-              `[Page.goForward] _waitForNavigation caught error for tab ${this.tabId}:`,
-              e
-            );
             error = e;
             return null;
           });
@@ -450,9 +414,6 @@ export class Page extends Disposable {
         try {
           // Use content script injection to navigate forward in JavaScript history
           // This matches the navigation method used in Frame.goto() with window.location.assign()
-          console.log(
-            `[Page.goForward] Calling window.history.forward() via content script for tab ${this.tabId}`
-          );
           try {
             await chrome.scripting.executeScript({
               target: { tabId: this.tabId, allFrames: false },
@@ -471,18 +432,10 @@ export class Page extends Disposable {
             );
             chrome.tabs.goForward(this.tabId);
           }
-          console.log(
-            `[Page.goForward] Navigation completed for tab ${this.tabId}, waiting for navigation...`
-          );
           const response = await waitPromise;
-          console.log(
-            `[Page.goForward] waitPromise resolved for tab ${this.tabId}, response:`,
-            response
-          );
           if (error) throw error;
           return response;
         } catch (e) {
-          console.log(`[Page.goForward] Exception in try block for tab ${this.tabId}:`, e);
           waitPromise.catch(() => {}); // Avoid an unhandled rejection.
           throw e;
         }
@@ -499,43 +452,22 @@ export class Page extends Disposable {
 
     // For networkidle, delegate to content script readiness (new approach)
     if (state === 'networkidle') {
-      console.log(
-        `Page.waitForLoadState: Delegating 'networkidle' to content script readiness system`
-      );
-
       const timeout = options?.timeout ?? 30000;
       const progress = new ProgressController(timeout);
-      try {
-        await this.waitForContentScriptReady(progress);
-        console.log('Page.waitForLoadState: Content script readiness completed successfully');
-        return;
-      } catch (error) {
-        console.warn('Page.waitForLoadState: Content script readiness failed:', error);
-        throw error;
-      }
+      await this.waitForContentScriptReady(progress);
+      return;
     }
 
     // For Chrome internal pages (new tab pages), use simplified load detection
     if (url?.startsWith('chrome://') || url?.startsWith('chrome-untrusted://')) {
-      console.log(
-        `Page.waitForLoadState: Chrome internal page detected (${url}) - using simplified load detection`
-      );
-
       const timeout = options?.timeout ?? 5000; // Shorter timeout for Chrome pages
       try {
         await Promise.race([
           this.mainFrame().waitForLoadState(state || 'domcontentloaded', { timeout }),
           new Promise<void>(resolve => setTimeout(resolve, Math.min(timeout, 3000))), // Max 3s
         ]);
-        console.log(
-          'Page.waitForLoadState: Chrome internal page load completed or timed out gracefully'
-        );
         return;
       } catch (error) {
-        console.warn(
-          'Page.waitForLoadState: Chrome internal page load failed, continuing anyway:',
-          error
-        );
         return;
       }
     }
@@ -953,13 +885,8 @@ export class Page extends Disposable {
       ignoredResourceTypes?: string[];
     } = {}
   ): Promise<void> {
-    console.log(
-      'Page.waitForNetworkStability: Delegating to content script readiness system (new approach)'
-    );
-
     try {
       await this.waitForContentScriptReady(progress);
-      console.log('Page.waitForNetworkStability: Content script readiness completed successfully');
       return;
     } catch (error) {
       console.warn('Page.waitForNetworkStability: Content script readiness failed:', error);
@@ -1022,7 +949,6 @@ export class Page extends Disposable {
           vsCodeEvent = this.onLoad;
           break;
         case 'download':
-          console.log(`📱 [Page ${this.tabId}] Setting up waitForEvent for download`);
           vsCodeEvent = this.onDownload;
           break;
         case 'close':

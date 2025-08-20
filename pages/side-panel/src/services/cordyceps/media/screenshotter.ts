@@ -158,8 +158,6 @@ class BrowserBuffer {
   }
 
   static from(input: string, encoding: 'base64' | 'utf8' = 'utf8'): BrowserBuffer {
-    console.log(`[BrowserBuffer.from] input length: ${input?.length}, encoding: ${encoding}`);
-
     let bytes: Uint8Array;
     if (encoding === 'base64') {
       bytes = ScreenshotEncoding.base64ToU8(input);
@@ -169,23 +167,16 @@ class BrowserBuffer {
     }
 
     const result = new BrowserBuffer(bytes);
-    console.log(`[BrowserBuffer.from] created buffer with ${bytes.length} bytes`);
     return result;
   }
 
   toString(encoding: 'base64' | 'utf8' = 'utf8'): string {
-    console.log(
-      `[BrowserBuffer.toString] encoding: ${encoding}, data length: ${this._data.length}`
-    );
-
     if (encoding === 'base64') {
       const result = ScreenshotEncoding.u8ToBase64(this._data);
-      console.log(`[BrowserBuffer.toString] base64 length: ${result.length}`);
       return result;
     } else {
       const decoder = new TextDecoder();
       const result = decoder.decode(this._data);
-      console.log(`[BrowserBuffer.toString] UTF-8 length: ${result.length}`);
       return result;
     }
   }
@@ -523,7 +514,6 @@ function inPageScrollAndCapture() {
   // Get page dimensions
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  console.log(`[inPageScrollAndCapture] viewport size: ${viewportWidth}x${viewportHeight}`);
 
   const totalWidth = Math.max(
     document.body.scrollWidth,
@@ -542,12 +532,9 @@ function inPageScrollAndCapture() {
     document.documentElement.clientHeight
   );
 
-  console.log(`[inPageScrollAndCapture] total page size: ${totalWidth}x${totalHeight}`);
-
   // Calculate segments needed (self-contained, no external references)
   const xSegments = Math.ceil(totalWidth / viewportWidth);
   const ySegments = Math.ceil(totalHeight / viewportHeight);
-  console.log(`[inPageScrollAndCapture] calculated segments: ${xSegments}x${ySegments}`);
 
   // Store state in window for later use
   window.__scrollCaptureState = {
@@ -572,7 +559,6 @@ function inPageScrollAndCapture() {
 }
 
 function inPageScrollToSegment(xIndex: number, yIndex: number) {
-  console.log(`[inPageScrollToSegment] scrolling to segment (${xIndex}, ${yIndex})`);
   const state = window.__scrollCaptureState;
   if (!state) {
     throw new Error('Scroll capture not initialized');
@@ -609,7 +595,6 @@ function inPageScrollToSegment(xIndex: number, yIndex: number) {
   const x = lastClamp(xIndex, xSegments, state.viewportWidth, totalWidth);
   const y = lastClamp(yIndex, ySegments, state.viewportHeight, totalHeight);
 
-  console.log(`[inPageScrollToSegment] calculated target position: (${x}, ${y})`);
   window.scrollTo(x, y);
 
   const actualPosition = {
@@ -882,14 +867,9 @@ export class Screenshotter {
         quality: quality ?? (format === 'jpeg' ? 80 : undefined),
       });
 
-      console.log(`[Screenshotter.takeScreenshot] received dataUrl length: ${dataUrl?.length}`);
-
       // Convert data URL to Buffer
       const base64Data = dataUrl.split(',')[1];
-      console.log(`[Screenshotter.takeScreenshot] base64Data length: ${base64Data?.length}`);
       const buffer = BufferPolyfill.from(base64Data, 'base64');
-
-      console.log(`[Screenshotter.takeScreenshot] created buffer length: ${buffer.length}`);
 
       // Handle clipping if documentRect or viewportRect is specified with non-zero offset
       const clipRect = documentRect || viewportRect;
@@ -921,12 +901,9 @@ export class Screenshotter {
     progress.log('capturing full page using scroll-and-stitch method');
 
     // Initialize scroll capture in the page
-    console.log(`[Screenshotter._takeFullPageScreenshot] initializing scroll capture`);
     const scrollInfo = await this._page
       .mainFrame()
       .context.executeScript(inPageScrollAndCapture, 'MAIN');
-
-    console.log(`[Screenshotter._takeFullPageScreenshot] scrollInfo:`, scrollInfo);
 
     if (!scrollInfo) {
       throw new Error('Failed to initialize scroll capture');

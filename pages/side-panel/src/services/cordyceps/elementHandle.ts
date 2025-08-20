@@ -1011,8 +1011,6 @@ export class ElementHandle extends JSHandle {
     // Determine execution world - use MAIN by default for better performance
     const world = options?.world ?? 'MAIN';
 
-    console.log(`[ElementHandle.setInputFilesWithProgress] Using ${world} world ######`);
-
     // Set the files on the input element
     const result = await progress.race(
       this._context.setInputFiles(

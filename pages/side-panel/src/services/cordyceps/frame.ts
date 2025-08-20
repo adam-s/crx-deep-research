@@ -369,10 +369,6 @@ export class Frame extends Disposable {
         // Ignore teardown errors; the frame is transitioning to a new document.
       }
       this._context = undefined;
-    } else {
-      console.log(
-        `[Frame._onNewDocumentCommitted] No existing context to destroy for frame ${this.frameId}`
-      );
     }
   }
 
@@ -501,26 +497,13 @@ export class Frame extends Disposable {
     options: { waitUntil?: LifecycleEvent; timeout?: number } = {}
   ): Promise<NavigationResponse | null> {
     const waitUntil = verifyLifecycle('waitUntil', options.waitUntil || 'load');
-    console.log(
-      `[Frame._waitForNavigation] Starting frame ${this.frameId}, tab ${this.tabId}, ` +
-        `requiresNewDocument: ${requiresNewDocument}, waitUntil: "${waitUntil}", options:`,
-      options
-    );
 
     // Safe progress logging - check if progress.log exists
     if (progress && typeof progress.log === 'function') {
       progress.log(`waiting for navigation until "${waitUntil}"`);
-    } else {
-      console.log(
-        `[Frame._waitForNavigation] Progress object missing log method, progress:`,
-        progress
-      );
     }
+    // If progress is not provided, log to console
 
-    // Wait for navigation event using our VS Code Event system
-    console.log(
-      `[Frame._waitForNavigation] Calling Frame.waitForEvent for onInternalNavigation, frame ${this.frameId}`
-    );
     const navigationEvent = await Frame.waitForEvent(
       progress,
       this.onInternalNavigation,
@@ -543,74 +526,28 @@ export class Frame extends Disposable {
       },
       options.timeout || 30000
     );
-
-    console.log(
-      `[Frame._waitForNavigation] Frame.waitForEvent completed for frame ${this.frameId}, navigationEvent:`,
-      navigationEvent
-    );
-
     // Check for navigation error
     if (navigationEvent.error) {
-      console.log(
-        `[Frame._waitForNavigation] Throwing navigation error for frame ${this.frameId}:`,
-        navigationEvent.error
-      );
       throw navigationEvent.error;
     }
-
-    // Decide whether to wait for a lifecycle event.
-    // For same-document navigations (no newDocument), Chrome won't fire 'domcontentloaded'/'load'.
-    // In that case, treat the navigation as complete after the internal navigation signal.
-    console.log(
-      `[Frame._waitForNavigation] Checking lifecycle events for frame ${this.frameId}, firedEvents:`,
-      Array.from(this._firedLifecycleEvents),
-      `waitUntil: "${waitUntil}"`
-    );
     const isSameDocument = !navigationEvent.newDocument;
     const shouldSkipLifecycleWait = isSameDocument && waitUntil !== 'commit';
     if (!shouldSkipLifecycleWait && !this._firedLifecycleEvents.has(waitUntil)) {
-      console.log(
-        `[Frame._waitForNavigation] Waiting for lifecycle event "${waitUntil}" for frame ${this.frameId}`
-      );
       await Frame.waitForEvent(
         progress,
         this.onAddLifecycle,
         (e: LifecycleEvent) => {
-          console.log(
-            `[Frame._waitForNavigation] Lifecycle event received for frame ${this.frameId}: ` +
-              `"${e}", waiting for: "${waitUntil}"`
-          );
           return e === waitUntil;
         },
         options.timeout || 30000
-      );
-      console.log(
-        `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
-      );
-    } else {
-      console.log(
-        shouldSkipLifecycleWait
-          ? `[Frame._waitForNavigation] Same-document navigation detected; skipping lifecycle wait for "${waitUntil}"`
-          : `[Frame._waitForNavigation] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`
       );
     }
 
     // Extract request and return response (or null)
     const request = navigationEvent.newDocument ? navigationEvent.newDocument.request : undefined;
-    console.log(
-      `[Frame._waitForNavigation] Extracting request for frame ${this.frameId}, request:`,
-      request
-    );
     if (request) {
-      // TODO: Implement proper ResponseInfo to NavigationResponse conversion
-      // const responseInfo = await progress.race(request._finalRequest().response());
-      // For now, return null since response mapping is not fully implemented
-      console.log(
-        `[Frame._waitForNavigation] Returning null for frame ${this.frameId} (response mapping not implemented)`
-      );
       return null;
     }
-    console.log(`[Frame._waitForNavigation] Returning null for frame ${this.frameId} (no request)`);
     return null;
   }
 
@@ -620,59 +557,30 @@ export class Frame extends Disposable {
    */
   async _waitForLoadState(progress: Progress, state: LifecycleEvent): Promise<void> {
     const waitUntil = verifyLifecycle('state', state);
-    console.log(
-      `[Frame._waitForLoadState] Starting for frame ${this.frameId}, state: "${state}", waitUntil: "${waitUntil}"`
-    );
-    console.log(
-      `[Frame._waitForLoadState] Current fired lifecycle events for frame ${this.frameId}:`,
-      Array.from(this._firedLifecycleEvents)
-    );
-    console.log(
-      `🔍 Frame ${this.frameId}: _waitForLoadState debug - waiting for "${waitUntil}", current events:`,
-      Array.from(this._firedLifecycleEvents)
-    );
-
     // Check if the requested lifecycle event is already satisfied or implied
     const isAlreadySatisfied = this._firedLifecycleEvents.has(waitUntil);
     const isImpliedByLaterEvents = this._isLifecycleEventImplied(waitUntil);
 
     if (isAlreadySatisfied) {
-      console.log(
-        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" already fired for frame ${this.frameId}`
-      );
       return;
     }
 
     if (isImpliedByLaterEvents) {
-      console.log(
-        `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" is implied by later events for frame ${this.frameId}`
-      );
       // Mark the implied event as fired for consistency
       this._firedLifecycleEvents.add(waitUntil);
       this._fireAddLifecycle(waitUntil);
       return;
     }
-
-    console.log(
-      `[Frame._waitForLoadState] Waiting for lifecycle event $$$$$$ "${waitUntil}" for frame ${this.frameId}`
-    );
     // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
     await progress.race(
       Frame.waitForEvent(
         progress,
         this.onAddLifecycle,
         (e: LifecycleEvent) => {
-          console.log(
-            `[Frame._waitForLoadState] Lifecycle event received for frame ${this.frameId}: ` +
-              `"${e}", waiting for: "${waitUntil}"`
-          );
           return e === waitUntil;
         },
         30000 // This becomes irrelevant as progress.race will handle timeout
       )
-    );
-    console.log(
-      `[Frame._waitForLoadState] Lifecycle event "${waitUntil}" received for frame ${this.frameId}`
     );
   }
 
@@ -706,58 +614,39 @@ export class Frame extends Disposable {
     predicate?: (eventArg: T) => boolean,
     timeout: number = 30000
   ): Promise<T> {
-    console.log(
-      `[Frame.waitForEvent] Starting waitForEvent with timeout ${timeout}ms, predicate:`,
-      !!predicate
-    );
     return new Promise<T>((resolve, reject) => {
       let disposable: { dispose(): void } | null = null;
 
       // Set up timeout
       const timeoutHandle = setTimeout(() => {
-        console.log(`[Frame.waitForEvent] Timeout exceeded (${timeout}ms)`);
         if (disposable) disposable.dispose();
         reject(new Error(`Event timeout of ${timeout}ms exceeded`));
       }, timeout);
 
       const cleanup = () => {
-        console.log(`[Frame.waitForEvent] Cleaning up event listener`);
         clearTimeout(timeoutHandle);
         if (disposable) disposable.dispose();
       };
 
       // Listen for the event
-      console.log(`[Frame.waitForEvent] Setting up event listener`);
       disposable = event((eventArg: T) => {
         try {
-          console.log(`[Frame.waitForEvent] Event received, evaluating predicate...`);
           if (predicate && !predicate(eventArg)) {
-            console.log(`[Frame.waitForEvent] Predicate returned false, continuing to wait`);
             return; // Continue waiting
           }
-          console.log(
-            `[Frame.waitForEvent] Event matches criteria, resolving with eventArg:`,
-            eventArg
-          );
           cleanup();
           resolve(eventArg);
         } catch (e) {
-          console.log(`[Frame.waitForEvent] Exception in event handler:`, e);
           cleanup();
           reject(e);
         }
       });
 
       // Clean up when progress is aborted
-      console.log(`[Frame.waitForEvent] Registering cleanup for progress abort`);
       // Safety check for progress.cleanupWhenAborted
       if (progress && typeof progress.cleanupWhenAborted === 'function') {
         progress.cleanupWhenAborted(cleanup);
       } else {
-        console.log(
-          `[Frame.waitForEvent] Progress object missing cleanupWhenAborted method, progress:`,
-          progress
-        );
         // Still register cleanup in case we need it, but without progress support
       }
     });
@@ -2071,9 +1960,6 @@ export class Frame extends Disposable {
 
       for (const event of lifecycleEvents) {
         if (!this._firedLifecycleEvents.has(event)) {
-          console.log(
-            `🔗 Frame ${this.frameId}: Marking '${event}' lifecycle event from NavigationTracker`
-          );
           this._onLifecycleEvent(event);
         }
       }
