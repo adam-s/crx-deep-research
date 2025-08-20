@@ -454,7 +454,9 @@ export class Page extends Disposable {
     if (state === 'networkidle') {
       const timeout = options?.timeout ?? 30000;
       const progress = new ProgressController(timeout);
-      await this.waitForContentScriptReady(progress);
+      await progress.run(async p => {
+        await this.waitForContentScriptReady(p);
+      });
       return;
     }
 
