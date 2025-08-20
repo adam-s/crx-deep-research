@@ -58,6 +58,10 @@ import {
   testAccessibilityAdvancedQuick,
 } from './playgroundTests/accessibilityAdvancedConversionTests';
 import { runLoggerTests } from './playgroundTests/loggerTests';
+import {
+  testPromptBuildingUtilities,
+  quickPromptBuildingTest,
+} from './playgroundTests/promptBuildingTests';
 import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
@@ -177,6 +181,10 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       });
       runLoggerTests();
 
+      // Test prompt building utilities
+      const promptProgress = new TestProgress('Prompt-Building');
+      await testPromptBuildingUtilities(promptProgress, testContext);
+
       // Run the comprehensive DOM utilities tests
       await testDOMUtilities(progress, testContext);
 
@@ -200,6 +208,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           category: 'pure-functions',
           completedCategories: [
             'Logging Infrastructure',
+            'Prompt Building',
             'DOM Utilities',
             'LLM & AI Processing',
             'Utility Functions',
@@ -293,6 +302,9 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       // Test core logging functionality first
       runLoggerTests();
 
+      // Test prompt building utilities
+      const promptBuildingOk = await quickPromptBuildingTest();
+
       // Original quick tests
       const domUtilsOk = await quickStagehandDOMUtilsTest();
       const cordycepsOk = await quickStagehandCordycepsConversionTest();
@@ -335,13 +347,20 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       const cacheOk = await quickCacheSystemTest(cacheTestContext);
 
       const allPassed =
-        domUtilsOk && cordycepsOk && livePageOk && domUtilitiesOk && llmAiOk && cacheOk;
+        promptBuildingOk &&
+        domUtilsOk &&
+        cordycepsOk &&
+        livePageOk &&
+        domUtilitiesOk &&
+        llmAiOk &&
+        cacheOk;
 
       this.events.emit({
         timestamp: Date.now(),
         severity: allPassed ? Severity.Success : Severity.Warning,
         message: allPassed ? '✅ All quick tests passed' : '⚠️ Some quick tests failed',
         details: {
+          promptBuilding: promptBuildingOk,
           domUtils: domUtilsOk,
           cordycepsConversion: cordycepsOk,
           livePage: livePageOk,
@@ -350,6 +369,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           cacheSystem: cacheOk,
           comprehensiveTestsRun: [
             'Logger Tests',
+            'Prompt Building Quick Test',
             'DOM Utilities Quick Test',
             'LLM & AI Processing Quick Test',
             'Utility Functions Quick Test',
