@@ -1,31 +1,63 @@
-import path from 'path';
-import fs from 'fs';
-
 /**
- * Create (or ensure) a parent directory named "inference_summary".
+ * Lightweight console-based inference logging for Chrome extension
+ * Drop-in replacement for file-based logging with concise one-line output
  */
-function ensureInferenceSummaryDir(): string {
-  const inferenceDir = path.join(process.cwd(), 'inference_summary');
-  if (!fs.existsSync(inferenceDir)) {
-    fs.mkdirSync(inferenceDir, { recursive: true });
-  }
-  return inferenceDir;
+
+interface InferenceLogEntry {
+  inferenceType?: string;
+  requestId?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  inferenceTimeMs?: number;
+  timestamp?: string;
+  [key: string]: unknown;
 }
 
 /**
- * Appends a new entry to the act_summary.json file, then writes the file back out.
+ * Get emoji for inference type
  */
-export function appendSummary<T>(inferenceType: string, entry: T) {
-  const summaryPath = getSummaryJsonPath(inferenceType);
-  const arrayKey = `${inferenceType}_summary`;
-
-  const existingData = readSummaryFile<T>(inferenceType);
-  existingData[arrayKey].push(entry);
-
-  fs.writeFileSync(summaryPath, JSON.stringify(existingData, null, 2));
+function getTypeEmoji(inferenceType: string): string {
+  const emojis: Record<string, string> = {
+    extract: '📤',
+    observe: '👁️',
+    act: '⚡',
+    metadata: '📋',
+  };
+  return emojis[inferenceType] || '🔧';
 }
 
-/** A simple timestamp utility for filenames. */
+/**
+ * Format timing for compact display
+ */
+function formatTiming(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * Format tokens for compact display
+ */
+function formatTokens(prompt: number, completion: number): string {
+  const total = prompt + completion;
+  return `${total}t(${prompt}+${completion})`;
+}
+
+/**
+ * Get short request ID for logging
+ */
+function getShortId(id: string): string {
+  return id.slice(-8);
+}
+
+/**
+ * Get formatted time for logging
+ */
+function getTimeString(): string {
+  return new Date().toISOString().slice(11, 23);
+}
+
+/**
+ * Simple timestamp utility - maintains original API
+ */
 function getTimestamp(): string {
   return new Date()
     .toISOString()
@@ -34,74 +66,38 @@ function getTimestamp(): string {
 }
 
 /**
- * Writes `data` as JSON into a file in `directory`, using a prefix plus timestamp.
- * Returns both the file name and the timestamp used, so you can log them.
+ * Log inference summary - maintains original API signature
+ */
+export function appendSummary<T extends InferenceLogEntry>(inferenceType: string, entry: T): void {
+  const emoji = getTypeEmoji(inferenceType);
+  const reqId = entry.requestId ? getShortId(entry.requestId) : 'unknown';
+  const tokens =
+    entry.promptTokens !== undefined && entry.completionTokens !== undefined
+      ? formatTokens(entry.promptTokens, entry.completionTokens)
+      : '';
+  const timing = entry.inferenceTimeMs ? formatTiming(entry.inferenceTimeMs) : '';
+  const time = getTimeString();
+
+  console.log(`${emoji} ${inferenceType} | ${reqId} | ${timing} | ${tokens} | ${time}`);
+}
+
+/**
+ * Log timestamped data - maintains original API signature
  */
 export function writeTimestampedTxtFile(
   directory: string,
   prefix: string,
   data: unknown
 ): { fileName: string; timestamp: string } {
-  const baseDir = ensureInferenceSummaryDir();
-
-  const subDir = path.join(baseDir, directory);
-  if (!fs.existsSync(subDir)) {
-    fs.mkdirSync(subDir, { recursive: true });
-  }
-
   const timestamp = getTimestamp();
-  const fileName = `${timestamp}_${prefix}.txt`;
-  const filePath = path.join(subDir, fileName);
+  const fileName = `${timestamp}_${prefix}`;
 
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2).replace(/\\n/g, '\n'));
+  // Extract requestId if available for correlation
+  const requestId = (data as { requestId?: string })?.requestId || 'unknown';
+  const reqId = getShortId(requestId);
+  const time = getTimeString();
+
+  console.log(`🔍 ${directory}/${prefix} | ${reqId} | ${time}`);
 
   return { fileName, timestamp };
-}
-
-/**
- * Returns the path to the `<inferenceType>_summary.json` file.
- *
- * For example, if `inferenceType = "act"`, this will be:
- *   `./inference_summary/act_summary/act_summary.json`
- */
-function getSummaryJsonPath(inferenceType: string): string {
-  const baseDir = ensureInferenceSummaryDir();
-  const subDir = path.join(baseDir, `${inferenceType}_summary`);
-  if (!fs.existsSync(subDir)) {
-    fs.mkdirSync(subDir, { recursive: true });
-  }
-  return path.join(subDir, `${inferenceType}_summary.json`);
-}
-
-/**
- * Reads the `<inferenceType>_summary.json` file, returning an object
- * with the top-level array named `<inferenceType>_summary`, if it exists.
- *
- * E.g. if inferenceType is "act", we expect a shape like:
- * {
- *   "act_summary": [ ... ]
- * }
- *
- * If the file or array is missing, returns { "<inferenceType>_summary": [] }.
- */
-function readSummaryFile<T>(inferenceType: string): Record<string, T[]> {
-  const summaryPath = getSummaryJsonPath(inferenceType);
-
-  // The top-level array key, e.g. "act_summary", "observe_summary", "extract_summary"
-  const arrayKey = `${inferenceType}_summary`;
-
-  if (!fs.existsSync(summaryPath)) {
-    return { [arrayKey]: [] };
-  }
-
-  try {
-    const raw = fs.readFileSync(summaryPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && Array.isArray(parsed[arrayKey])) {
-      return parsed;
-    }
-  } catch {
-    // If we fail to parse for any reason, fall back to empty array
-  }
-  return { [arrayKey]: [] };
 }

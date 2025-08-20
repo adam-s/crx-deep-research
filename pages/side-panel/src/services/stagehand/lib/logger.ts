@@ -1,133 +1,94 @@
-import pino from 'pino';
+/**
+ * Chrome extension compatible logger with concise console output
+ * Drop-in replacement for Pino-based logging
+ */
 import { LogLine } from '../types/log';
 
-// Map our existing levels to Pino's standard levels
-const levelMapping: Record<number, pino.Level> = {
-  0: 'error', // Critical/important messages
-  1: 'info', // Standard information
-  2: 'debug', // Detailed debugging information
-};
-
-// Define configuration options
+// Define configuration options - maintains original API
 export interface LoggerOptions {
   pretty?: boolean;
-  level?: pino.Level;
-  destination?: pino.DestinationStream;
-  usePino?: boolean; // Whether to use pino (default: true)
+  level?: 'error' | 'warn' | 'info' | 'debug';
+  destination?: unknown; // Ignored in console implementation
+  usePino?: boolean; // Ignored in console implementation
 }
 
 /**
- * Creates a configured Pino logger instance
+ * Creates a simple console logger - maintains original API
  */
 export function createLogger(options: LoggerOptions = {}) {
-  const loggerConfig: pino.LoggerOptions = {
+  // Return a minimal logger interface for compatibility
+  return {
     level: options.level || 'info',
-    base: undefined, // Don't include pid and hostname
-    browser: {
-      asObject: true,
-    },
-    // Disable worker threads to avoid issues in tests
-    transport: undefined,
+    error: (data: unknown, message?: string) =>
+      console.error(`[ERROR] ${message || JSON.stringify(data)}`),
+    warn: (data: unknown, message?: string) =>
+      console.warn(`[WARN] ${message || JSON.stringify(data)}`),
+    info: (data: unknown, message?: string) =>
+      console.info(`[INFO] ${message || JSON.stringify(data)}`),
+    debug: (data: unknown, message?: string) =>
+      console.debug(`[DEBUG] ${message || JSON.stringify(data)}`),
+    trace: (data: unknown, message?: string) =>
+      console.debug(`[TRACE] ${message || JSON.stringify(data)}`),
   };
-
-  // Add pretty printing for dev environments only if explicitly requested
-  // and not in a test environment
-  if (options.pretty && !isTestEnvironment()) {
-    try {
-      // Use require for dynamic import
-      const transport = {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard',
-            ignore: 'pid,hostname',
-          },
-        },
-      };
-      Object.assign(loggerConfig, transport);
-    } catch {
-      console.warn('pino-pretty not available, falling back to standard logging');
-    }
-  }
-
-  return pino(loggerConfig, options.destination);
 }
 
 /**
- * Check if we're running in a test environment
+ * Check if we're running in a test environment - maintains original API
  */
 function isTestEnvironment(): boolean {
   return (
-    process.env.NODE_ENV === 'test' ||
-    process.env.JEST_WORKER_ID !== undefined ||
-    process.env.PLAYWRIGHT_TEST_BASE_DIR !== undefined ||
-    // Check if we're in a CI environment
-    process.env.CI === 'true'
+    typeof process !== 'undefined' &&
+    (process.env?.NODE_ENV === 'test' ||
+      process.env?.JEST_WORKER_ID !== undefined ||
+      process.env?.PLAYWRIGHT_TEST_BASE_DIR !== undefined ||
+      process.env?.CI === 'true')
   );
 }
 
 /**
- * StagehandLogger class that wraps Pino for our specific needs
+ * Get emoji for log level
+ */
+function getLevelEmoji(level: number): string {
+  const emojis: Record<number, string> = {
+    0: '❌', // error
+    1: 'ℹ️', // info
+    2: '🐛', // debug
+  };
+  return emojis[level] || 'ℹ️';
+}
+
+/**
+ * Format timestamp for console display
+ */
+function formatTime(): string {
+  return new Date().toISOString().slice(11, 23);
+}
+
+/**
+ * StagehandLogger class - maintains original API
  */
 export class StagehandLogger {
-  /**
-   * We maintain a single shared Pino instance when `usePino` is enabled.
-   * This prevents spawning a new worker thread for every Stagehand instance
-   * (which happens when `pino-pretty` transport is used), eliminating the
-   * memory/RSS growth observed when many Stagehand objects are created and
-   * disposed within the same process (e.g. a request-per-instance API).
-   */
-  private static sharedPinoLogger: pino.Logger | null = null;
+  private static sharedPinoLogger: unknown = null; // Maintains compatibility
 
-  private logger?: pino.Logger;
   private verbose: 0 | 1 | 2;
   private externalLogger?: (logLine: LogLine) => void;
-  private usePino: boolean;
   private isTest: boolean;
 
-  constructor(options: LoggerOptions = {}, externalLogger?: (logLine: LogLine) => void) {
+  constructor(_options: LoggerOptions = {}, externalLogger?: (logLine: LogLine) => void) {
     this.isTest = isTestEnvironment();
-
-    // In test environments, default to not using Pino to avoid worker thread issues
-    this.usePino = this.isTest ? false : options.usePino !== false; // Default to using Pino if not specified and not in test
-
-    if (this.usePino) {
-      // Re-use (or create) a single shared Pino logger instance
-      if (!StagehandLogger.sharedPinoLogger) {
-        StagehandLogger.sharedPinoLogger = createLogger(options);
-      }
-      this.logger = StagehandLogger.sharedPinoLogger;
-    }
-
     this.verbose = 1; // Default verbosity level
     this.externalLogger = externalLogger;
   }
 
   /**
-   * Set the verbosity level
+   * Set the verbosity level - maintains original API
    */
-  setVerbosity(level: 0 | 1 | 2) {
+  setVerbosity(level: 0 | 1 | 2): void {
     this.verbose = level;
-
-    if (this.usePino && this.logger) {
-      // Map our verbosity levels to Pino log levels
-      switch (level) {
-        case 0:
-          this.logger.level = 'error';
-          break;
-        case 1:
-          this.logger.level = 'info';
-          break;
-        case 2:
-          this.logger.level = 'debug';
-          break;
-      }
-    }
   }
 
   /**
-   * Log a message using our LogLine format
+   * Log a message using LogLine format - maintains original API
    */
   log(logLine: LogLine): void {
     // Skip logs above verbosity level
@@ -135,74 +96,44 @@ export class StagehandLogger {
       return;
     }
 
-    // For test environments WITHOUT an external logger OR for cases where Pino
-    // is disabled and no external logger is provided, fall back to console.* so
-    // users still see logs (non-colourised).
-    const shouldFallbackToConsole =
-      (!this.usePino && !this.externalLogger) || (this.isTest && !this.externalLogger);
-
-    if (shouldFallbackToConsole) {
-      const level = logLine.level ?? 1;
-      const prefix = `[${logLine.category || 'log'}] `;
-
-      switch (level) {
-        case 0:
-          console.error(prefix + logLine.message);
-          break;
-        case 1:
-          console.log(prefix + logLine.message);
-          break;
-        case 2:
-          console.debug(prefix + logLine.message);
-          break;
-      }
-
-      return; // already handled via console output, avoid duplicate logging
-    }
-
-    if (this.usePino && this.logger) {
-      // Determine the Pino log level
-      const pinoLevel = levelMapping[logLine.level ?? 1] || 'info';
-
-      // Structure the log data
-      const logData = {
-        category: logLine.category,
-        timestamp: logLine.timestamp || new Date().toISOString(),
-        ...this.formatAuxiliaryData(logLine.auxiliary),
-      };
-
-      // Log through Pino with the appropriate level
-      if (pinoLevel === 'error') {
-        this.logger.error(logData, logLine.message);
-      } else if (pinoLevel === 'info') {
-        this.logger.info(logData, logLine.message);
-      } else if (pinoLevel === 'debug') {
-        this.logger.debug(logData, logLine.message);
-      } else if (pinoLevel === 'warn') {
-        this.logger.warn(logData, logLine.message);
-      } else if (pinoLevel === 'trace') {
-        this.logger.trace(logData, logLine.message);
-      } else {
-        this.logger.info(logData, logLine.message);
-      }
-    }
-
-    // Use external logger if provided and either Pino is disabled or we're in a test
-    if (this.externalLogger && (!this.usePino || this.isTest)) {
+    // Use external logger if provided
+    if (this.externalLogger) {
       this.externalLogger(logLine);
+      return;
+    }
+
+    // Format console output
+    const level = logLine.level ?? 1;
+    const emoji = getLevelEmoji(level);
+    const time = formatTime();
+    const category = logLine.category ? `[${logLine.category}]` : '';
+    const message = `${emoji} ${category} ${logLine.message} | ${time}`;
+
+    // Log to appropriate console method
+    switch (level) {
+      case 0:
+        console.error(message);
+        break;
+      case 1:
+        console.log(message);
+        break;
+      case 2:
+        console.debug(message);
+        break;
+      default:
+        console.log(message);
     }
   }
 
   /**
-   * Helper to format auxiliary data for structured logging
+   * Helper to format auxiliary data - maintains original structure
    */
-  private formatAuxiliaryData(auxiliary?: LogLine['auxiliary']) {
+  private formatAuxiliaryData(auxiliary?: LogLine['auxiliary']): Record<string, unknown> {
     if (!auxiliary) return {};
 
     const formattedData: Record<string, unknown> = {};
 
     for (const [key, { value, type }] of Object.entries(auxiliary)) {
-      // Convert values based on their type
       switch (type) {
         case 'integer':
           formattedData[key] = parseInt(value, 10);
@@ -229,7 +160,7 @@ export class StagehandLogger {
   }
 
   /**
-   * Convenience methods for different log levels
+   * Convenience methods - maintain original API
    */
   error(message: string, data?: Record<string, unknown>): void {
     this.log({
@@ -265,7 +196,7 @@ export class StagehandLogger {
   }
 
   /**
-   * Convert a plain object to our auxiliary format
+   * Convert a plain object to auxiliary format - maintains original API
    */
   private convertToAuxiliary(data?: Record<string, unknown>): LogLine['auxiliary'] {
     if (!data) return undefined;

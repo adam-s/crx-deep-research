@@ -57,6 +57,7 @@ import {
   testAccessibilityAdvancedConversion,
   testAccessibilityAdvancedQuick,
 } from './playgroundTests/accessibilityAdvancedConversionTests';
+import { runLoggerTests } from './playgroundTests/loggerTests';
 import { TestProgress } from './playgroundTests/types';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
@@ -168,6 +169,14 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       const testContext = { events: this.events, storage: this._storage };
       const progress = new TestProgress('DOM-Utils');
 
+      // Test core logging functionality first (fundamental infrastructure)
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '📝 Testing logging infrastructure...',
+      });
+      runLoggerTests();
+
       // Run the comprehensive DOM utilities tests
       await testDOMUtilities(progress, testContext);
 
@@ -190,6 +199,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         details: {
           category: 'pure-functions',
           completedCategories: [
+            'Logging Infrastructure',
             'DOM Utilities',
             'LLM & AI Processing',
             'Utility Functions',
@@ -280,6 +290,9 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
     });
 
     try {
+      // Test core logging functionality first
+      runLoggerTests();
+
       // Original quick tests
       const domUtilsOk = await quickStagehandDOMUtilsTest();
       const cordycepsOk = await quickStagehandCordycepsConversionTest();
@@ -336,6 +349,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           llmAiProcessing: llmAiOk,
           cacheSystem: cacheOk,
           comprehensiveTestsRun: [
+            'Logger Tests',
             'DOM Utilities Quick Test',
             'LLM & AI Processing Quick Test',
             'Utility Functions Quick Test',
