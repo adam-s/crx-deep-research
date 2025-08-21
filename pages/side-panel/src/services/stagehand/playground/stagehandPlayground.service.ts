@@ -67,6 +67,7 @@ import { TestProgress } from './playgroundTests/types';
 
 // Import new handler tests
 import { runCompleteTests as testActHandlerUtils } from './playgroundTests/actHandlerUtilsCompleteTests';
+import { runCompleteTests as testObserveHandlerUtils } from './playgroundTests/observeHandlerUtilsCompleteTests';
 import { testActHandler } from './playgroundTests/actHandlerTests';
 import { testAgentHandler } from './playgroundTests/agentHandlerTests';
 import { testExtractHandler } from './playgroundTests/extractHandlerTests';
@@ -575,6 +576,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           'AgentHandler',
           'ExtractHandler',
           'ObserveHandler',
+          'ObserveHandlerUtils',
           'OperatorHandler',
         ],
       },
@@ -622,6 +624,14 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         message: '👁️ Testing ObserveHandler...',
       });
       await testObserveHandler(testContext);
+
+      // Test ObserveHandlerUtils - using comprehensive test suite
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '👁️ Testing ObserveHandlerUtils with comprehensive Redux test suite...',
+      });
+      await testObserveHandlerUtils();
 
       // Test OperatorHandler
       this.events.emit({
