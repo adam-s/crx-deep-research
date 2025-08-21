@@ -3,8 +3,12 @@
  * Test suite for StagehandAgentHandler functionality
  */
 
+import { StagehandAgentHandler } from '../../lib/handlersRedux/agentHandler';
 import { TestProgress, TestContext } from './types';
 import { Severity } from '@src/utils/types';
+import { ChromeExtensionStagehand } from '../../lib/index';
+import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
+import { AgentHandlerOptions } from '../../types/agent';
 
 /**
  * Test StagehandAgentHandler core functionality
@@ -15,23 +19,26 @@ export async function testAgentHandler(context: TestContext): Promise<void> {
   try {
     progress.log('Starting AgentHandler test suite...');
 
+    // Create a BrowserWindow for testing
+    const browserWindow = await BrowserWindow.create();
+
     // Test: Handler initialization
-    await testAgentHandlerInitialization(context, progress);
+    await testAgentHandlerInitialization(context, progress, browserWindow);
 
     // Test: Agent client setup
-    await testAgentClientSetup(context, progress);
+    await testAgentClientSetup(context, progress, browserWindow);
 
     // Test: Action execution
-    await testActionExecution(context, progress);
+    await testActionExecution(context, progress, browserWindow);
 
     // Test: Screenshot functionality
-    await testScreenshotFunctionality(context, progress);
+    await testScreenshotFunctionality(context, progress, browserWindow);
 
     // Test: Cursor injection and animation
-    await testCursorFunctionality(context, progress);
+    await testCursorFunctionality(context, progress, browserWindow);
 
     // Test: Content script functions
-    await testContentScriptFunctions(context, progress);
+    await testContentScriptFunctions(context, progress, browserWindow);
 
     progress.log('AgentHandler test suite completed successfully');
   } catch (error) {
@@ -55,51 +62,137 @@ export async function testAgentHandler(context: TestContext): Promise<void> {
  */
 async function testAgentHandlerInitialization(
   context: TestContext,
-  progress: TestProgress
+  progress: TestProgress,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   progress.log('Testing AgentHandler initialization...');
 
-  // TODO: Add test implementation
-  // - Test handler constructor
-  // - Test agent provider setup
-  // - Test client initialization
-  // - Test logger configuration
+  try {
+    const mockStagehand = createMockStagehand();
+    const mockLogger = createMockLogger();
+    const mockOptions = createMockAgentOptions();
 
-  progress.log('AgentHandler initialization test completed');
+    const agentHandler = new StagehandAgentHandler({
+      stagehand: mockStagehand,
+      logger: mockLogger,
+      browserWindow,
+      options: mockOptions,
+    });
+
+    // Verify handler was created successfully
+    if (!agentHandler) {
+      throw new Error('AgentHandler failed to initialize');
+    }
+
+    // Check that it has the expected methods
+    const expectedMethods = [
+      'execute',
+      'getAgent',
+      'getClient',
+      'captureAndSendScreenshot',
+      'injectCursor',
+      'updateCursorPosition',
+      'animateClick',
+      'executeAction',
+    ];
+
+    for (const method of expectedMethods) {
+      if (typeof (agentHandler as unknown as Record<string, unknown>)[method] !== 'function') {
+        throw new Error(`Missing expected method: ${method}`);
+      }
+    }
+
+    progress.log('AgentHandler initialization test completed');
+  } catch (error) {
+    progress.log(`❌ AgentHandler initialization test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
  * Test agent client setup
  */
-async function testAgentClientSetup(context: TestContext, progress: TestProgress): Promise<void> {
+async function testAgentClientSetup(
+  context: TestContext,
+  progress: TestProgress,
+  browserWindow: BrowserWindow
+): Promise<void> {
   progress.log('Testing agent client setup...');
 
-  // TODO: Add test implementation
-  // - Test screenshot provider setup
-  // - Test action handler setup
-  // - Test viewport configuration
-  // - Test URL tracking
+  try {
+    const mockStagehand = createMockStagehand();
+    const mockLogger = createMockLogger();
+    const mockOptions = createMockAgentOptions();
 
-  progress.log('Agent client setup test completed');
+    const agentHandler = new StagehandAgentHandler({
+      stagehand: mockStagehand,
+      logger: mockLogger,
+      browserWindow,
+      options: mockOptions,
+    });
+
+    // Test getAgent method
+    const agent = agentHandler.getAgent();
+    if (!agent) {
+      throw new Error('Agent not available');
+    }
+
+    // Test getClient method
+    const client = agentHandler.getClient();
+    if (!client) {
+      throw new Error('Agent client not available');
+    }
+
+    progress.log('Agent client setup test completed');
+  } catch (error) {
+    progress.log(`❌ Agent client setup test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
  * Test action execution
  */
-async function testActionExecution(context: TestContext, progress: TestProgress): Promise<void> {
+async function testActionExecution(
+  context: TestContext,
+  progress: TestProgress,
+  browserWindow: BrowserWindow
+): Promise<void> {
   progress.log('Testing action execution...');
 
-  // TODO: Add test implementation
-  // - Test click actions
-  // - Test double click actions
-  // - Test type actions
-  // - Test keypress actions
-  // - Test scroll actions
-  // - Test drag actions
-  // - Test move actions
-  // - Test function actions
+  try {
+    const mockStagehand = createMockStagehand();
+    const mockLogger = createMockLogger();
+    const mockOptions = createMockAgentOptions();
 
-  progress.log('Action execution test completed');
+    const agentHandler = new StagehandAgentHandler({
+      stagehand: mockStagehand,
+      logger: mockLogger,
+      browserWindow,
+      options: mockOptions,
+    });
+
+    // Test basic action execution
+    const testActions = [
+      { type: 'wait' },
+      { type: 'move', x: 100, y: 100 },
+      { type: 'screenshot' },
+    ];
+
+    for (const action of testActions) {
+      const result = await agentHandler.executeAction(
+        action as { type: string; x?: number; y?: number }
+      );
+      if (!result.success) {
+        throw new Error(`Action ${action.type} failed: ${result.error}`);
+      }
+    }
+
+    progress.log('Action execution test completed');
+  } catch (error) {
+    progress.log(`❌ Action execution test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
@@ -107,17 +200,36 @@ async function testActionExecution(context: TestContext, progress: TestProgress)
  */
 async function testScreenshotFunctionality(
   context: TestContext,
-  progress: TestProgress
+  progress: TestProgress,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   progress.log('Testing screenshot functionality...');
 
-  // TODO: Add test implementation
-  // - Test screenshot capture
-  // - Test base64 conversion
-  // - Test screenshot sending to agent
-  // - Test error handling for screenshot failures
+  try {
+    const mockStagehand = createMockStagehand();
+    const mockLogger = createMockLogger();
+    const mockOptions = createMockAgentOptions();
 
-  progress.log('Screenshot functionality test completed');
+    const agentHandler = new StagehandAgentHandler({
+      stagehand: mockStagehand,
+      logger: mockLogger,
+      browserWindow,
+      options: mockOptions,
+    });
+
+    // Test screenshot capture
+    const result = await agentHandler.captureAndSendScreenshot();
+
+    // Should not throw an error (result can be null in test environment)
+    progress.log(
+      `📸 Screenshot capture result: ${result !== null ? 'success' : 'expected null in test'}`
+    );
+
+    progress.log('Screenshot functionality test completed');
+  } catch (error) {
+    progress.log(`❌ Screenshot functionality test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
@@ -125,17 +237,40 @@ async function testScreenshotFunctionality(
  */
 async function testCursorFunctionality(
   context: TestContext,
-  progress: TestProgress
+  progress: TestProgress,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   progress.log('Testing cursor functionality...');
 
-  // TODO: Add test implementation
-  // - Test cursor injection
-  // - Test cursor position updates
-  // - Test click animations
-  // - Test cursor cleanup
+  try {
+    const mockStagehand = createMockStagehand();
+    const mockLogger = createMockLogger();
+    const mockOptions = createMockAgentOptions();
 
-  progress.log('Cursor functionality test completed');
+    const agentHandler = new StagehandAgentHandler({
+      stagehand: mockStagehand,
+      logger: mockLogger,
+      browserWindow,
+      options: mockOptions,
+    });
+
+    // Test cursor injection
+    await agentHandler.injectCursor();
+    progress.log('🎯 Cursor injection completed');
+
+    // Test cursor position update
+    await agentHandler.updateCursorPosition(100, 100);
+    progress.log('🎯 Cursor position update completed');
+
+    // Test click animation
+    await agentHandler.animateClick(100, 100);
+    progress.log('🎯 Click animation completed');
+
+    progress.log('Cursor functionality test completed');
+  } catch (error) {
+    progress.log(`❌ Cursor functionality test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
@@ -143,18 +278,54 @@ async function testCursorFunctionality(
  */
 async function testContentScriptFunctions(
   context: TestContext,
-  progress: TestProgress
+  progress: TestProgress,
+  browserWindow: BrowserWindow
 ): Promise<void> {
   progress.log('Testing content script functions...');
 
-  // TODO: Add test implementation
-  // - Test scrollByFunction
-  // - Test checkElementExistsFunction
-  // - Test injectCursorAndHighlightFunction
-  // - Test updateCursorPositionFunction
-  // - Test animateClickFunction
+  try {
+    const page = await browserWindow.getCurrentPage();
 
-  progress.log('Content script functions test completed');
+    // Import and test content script functions
+    const {
+      scrollByFunction,
+      checkElementExistsFunction,
+      injectCursorAndHighlightFunction,
+      updateCursorPositionFunction,
+      animateClickFunction,
+    } = await import('../../lib/handlersRedux/agentHandlerUtils');
+
+    // Test scrollByFunction
+    await page.evaluate(scrollByFunction, { scrollX: 0, scrollY: 10 });
+    progress.log('📜 Scroll function executed successfully');
+
+    // Test checkElementExistsFunction
+    const existsResult = await page.evaluate(checkElementExistsFunction, 'nonexistent-id');
+    if (existsResult !== false) {
+      throw new Error('checkElementExistsFunction should return false for nonexistent element');
+    }
+    progress.log('🔍 Element existence check function executed successfully');
+
+    // Test injectCursorAndHighlightFunction
+    await page.evaluate(injectCursorAndHighlightFunction, {
+      cursorId: 'test-cursor',
+      highlightId: 'test-highlight',
+    });
+    progress.log('🎯 Cursor injection function executed successfully');
+
+    // Test updateCursorPositionFunction
+    await page.evaluate(updateCursorPositionFunction, { x: 50, y: 50 });
+    progress.log('🎯 Cursor position update function executed successfully');
+
+    // Test animateClickFunction
+    await page.evaluate(animateClickFunction, { x: 50, y: 50 });
+    progress.log('🎯 Click animation function executed successfully');
+
+    progress.log('Content script functions test completed');
+  } catch (error) {
+    progress.log(`❌ Content script functions test failed: ${error}`);
+    throw error;
+  }
 }
 
 /**
@@ -203,4 +374,42 @@ export async function testAgentHandlerRefactoredContentScripts(
     progress.log(`AgentHandler refactored content scripts tests failed: ${errorMessage}`);
     throw error;
   }
+}
+
+/**
+ * Create mock ChromeExtensionStagehand for testing
+ */
+function createMockStagehand(): ChromeExtensionStagehand {
+  return {
+    updateMetrics: (
+      _functionName: string,
+      _inputTokens: number,
+      _outputTokens: number,
+      _inferenceTime: number
+    ) => {
+      // Mock implementation
+    },
+  } as ChromeExtensionStagehand;
+}
+
+/**
+ * Create mock logger for testing
+ */
+function createMockLogger() {
+  return (logLine: { message?: string; [key: string]: unknown }) => {
+    console.log('[AgentHandler Test]', logLine.message || logLine);
+  };
+}
+
+/**
+ * Create mock agent options for testing
+ */
+function createMockAgentOptions(): AgentHandlerOptions {
+  return {
+    modelName: 'computer-use-preview',
+    clientOptions: {},
+    userProvidedInstructions: 'Test instructions',
+    agentType: 'openai',
+    experimental: true,
+  };
 }
