@@ -186,6 +186,7 @@ export class StagehandOperatorHandler {
 
     return response.answer;
   }
+
   private async executeAction(
     action: OperatorResponse,
     playwrightArguments?: ObserveResult,

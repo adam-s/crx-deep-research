@@ -41,7 +41,6 @@ import {
   DEFAULT_LOCATOR_TIMEOUT,
   resolveTimeout,
   createLocatorElementNotFoundError,
-  createUnsupportedOperationError,
   executeElementMethodWithProgress,
   executeWithElementHandle,
 } from './utilities/locatorUtils';
@@ -269,33 +268,6 @@ export class Locator {
     return await this._frame.dragAndDrop(this._selector, target._selector, {
       strict: true,
       ...options,
-    });
-  }
-
-  async evaluateAll<R, Arg>(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    pageFunction: (elements: Element[], arg: Arg) => R,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    arg?: Arg
-  ): Promise<R> {
-    // Note: Due to Chrome extension CSP restrictions, we cannot pass functions as arguments
-    // This is a simplified implementation that works for basic use cases
-    throw new Error(
-      createUnsupportedOperationError(
-        'evaluateAll',
-        'Chrome extension function serialization restrictions. Use evaluate() instead for single elements.'
-      )
-    );
-  }
-
-  async evaluateHandle<R, Arg>(
-    pageFunction: (element: Element, arg: Arg) => R,
-    arg?: Arg,
-    options?: { timeout?: number }
-  ): Promise<ElementHandle | null> {
-    return await this._withElement(h => h.evaluateHandle(pageFunction, arg, options), {
-      title: 'EvaluateHandle',
-      timeout: resolveTimeout(options?.timeout),
     });
   }
 

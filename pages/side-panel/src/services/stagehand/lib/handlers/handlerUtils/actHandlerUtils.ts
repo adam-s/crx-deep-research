@@ -1,4 +1,4 @@
-import { Page, Locator, FrameLocator } from 'playwright';
+import { Page, Locator, FrameLocator } from '../../../cordyceps/frame';
 import { PlaywrightCommandException } from '../../../types/playwright';
 import { StagehandPage } from '../../StagehandPage';
 import { Logger } from '../../../types/log';
@@ -24,6 +24,154 @@ function stepToCss(step: string): string {
 const buildDirect = (steps: string[]) => steps.map(stepToCss).join(' > ');
 const buildDesc = (steps: string[]) => steps.map(stepToCss).join(' ');
 
+// Content script functions for .evaluate() calls
+const shadowDomResolverFunction = (
+  host: Element,
+  { direct, desc, attr, timeout }: { direct: string; desc: string; attr: string; timeout: number }
+) => {
+  interface StagehandClosedAccess {
+    getClosedRoot?: (h: Element) => ShadowRoot | undefined;
+  }
+  const backdoor = (
+    window as Window & {
+      __stagehand__?: StagehandClosedAccess;
+    }
+  ).__stagehand__;
+
+  const root = (host as HTMLElement).shadowRoot ?? backdoor?.getClosedRoot?.(host);
+  if (!root) return { id: null, noRoot: true };
+
+  const tryFind = () =>
+    (root.querySelector(direct) as Element | null) ?? (root.querySelector(desc) as Element | null);
+
+  return new Promise<{ id: string | null; noRoot: boolean }>(resolve => {
+    const mark = (el: Element): { id: string | null; noRoot: boolean } => {
+      let v = el.getAttribute(attr);
+      if (!v) {
+        v = 'sh_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        el.setAttribute(attr, v);
+      }
+      return { id: v, noRoot: false };
+    };
+
+    const first = tryFind();
+    if (first) return resolve(mark(first));
+
+    const start = Date.now();
+    const tick = () => {
+      const el = tryFind();
+      if (el) return resolve(mark(el));
+      if (Date.now() - start >= timeout) return resolve({ id: null, noRoot: false });
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+};
+
+const scrollToNextChunkFunction = (element: Element) => {
+  const waitForScrollEnd = (el: HTMLElement | Element) =>
+    new Promise<void>(resolve => {
+      let last = el.scrollTop ?? 0;
+      const check = () => {
+        const cur = el.scrollTop ?? 0;
+        if (cur === last) return resolve();
+        last = cur;
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
+
+  const tagName = element.tagName.toLowerCase();
+
+  if (tagName === 'html' || tagName === 'body') {
+    const height = window.visualViewport?.height ?? window.innerHeight;
+
+    window.scrollBy({ top: height, left: 0, behavior: 'smooth' });
+
+    const scrollingRoot = (document.scrollingElement ?? document.documentElement) as HTMLElement;
+
+    return waitForScrollEnd(scrollingRoot);
+  }
+
+  const height = (element as HTMLElement).getBoundingClientRect().height;
+
+  (element as HTMLElement).scrollBy({
+    top: height,
+    left: 0,
+    behavior: 'smooth',
+  });
+
+  return waitForScrollEnd(element);
+};
+
+const scrollToPreviousChunkFunction = (element: Element) => {
+  const waitForScrollEnd = (el: HTMLElement | Element) =>
+    new Promise<void>(resolve => {
+      let last = el.scrollTop ?? 0;
+      const check = () => {
+        const cur = el.scrollTop ?? 0;
+        if (cur === last) return resolve();
+        last = cur;
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
+
+  const tagName = element.tagName.toLowerCase();
+
+  if (tagName === 'html' || tagName === 'body') {
+    const height = window.visualViewport?.height ?? window.innerHeight;
+    window.scrollBy({ top: -height, left: 0, behavior: 'smooth' });
+
+    const rootScrollingEl = (document.scrollingElement ?? document.documentElement) as HTMLElement;
+
+    return waitForScrollEnd(rootScrollingEl);
+  }
+  const height = (element as HTMLElement).getBoundingClientRect().height;
+  (element as HTMLElement).scrollBy({
+    top: -height,
+    left: 0,
+    behavior: 'smooth',
+  });
+  return waitForScrollEnd(element);
+};
+
+const scrollElementIntoViewFunction = (element: HTMLElement) => {
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+const scrollElementToPercentageFunction = (element: Element, { yArg }: { yArg: string }) => {
+  function parsePercent(val: string): number {
+    const cleaned = val.trim().replace('%', '');
+    const num = parseFloat(cleaned);
+    return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
+  }
+
+  const yPct = parsePercent(yArg);
+
+  if (element.tagName.toLowerCase() === 'html') {
+    const scrollHeight = document.body.scrollHeight;
+    const viewportHeight = window.innerHeight;
+    const scrollTop = (scrollHeight - viewportHeight) * (yPct / 100);
+    window.scrollTo({
+      top: scrollTop,
+      left: window.scrollX,
+      behavior: 'smooth',
+    });
+  } else {
+    const scrollHeight = element.scrollHeight;
+    const clientHeight = element.clientHeight;
+    const scrollTop = (scrollHeight - clientHeight) * (yPct / 100);
+    element.scrollTo({
+      top: scrollTop,
+      left: element.scrollLeft,
+      behavior: 'smooth',
+    });
+  }
+};
+
+const clickElementFunction = (el: Element) => (el as HTMLElement).click();
+
 /** Resolve one contiguous shadow segment and return a stable Locator. */
 async function resolveShadowSegment(
   hostLoc: Locator,
@@ -34,54 +182,10 @@ async function resolveShadowSegment(
   const direct = buildDirect(shadowSteps);
   const desc = buildDesc(shadowSteps);
 
-  type Result = { id: string | null; noRoot: boolean };
-
   const { id, noRoot } = await hostLoc.evaluate<
-    Result,
+    { id: string | null; noRoot: boolean },
     { direct: string; desc: string; attr: string; timeout: number }
-  >(
-    (host, { direct, desc, attr, timeout }) => {
-      interface StagehandClosedAccess {
-        getClosedRoot?: (h: Element) => ShadowRoot | undefined;
-      }
-      const backdoor = (
-        window as Window & {
-          __stagehand__?: StagehandClosedAccess;
-        }
-      ).__stagehand__;
-
-      const root = (host as HTMLElement).shadowRoot ?? backdoor?.getClosedRoot?.(host);
-      if (!root) return { id: null, noRoot: true };
-
-      const tryFind = () =>
-        (root.querySelector(direct) as Element | null) ??
-        (root.querySelector(desc) as Element | null);
-
-      return new Promise<Result>(resolve => {
-        const mark = (el: Element): Result => {
-          let v = el.getAttribute(attr);
-          if (!v) {
-            v = 'sh_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-            el.setAttribute(attr, v);
-          }
-          return { id: v, noRoot: false };
-        };
-
-        const first = tryFind();
-        if (first) return resolve(mark(first));
-
-        const start = Date.now();
-        const tick = () => {
-          const el = tryFind();
-          if (el) return resolve(mark(el));
-          if (Date.now() - start >= timeout) return resolve({ id: null, noRoot: false });
-          setTimeout(tick, 50);
-        };
-        tick();
-      });
-    },
-    { direct, desc, attr, timeout }
-  );
+  >(shadowDomResolverFunction, { direct, desc, attr, timeout });
 
   if (noRoot) {
     throw new StagehandShadowRootMissingError(`segment='${shadowSteps.join('/')}'`);
@@ -225,46 +329,7 @@ export async function scrollToNextChunk(ctx: MethodHandlerContext) {
   });
 
   try {
-    await locator.evaluate(
-      element => {
-        const waitForScrollEnd = (el: HTMLElement | Element) =>
-          new Promise<void>(resolve => {
-            let last = el.scrollTop ?? 0;
-            const check = () => {
-              const cur = el.scrollTop ?? 0;
-              if (cur === last) return resolve();
-              last = cur;
-              requestAnimationFrame(check);
-            };
-            requestAnimationFrame(check);
-          });
-
-        const tagName = element.tagName.toLowerCase();
-
-        if (tagName === 'html' || tagName === 'body') {
-          const height = window.visualViewport?.height ?? window.innerHeight;
-
-          window.scrollBy({ top: height, left: 0, behavior: 'smooth' });
-
-          const scrollingRoot = (document.scrollingElement ??
-            document.documentElement) as HTMLElement;
-
-          return waitForScrollEnd(scrollingRoot);
-        }
-
-        const height = (element as HTMLElement).getBoundingClientRect().height;
-
-        (element as HTMLElement).scrollBy({
-          top: height,
-          left: 0,
-          behavior: 'smooth',
-        });
-
-        return waitForScrollEnd(element);
-      },
-      undefined,
-      { timeout: 10_000 }
-    );
+    await locator.evaluate(scrollToNextChunkFunction, undefined, { timeout: 10_000 });
   } catch (e) {
     logger({
       category: 'action',
@@ -293,42 +358,7 @@ export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
   });
 
   try {
-    await locator.evaluate(
-      element => {
-        const waitForScrollEnd = (el: HTMLElement | Element) =>
-          new Promise<void>(resolve => {
-            let last = el.scrollTop ?? 0;
-            const check = () => {
-              const cur = el.scrollTop ?? 0;
-              if (cur === last) return resolve();
-              last = cur;
-              requestAnimationFrame(check);
-            };
-            requestAnimationFrame(check);
-          });
-
-        const tagName = element.tagName.toLowerCase();
-
-        if (tagName === 'html' || tagName === 'body') {
-          const height = window.visualViewport?.height ?? window.innerHeight;
-          window.scrollBy({ top: -height, left: 0, behavior: 'smooth' });
-
-          const rootScrollingEl = (document.scrollingElement ??
-            document.documentElement) as HTMLElement;
-
-          return waitForScrollEnd(rootScrollingEl);
-        }
-        const height = (element as HTMLElement).getBoundingClientRect().height;
-        (element as HTMLElement).scrollBy({
-          top: -height,
-          left: 0,
-          behavior: 'smooth',
-        });
-        return waitForScrollEnd(element);
-      },
-      undefined,
-      { timeout: 10_000 }
-    );
+    await locator.evaluate(scrollToPreviousChunkFunction, undefined, { timeout: 10_000 });
   } catch (e) {
     logger({
       category: 'action',
@@ -357,9 +387,7 @@ export async function scrollElementIntoView(ctx: MethodHandlerContext) {
   });
 
   try {
-    await locator.evaluate((element: HTMLElement) => {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    await locator.evaluate(scrollElementIntoViewFunction);
   } catch (e) {
     logger({
       category: 'action',
@@ -392,35 +420,7 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
     const [yArg = '0%'] = args as string[];
 
     await locator.evaluate<void, { yArg: string }>(
-      (element, { yArg }) => {
-        function parsePercent(val: string): number {
-          const cleaned = val.trim().replace('%', '');
-          const num = parseFloat(cleaned);
-          return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
-        }
-
-        const yPct = parsePercent(yArg);
-
-        if (element.tagName.toLowerCase() === 'html') {
-          const scrollHeight = document.body.scrollHeight;
-          const viewportHeight = window.innerHeight;
-          const scrollTop = (scrollHeight - viewportHeight) * (yPct / 100);
-          window.scrollTo({
-            top: scrollTop,
-            left: window.scrollX,
-            behavior: 'smooth',
-          });
-        } else {
-          const scrollHeight = element.scrollHeight;
-          const clientHeight = element.clientHeight;
-          const scrollTop = (scrollHeight - clientHeight) * (yPct / 100);
-          element.scrollTo({
-            top: scrollTop,
-            left: element.scrollLeft,
-            behavior: 'smooth',
-          });
-        }
-      },
+      scrollElementToPercentageFunction,
       { yArg },
       { timeout: 10_000 }
     );
@@ -543,7 +543,7 @@ export async function clickElement(ctx: MethodHandlerContext) {
     });
 
     try {
-      await locator.evaluate(el => (el as HTMLElement).click(), undefined, {
+      await locator.evaluate(clickElementFunction, undefined, {
         timeout: 3_500,
       });
     } catch (e) {

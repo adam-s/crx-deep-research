@@ -3,7 +3,7 @@ import { Stagehand, StagehandFunctionName } from '../index';
 import { observe } from '../inference';
 import { LLMClient } from '../llm/LLMClient';
 import { StagehandPage } from '../StagehandPage';
-import { drawObserveOverlay, trimTrailingTextNode } from '../utils';
+import { trimTrailingTextNode } from '../utils';
 import { getAccessibilityTree, getAccessibilityTreeWithFrames } from '../a11y/utils';
 import { AccessibilityNode, EncodedId } from '../../types/context';
 
@@ -14,6 +14,40 @@ export class StagehandObserveHandler {
   private readonly experimental: boolean;
 
   private readonly userProvidedInstructions?: string;
+
+  // Content script functions
+  private static readonly drawObserveOverlayFunction = (selectors: string[]) => {
+    selectors.forEach(selector => {
+      let element: Element | null;
+      if (selector.startsWith('xpath=')) {
+        const xpath = selector.substring(6);
+        element = document.evaluate(
+          xpath,
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        ).singleNodeValue as Element | null;
+      } else {
+        element = document.querySelector(selector);
+      }
+
+      if (element instanceof HTMLElement) {
+        const overlay = document.createElement('div');
+        overlay.setAttribute('stagehandObserve', 'true');
+        const rect = element.getBoundingClientRect();
+        overlay.style.position = 'absolute';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top = rect.top + 'px';
+        overlay.style.width = rect.width + 'px';
+        overlay.style.height = rect.height + 'px';
+        overlay.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '10000';
+        document.body.appendChild(overlay);
+      }
+    });
+  };
   constructor({
     stagehand,
     logger,
@@ -220,9 +254,30 @@ export class StagehandObserveHandler {
     });
 
     if (drawOverlay) {
-      await drawObserveOverlay(this.stagehandPage.page, elementsWithSelectors);
+      await this.drawObserveOverlayRefactored(elementsWithSelectors);
     }
 
     return elementsWithSelectors;
+  }
+
+  /**
+   * Draw observe overlays using the refactored content script function
+   */
+  private async drawObserveOverlayRefactored(results: { selector: string }[]): Promise<void> {
+    try {
+      // Convert single xpath to array for consistent handling
+      const xpathList = results.map(result => result.selector);
+
+      // Filter out empty xpaths
+      const validXpaths = xpathList.filter(xpath => xpath !== 'xpath=');
+
+      await this.stagehandPage.page.evaluate(
+        StagehandObserveHandler.drawObserveOverlayFunction,
+        validXpaths
+      );
+    } catch (error) {
+      // Silently fail if overlay drawing fails - don't break the main functionality
+      console.warn('Failed to draw observe overlays:', error);
+    }
   }
 }

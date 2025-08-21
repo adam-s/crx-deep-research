@@ -1,7 +1,21 @@
+/**
+ * Stagehand Utilities - Chrome Extension Compatible Version
+ *
+ * This file contains utility functions for the Stagehand library adapted for Chrome extension usage.
+ * Key adaptations from the original Node.js version:
+ *
+ * 1. Page type imported from Cordyceps instead of Playwright
+ * 2. Node.js process.env and process.versions not available - API keys must be provided directly
+ * 3. Enhanced error handling for Chrome extension environment
+ * 4. Removed Bun runtime detection (always returns false in Chrome extension)
+ *
+ * All schema transformation, URL injection, and overlay functionality remains the same.
+ */
+
 import { ZodFirstPartyTypeKind as Kind, z } from 'zod/v3';
-import { ObserveResult, Page } from '.';
+import { Page } from '../../cordyceps/page';
+import { ObserveResult, ZodPathSegments } from '../types/stagehand';
 import { LogLine } from '../types/log';
-import { ZodPathSegments } from '../types/stagehand';
 import { type Schema, Type } from '@google/genai';
 import { ModelProvider } from '../types/model';
 import { ZodSchemaValidationError } from '../types/stagehandErrors';
@@ -17,70 +31,79 @@ export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
 }
 
 export async function drawObserveOverlay(page: Page, results: ObserveResult[]) {
-  // Convert single xpath to array for consistent handling
-  const xpathList = results.map(result => result.selector);
+  try {
+    // Convert single xpath to array for consistent handling
+    const xpathList = results.map(result => result.selector);
 
-  // Filter out empty xpaths
-  const validXpaths = xpathList.filter(xpath => xpath !== 'xpath=');
+    // Filter out empty xpaths
+    const validXpaths = xpathList.filter(xpath => xpath !== 'xpath=');
 
-  await page.evaluate(selectors => {
-    selectors.forEach(selector => {
-      let element;
-      if (selector.startsWith('xpath=')) {
-        const xpath = selector.substring(6);
-        element = document.evaluate(
-          xpath,
-          document,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null
-        ).singleNodeValue;
-      } else {
-        element = document.querySelector(selector);
-      }
+    await page.evaluate(selectors => {
+      selectors.forEach(selector => {
+        let element;
+        if (selector.startsWith('xpath=')) {
+          const xpath = selector.substring(6);
+          element = document.evaluate(
+            xpath,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          ).singleNodeValue;
+        } else {
+          element = document.querySelector(selector);
+        }
 
-      if (element instanceof HTMLElement) {
-        const overlay = document.createElement('div');
-        overlay.setAttribute('stagehandObserve', 'true');
-        const rect = element.getBoundingClientRect();
-        overlay.style.position = 'absolute';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top = rect.top + 'px';
-        overlay.style.width = rect.width + 'px';
-        overlay.style.height = rect.height + 'px';
-        overlay.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
-        overlay.style.pointerEvents = 'none';
-        overlay.style.zIndex = '10000';
-        document.body.appendChild(overlay);
-      }
-    });
-  }, validXpaths);
+        if (element instanceof HTMLElement) {
+          const overlay = document.createElement('div');
+          overlay.setAttribute('stagehandObserve', 'true');
+          const rect = element.getBoundingClientRect();
+          overlay.style.position = 'absolute';
+          overlay.style.left = rect.left + 'px';
+          overlay.style.top = rect.top + 'px';
+          overlay.style.width = rect.width + 'px';
+          overlay.style.height = rect.height + 'px';
+          overlay.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+          overlay.style.pointerEvents = 'none';
+          overlay.style.zIndex = '10000';
+          document.body.appendChild(overlay);
+        }
+      });
+    }, validXpaths);
+  } catch (error) {
+    // Silently fail if overlay drawing fails - don't break the main functionality
+    console.warn('Failed to draw observe overlays:', error);
+  }
 }
 
 export async function clearOverlays(page: Page) {
-  // remove existing stagehandObserve attributes
-  await page.evaluate(() => {
-    const elements = document.querySelectorAll('[stagehandObserve="true"]');
-    elements.forEach(el => {
-      const parent = el.parentNode;
-      while (el.firstChild) {
-        parent?.insertBefore(el.firstChild, el);
-      }
-      parent?.removeChild(el);
+  try {
+    // remove existing stagehandObserve attributes
+    await page.evaluate(() => {
+      const elements = document.querySelectorAll('[stagehandObserve="true"]');
+      elements.forEach(el => {
+        const parent = el.parentNode;
+        while (el.firstChild) {
+          parent?.insertBefore(el.firstChild, el);
+        }
+        parent?.removeChild(el);
+      });
     });
-  });
+  } catch (error) {
+    // Silently fail if overlay clearing fails - don't break the main functionality
+    console.warn('Failed to clear overlays:', error);
+  }
 }
 
 /**
  * Detects if the code is running in the Bun runtime environment.
- * @returns {boolean} True if running in Bun, false otherwise.
+ * In Chrome extension context, this will always return false since we don't have access to process.
+ * @returns {boolean} Always false in Chrome extension environment.
  */
 export function isRunningInBun(): boolean {
-  return (
-    typeof process !== 'undefined' &&
-    typeof process.versions !== 'undefined' &&
-    'bun' in process.versions
-  );
+  // In Chrome extension context, we don't have access to Node.js process object
+  // Always return false since Chrome extensions don't run in Bun
+  return false;
 }
 
 /*
@@ -427,10 +450,13 @@ export const providerEnvVarMap: Partial<Record<ModelProvider | string, string>> 
 };
 
 /**
- * Loads an API key for a provider, checking environment variables.
+ * Loads an API key for a provider.
+ * In Chrome extension context, environment variables are not available.
+ * This function returns undefined and logs a warning.
+ *
  * @param provider The name of the provider (e.g., 'openai', 'anthropic')
  * @param logger Optional logger for info/error messages
- * @returns The API key if found, undefined otherwise
+ * @returns undefined (API keys should be provided directly in Chrome extension context)
  */
 export function loadApiKeyFromEnv(
   provider: string | undefined,
@@ -450,15 +476,12 @@ export function loadApiKeyFromEnv(
     return undefined;
   }
 
-  const apiKeyFromEnv = process.env[envVarName];
-  if (typeof apiKeyFromEnv === 'string' && apiKeyFromEnv.length > 0) {
-    return apiKeyFromEnv;
-  }
-
+  // In Chrome extension context, environment variables are not available
+  // API keys should be passed directly through ChromeExtensionStagehandParams
   logger({
     category: 'init',
-    message: `API key for ${provider} not found in environment variable ${envVarName}`,
-    level: 0,
+    message: `API keys cannot be loaded from environment variables in Chrome extension context. Please provide API key directly in ChromeExtensionStagehandParams.modelClientOptions for provider ${provider}`,
+    level: 1,
   });
 
   return undefined;

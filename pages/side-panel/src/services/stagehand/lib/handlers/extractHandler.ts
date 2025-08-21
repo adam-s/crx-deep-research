@@ -7,7 +7,7 @@ import { injectUrls, transformSchema } from '../utils';
 import { StagehandPage } from '../StagehandPage';
 import { Stagehand, StagehandFunctionName } from '../index';
 import { pageTextSchema } from '../../types/page';
-import { getAccessibilityTree, getAccessibilityTreeWithFrames } from '@/lib/a11y/utils';
+import { getAccessibilityTree, getAccessibilityTreeWithFrames } from '../a11y/utils';
 import { EncodedId } from '../../types/context';
 
 export class StagehandExtractHandler {

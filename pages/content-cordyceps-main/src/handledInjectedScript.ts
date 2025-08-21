@@ -522,6 +522,43 @@ export class HandledInjectedScript {
   }
 
   /**
+   * CSP-compliant method to evaluate a pre-defined function on an element.
+   * This acts as a dispatcher to avoid passing non-serializable functions.
+   */
+  evaluateOnElement<R, Arg>(
+    handle: string,
+    functionName: string,
+    arg?: Arg
+  ): { result?: R; error?: string } {
+    const element = this.getElementByHandle(handle);
+    if (!element) {
+      return { error: `Element not found for handle: ${handle}` };
+    }
+
+    try {
+      let result: R;
+      switch (functionName) {
+        case 'getElementTagName':
+          result = element.tagName.toLowerCase() as R;
+          break;
+        case 'getElementAttribute':
+          result = (element.getAttribute(arg as string) || 'not-found') as R;
+          break;
+        case 'getBoundingClientRect':
+          // eslint-disable-next-line no-restricted-properties
+          result = JSON.parse(JSON.stringify(element.getBoundingClientRect())) as R;
+          break;
+        // Add other pre-defined functions here as needed
+        default:
+          return { error: `Unknown function name: ${functionName}` };
+      }
+      return { result };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /**
    * Set the checked state of a checkbox or radio button.
    * This method handles the core check/uncheck logic following Playwright patterns.
    */
