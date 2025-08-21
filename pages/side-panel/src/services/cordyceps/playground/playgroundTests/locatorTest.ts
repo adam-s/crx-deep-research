@@ -16,6 +16,7 @@ import {
   testEvaluateFunctionality,
   testFillFunctionality,
   testFrameMissingMethodsFunctionality,
+  testGenericElementOperationsFunctionality,
   testHighlightFunctionality,
   testLocatorFunctionality,
   testMissingMethodsFunctionality,
@@ -234,6 +235,10 @@ export class LocatorTest extends PlaygroundTest {
       // Test type-safe element operations functionality
       progress.log('Testing type-safe element operations methods');
       await testEvaluateFunctionality(page, progress, this.context);
+
+      // Test generic element operations functionality
+      progress.log('Testing generic element operations system (executeFunction methods)');
+      await testGenericElementOperationsFunctionality(page, progress, this.context);
 
       // Test missing methods functionality
       progress.log('Testing newly implemented missing methods');

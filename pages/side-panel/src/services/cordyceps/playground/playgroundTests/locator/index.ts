@@ -14,6 +14,7 @@ export { testDragToFunctionality, testDragToAdvanced } from './dragToFunctionali
 export { testEvaluateFunctionality } from './evaluateFunctionality';
 export { testFillFunctionality } from './fillFunctionality';
 export { testFrameMissingMethodsFunctionality } from './frameMissingMethodsFunctionality';
+export { testGenericElementOperationsFunctionality } from './genericElementOperationsFunctionality';
 export { testHighlightFunctionality } from './highlightFunctionality';
 export { testLocatorFunctionality } from './locatorFunctionality';
 export { testMissingMethodsFunctionality } from './missingMethodsFunctionality';

@@ -5,6 +5,11 @@ import type { Frame } from '../frame';
 import type { Session } from '../session';
 import { LongStandingScope } from '@injected/isomorphic/manualPromise';
 import { arrayBufferToBase64, type Base64FileData } from '@shared/utils/base64Utils';
+import {
+  ElementOperationRequest,
+  ElementOperationResult,
+  executeGenericElementFunction,
+} from '../operations/genericElementOperations';
 
 type ScriptInjectionResult<T> = chrome.scripting.InjectionResult<Awaited<T>> & {
   error?: { message: string };
@@ -98,6 +103,13 @@ interface CordycepsInjectedScript {
     error?: string;
     filesSet: number;
   };
+  registerElementFunction<TArgs, TResult>(
+    name: string,
+    fn: (element: Element, args?: TArgs) => TResult | Promise<TResult>,
+    description?: string
+  ): void;
+  hasElementFunction(name: string): boolean;
+  getRegisteredElementFunctions(): string[];
 }
 
 export class FrameExecutionContext extends Disposable {
@@ -992,6 +1004,37 @@ export class FrameExecutionContext extends Disposable {
         success: false,
         error: `Base64 file transfer failed: ${errorMessage}`,
         filesSet: 0,
+      };
+    }
+  }
+
+  /**
+   * Execute a registered element function with strong typing.
+   * This provides a generic way to call domain-specific functions on elements.
+   *
+   * @param handle Element handle from HandledInjectedScript
+   * @param request Function name and arguments
+   * @param world Execution world
+   * @returns Result of the function execution
+   */
+  public async executeElementFunction<TArgs, TResult>(
+    handle: string,
+    request: ElementOperationRequest<TArgs>,
+    world: chrome.scripting.ExecutionWorld = 'MAIN'
+  ): Promise<ElementOperationResult<TResult> | undefined> {
+    try {
+      const result = await this.executeScript(
+        executeGenericElementFunction<TArgs, TResult>,
+        world,
+        handle,
+        request
+      );
+      return result;
+    } catch (error) {
+      console.error(`[FrameExecutionContext.executeElementFunction] Error:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown execution error',
       };
     }
   }

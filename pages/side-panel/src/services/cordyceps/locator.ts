@@ -742,5 +742,28 @@ export class Locator {
     return asLocator('javascript', this._selector);
   }
 
+  /**
+   * Execute a registered element function on the first matching element.
+   * This allows calling domain-specific functions through the locator interface.
+   *
+   * @param functionName Name of the registered function to call
+   * @param args Arguments to pass to the function
+   * @param options Execution options including timeout
+   * @returns Result of the function execution
+   */
+  async executeFunction<TArgs, TResult>(
+    functionName: string,
+    args?: TArgs,
+    options?: { timeout?: number; world?: chrome.scripting.ExecutionWorld }
+  ): Promise<TResult> {
+    return await this._withElement(
+      handle => handle.executeFunction<TArgs, TResult>(functionName, args, options),
+      {
+        title: `Execute function '${functionName}'`,
+        timeout: options?.timeout,
+      }
+    );
+  }
+
   // #endregion Simple Element Operations for Locator
 }

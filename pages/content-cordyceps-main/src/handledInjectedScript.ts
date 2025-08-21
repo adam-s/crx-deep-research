@@ -3,6 +3,14 @@ export {}; // Ensure this file is treated as a module.
 declare global {
   interface Window {
     ariaSnapshot(node: Node, options: { forAI: boolean; refPrefix: string }): string | boolean;
+    __cordyceps_elementFunctionRegistry?: Map<
+      string,
+      {
+        name: string;
+        fn: (element: Element, args: unknown) => unknown | Promise<unknown>;
+        description?: string;
+      }
+    >;
   }
 }
 
@@ -46,6 +54,51 @@ export class HandledInjectedScript {
     });
 
     this._handleManager = handleManager || new HandleManager();
+
+    // Initialize global function registry if not exists
+    this._initializeElementFunctionRegistry();
+  }
+
+  /**
+   * Initialize the global element function registry for generic operations
+   */
+  private _initializeElementFunctionRegistry(): void {
+    if (!window.__cordyceps_elementFunctionRegistry) {
+      window.__cordyceps_elementFunctionRegistry = new Map();
+    }
+  }
+
+  /**
+   * Register a new element function for generic execution
+   */
+  registerElementFunction<TArgs, TResult>(
+    name: string,
+    fn: (element: Element, args: TArgs) => TResult | Promise<TResult>,
+    description?: string
+  ): void {
+    if (!window.__cordyceps_elementFunctionRegistry) {
+      this._initializeElementFunctionRegistry();
+    }
+
+    window.__cordyceps_elementFunctionRegistry!.set(name, {
+      name,
+      fn: fn as (element: Element, args: unknown) => unknown | Promise<unknown>,
+      description,
+    });
+  }
+
+  /**
+   * Check if a function is registered in the global registry
+   */
+  hasElementFunction(name: string): boolean {
+    return window.__cordyceps_elementFunctionRegistry?.has(name) || false;
+  }
+
+  /**
+   * Get all registered element function names
+   */
+  getRegisteredElementFunctions(): string[] {
+    return Array.from(window.__cordyceps_elementFunctionRegistry?.keys() || []);
   }
 
   // Delegate all non-overridden methods to the wrapped InjectedScript

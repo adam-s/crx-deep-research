@@ -20,6 +20,7 @@ import {
   STANDARD_TIMEOUT,
 } from './utilities/utils';
 import { ElementAction, executeElementOp } from './operations/elementOperations';
+import { ElementOperationRequest } from './operations/genericElementOperations';
 import {
   executeElementOperation,
   createFillElementScript,
@@ -995,5 +996,47 @@ export class ElementHandle extends JSHandle {
     const bufferLike = await page.screenshotter.screenshotElement(progress, this, options);
     // Convert BrowserBuffer to Node.js Buffer for compatibility
     return convertToNodeBuffer(bufferLike);
+  }
+
+  /**
+   * Execute a registered element function with strong typing.
+   * This allows calling domain-specific functions on this element.
+   *
+   * @param functionName Name of the registered function to call
+   * @param args Arguments to pass to the function
+   * @param options Execution options including timeout
+   * @returns Result of the function execution
+   */
+  async executeFunction<TArgs, TResult>(
+    functionName: string,
+    args?: TArgs,
+    options?: { timeout?: number; world?: chrome.scripting.ExecutionWorld }
+  ): Promise<TResult> {
+    return executeWithProgress(
+      async (_progress: Progress) => {
+        const request: ElementOperationRequest<TArgs> = {
+          functionName,
+          args,
+          timeout: options?.timeout,
+        };
+
+        const result = await this._context.executeElementFunction<TArgs, TResult>(
+          this.remoteObject,
+          request,
+          options?.world
+        );
+
+        if (!result) {
+          throw new Error('Function execution failed - no result returned');
+        }
+
+        if (!result.success) {
+          throw new Error(result.error || 'Function execution failed');
+        }
+
+        return result.result;
+      },
+      { timeout: options?.timeout || STANDARD_TIMEOUT }
+    );
   }
 }
