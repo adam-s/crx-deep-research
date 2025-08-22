@@ -27,7 +27,6 @@ import {
   StagehandResponseBodyError,
   StagehandResponseParseError,
 } from '../types/stagehandApiErrors';
-import makeFetchCookie from 'fetch-cookie';
 import { STAGEHAND_VERSION } from './version';
 
 export class StagehandAPI {
@@ -36,14 +35,11 @@ export class StagehandAPI {
   private sessionId?: string;
   private modelApiKey: string;
   private logger: (message: LogLine) => void;
-  private fetchWithCookies;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.logger = logger;
-    // Create a single cookie jar instance that will persist across all requests
-    this.fetchWithCookies = makeFetchCookie(fetch);
   }
 
   async init({
@@ -239,7 +235,7 @@ export class StagehandAPI {
       defaultHeaders['Content-Type'] = 'application/json';
     }
 
-    const response = await this.fetchWithCookies(
+    const response = await fetch(
       `${process.env.STAGEHAND_API_URL ?? 'https://api.stagehand.browserbase.com/v1'}${path}`,
       {
         ...options,

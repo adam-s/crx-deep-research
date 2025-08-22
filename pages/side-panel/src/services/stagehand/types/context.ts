@@ -1,4 +1,5 @@
-import type { BrowserContext as PlaywrightContext, Frame } from 'playwright';
+import { BrowserWindow } from '../../cordyceps/browserWindow';
+import { Frame } from '../../cordyceps/frame';
 import { Page } from '../types/page';
 
 export interface AXNode {
@@ -62,7 +63,7 @@ export type BackendIdMaps = {
   iframeXPath?: string;
 };
 
-export interface EnhancedContext extends Omit<PlaywrightContext, 'newPage' | 'pages'> {
+export interface EnhancedContext extends Omit<BrowserWindow, 'newPage' | 'pages'> {
   newPage(): Promise<Page>;
   pages(): Page[];
 }

@@ -9,6 +9,7 @@ export {}; // Ensure this file is treated as a module
 import { HandleManager } from '@shared/utils/handleManager';
 import { createStagehandAdapter, type StagehandCordycepsAdapter } from './stagehandAdapter';
 import { HandledInjectedScript } from './handledInjectedScript';
+import { initializeStagehandFallbacks } from './stagehandFallbacks';
 import './browserUse.js';
 import './stagehand.js';
 
@@ -62,6 +63,19 @@ declare global {
       type: string,
       eventInit?: Record<string, unknown>
     ) => { success: boolean; error?: string };
+
+    // Stagehand fallback test functions
+    __stagehand_runFallbackTests?: () => Promise<{
+      success: boolean;
+      results: Record<string, { success: boolean; result?: unknown; error?: string }>;
+    }>;
+    __stagehand_quickFallbackTest?: () => Promise<boolean>;
+    __stagehand_testHandleIntegration?: () => Promise<{
+      success: boolean;
+      handlesCreated: number;
+      handlesRetrieved: number;
+      elementsProcessed: number;
+    }>;
   }
 }
 
@@ -235,6 +249,14 @@ const loader = async (): Promise<void> => {
 
   // Initialize Stagehand adapter
   const stagehandAdapter = await bootstrapStagehandAdapter(handleManager);
+
+  // Initialize Stagehand fallbacks for CDP functions
+  try {
+    initializeStagehandFallbacks(handleManager);
+    console.log('🔧 Stagehand CDP fallbacks initialized with test functions');
+  } catch (error) {
+    console.error('❌ Failed to initialize Stagehand fallbacks:', error);
+  }
 
   console.log('🔧 Content cordyceps main loaded with:', {
     historyTracker,
