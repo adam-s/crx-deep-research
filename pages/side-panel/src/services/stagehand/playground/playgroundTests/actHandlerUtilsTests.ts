@@ -25,7 +25,7 @@ import {
   hoverElementFunction,
   scrollByPixelsFunction,
   waitForVisibleFunction,
-} from '../../lib/handlersRedux/actHandlerUtils';
+} from '../../lib/handlers/actHandlerUtils';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 
 interface TestContext {

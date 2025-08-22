@@ -69,6 +69,10 @@ import { TestProgress } from './playgroundTests/types';
 import { runCompleteTests as testActHandlerUtils } from './playgroundTests/actHandlerUtilsCompleteTests';
 import { runCompleteTests as testObserveHandlerUtils } from './playgroundTests/observeHandlerUtilsCompleteTests';
 import { testActHandler } from './playgroundTests/actHandlerTests';
+import {
+  testActHandlerRedux,
+  quickActHandlerReduxTest,
+} from './playgroundTests/actHandlerReduxTests';
 import { testAgentHandler } from './playgroundTests/agentHandlerTests';
 import { testExtractHandler } from './playgroundTests/extractHandlerTests';
 import { testObserveHandler } from './playgroundTests/observeHandlerTests';
@@ -328,6 +332,13 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       this.events.emit({
         timestamp: Date.now(),
         severity: Severity.Info,
+        message: '🎭 Quick ActHandler Redux test...',
+      });
+      const actHandlerReduxOk = await quickActHandlerReduxTest();
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
         message: '🤖 Quick AgentHandler test...',
       });
       await testAgentHandler(testContext);
@@ -388,6 +399,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         livePageOk &&
         domUtilitiesOk &&
         llmAiOk &&
+        actHandlerReduxOk &&
         cacheOk;
 
       this.events.emit({
@@ -397,7 +409,11 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           ? '✅ All quick handler tests passed'
           : '⚠️ Some quick handler tests failed',
         details: {
-          handlerTestsRun: ['ActHandler Quick Test', 'AgentHandler Quick Test'],
+          handlerTestsRun: [
+            'ActHandler Quick Test',
+            'ActHandler Redux Quick Test',
+            'AgentHandler Quick Test',
+          ],
           previousTestsRestored: [
             'Logger Tests',
             'Prompt Building Quick Test',
@@ -593,6 +609,14 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
       });
       await testActHandler(testContext);
 
+      // Test ActHandler Redux implementation
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '🎭 Testing ActHandler Redux implementation...',
+      });
+      await testActHandlerRedux(testContext);
+
       // Test ActHandlerUtils - using comprehensive test suite
       this.events.emit({
         timestamp: Date.now(),
@@ -649,6 +673,7 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           category: 'handler-tests',
           completedHandlers: [
             'ActHandler',
+            'ActHandler Redux',
             'ActHandlerUtils',
             'AgentHandler',
             'ExtractHandler',

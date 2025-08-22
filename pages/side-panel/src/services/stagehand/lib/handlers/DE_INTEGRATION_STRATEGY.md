@@ -622,9 +622,9 @@ All the actual DOM interaction and content script execution happens in the metho
 
 This is a **pure orchestration layer** that coordinates AI planning with Stagehand's lower-level automation capabilities.
 
-adam-s: in the playgroundTests folder we need a skeliton test file one each for the files in the handlersRedux folder
+adam-s: in the playgroundTests folder we need a skeliton test file one each for the files in the handlers folder
 
-GitHub Copilot: I'll create skeleton test files for each handler in the `handlersRedux` folder. Let me examine the structure first and then create comprehensive test files. Now let me create skeleton test files for each handler. I'll start with the actHandler tests:
+GitHub Copilot: I'll create skeleton test files for each handler in the `handlers` folder. Let me examine the structure first and then create comprehensive test files. Now let me create skeleton test files for each handler. I'll start with the actHandler tests:
 
 Made changes.
 
@@ -692,7 +692,7 @@ Finally, let me create the operatorHandler test file:
 
 Made changes.
 
-Summarized conversation historyPerfect! I've now completed the creation of skeleton test files for all 6 handlers in the handlersRedux folder:
+Summarized conversation historyPerfect! I've now completed the creation of skeleton test files for all 6 handlers in the handlers folder:
 
 1. ✅ **actHandlerTests.ts** - Tests for form interactions, click actions, and typing functionality
 2. ✅ **actHandlerUtilsTests.ts** - Tests for scroll utilities, element interactions, and shadow DOM handling
@@ -919,11 +919,11 @@ Let me examine the structure and imports of each handler to determine the depend
 
 This makes actHandlerUtils.ts the perfect candidate to start with. Once we convert this successfully and have our tests passing, we can move to observeHandler.ts or extractHandler.ts next, then actHandler.ts, and finally the more complex orchestration handlers.
 
-Shall we start by converting actHandlerUtils.ts from `handlers/` to `handlersRedux/`?
+Shall we start by converting actHandlerUtils.ts from `handlers/` to `handlers/`?
 
 adam-s: don't write code yet.
 
-We are going to one at a time move a function from actHandlerUtils.ts to acthandlerUtils.ts in handlersRedux/ folder
+We are going to one at a time move a function from actHandlerUtils.ts to acthandlerUtils.ts in handlers/ folder
 
 first we need to find an organized solution to move the function evaluated inside the content script to the content script code.
 

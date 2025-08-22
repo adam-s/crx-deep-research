@@ -5,7 +5,7 @@
 
 import { TestProgress, TestContext } from './types';
 import { Severity } from '@src/utils/types';
-import { StagehandObserveHandler } from '../../lib/handlersRedux/observeHandler';
+import { StagehandObserveHandler } from '../../lib/handlers/observeHandler';
 import { ChromeExtensionStagehand } from '../../lib/index';
 import { LogLine } from '../../types/log';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';

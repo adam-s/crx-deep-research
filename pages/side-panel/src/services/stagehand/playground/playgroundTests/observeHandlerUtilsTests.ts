@@ -23,7 +23,7 @@ import {
   observeGetElementInfoFunction,
   observeTestXPathFunction,
   observeValidateOverlayFunction,
-} from '../../lib/handlersRedux/observeHandlerUtils';
+} from '../../lib/handlers/observeHandlerUtils';
 
 interface TestContext {
   events: SimpleEventEmitter<EventMessage>;

@@ -3,7 +3,7 @@
  * Test suite for StagehandExtractHandler functionality
  */
 
-import { StagehandExtractHandler } from '../../lib/handlersRedux/extractHandler';
+import { StagehandExtractHandler } from '../../lib/handlers/extractHandler';
 import { TestProgress, TestContext } from './types';
 import { Severity } from '@src/utils/types';
 import { ChromeExtensionStagehand } from '../../lib/index';

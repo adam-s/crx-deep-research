@@ -3,7 +3,7 @@
  * Test suite for StagehandAgentHandler functionality
  */
 
-import { StagehandAgentHandler } from '../../lib/handlersRedux/agentHandler';
+import { StagehandAgentHandler } from '../../lib/handlers/agentHandler';
 import { TestProgress, TestContext } from './types';
 import { Severity } from '@src/utils/types';
 import { ChromeExtensionStagehand } from '../../lib/index';
@@ -293,7 +293,7 @@ async function testContentScriptFunctions(
       injectCursorAndHighlightFunction,
       updateCursorPositionFunction,
       animateClickFunction,
-    } = await import('../../lib/handlersRedux/agentHandlerUtils');
+    } = await import('../../lib/handlers/agentHandlerUtils');
 
     // Test scrollByFunction
     await page.evaluate(scrollByFunction, { scrollX: 0, scrollY: 10 });

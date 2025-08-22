@@ -212,7 +212,9 @@ export async function testLivePageDomMain(
     // Ensure page evaluation is ready before complex operations
     try {
       await page.waitForEvaluationReady();
-    } catch (error) {}
+    } catch (error) {
+      progress.log('⚠️ Page evaluation context not fully ready, continuing...');
+    }
 
     const xpathResult = await page.evaluate((): XPathTestResult => {
       const target = document.querySelector('#action-button');
@@ -266,7 +268,11 @@ export async function testLivePageDomMain(
     // Ensure page evaluation is ready before scrollable elements test
     try {
       await page.waitForEvaluationReady();
-    } catch (error) {}
+    } catch (error) {
+      progress.log(
+        '⚠️ Page evaluation context not ready for scrollable elements test, continuing...'
+      );
+    }
 
     const scrollable = await page.evaluate((): ScrollableElementsResult => {
       const w = window as Window;
@@ -314,7 +320,9 @@ export async function testLivePageDomMain(
       // Ensure page evaluation is ready before scroll wait test
       try {
         await page.waitForEvaluationReady();
-      } catch (error) {}
+      } catch (error) {
+        progress.log('⚠️ Page evaluation context not ready for scroll wait test, continuing...');
+      }
 
       scrollWait = await page.evaluate(async (): Promise<ScrollWaitResult | null> => {
         const w = window as Window;
@@ -342,7 +350,9 @@ export async function testLivePageDomMain(
     // Ensure page evaluation is ready before shadow DOM test
     try {
       await page.waitForEvaluationReady();
-    } catch (error) {}
+    } catch (error) {
+      progress.log('⚠️ Page evaluation context not ready for shadow DOM test, continuing...');
+    }
 
     const shadowInfo = await page.evaluate((): ShadowBackdoorResult => {
       const w = window as Window;

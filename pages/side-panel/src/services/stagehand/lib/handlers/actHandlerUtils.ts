@@ -328,10 +328,17 @@ async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void
   });
 
   try {
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('scrollToNextChunk', undefined, {
-      timeout: 10_000,
-    });
+    // Use page.evaluate to execute scroll logic directly
+    const page = locator.page();
+    await page.evaluate(
+      () => {
+        // Scroll down by viewport height
+        const scrollAmount = window.innerHeight * 0.8;
+        window.scrollBy(0, scrollAmount);
+      },
+      undefined,
+      { timeout: 10_000 }
+    );
   } catch (error) {
     const e = error as Error;
     logger({
@@ -361,10 +368,17 @@ async function scrollToPreviousChunkHandler(ctx: MethodHandlerContext): Promise<
   });
 
   try {
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('scrollToPreviousChunk', undefined, {
-      timeout: 10_000,
-    });
+    // Use page.evaluate to execute scroll logic directly
+    const page = locator.page();
+    await page.evaluate(
+      () => {
+        // Scroll up by viewport height
+        const scrollAmount = window.innerHeight * 0.8;
+        window.scrollBy(0, -scrollAmount);
+      },
+      undefined,
+      { timeout: 10_000 }
+    );
   } catch (error) {
     const e = error as Error;
     logger({
@@ -394,8 +408,8 @@ async function scrollElementIntoViewHandler(ctx: MethodHandlerContext): Promise<
   });
 
   try {
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('scrollIntoView');
+    // Use Cordyceps built-in scrollIntoViewIfNeeded method
+    await locator.scrollIntoViewIfNeeded({ timeout: 10_000 });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -428,8 +442,20 @@ async function scrollElementToPercentageHandler(ctx: MethodHandlerContext): Prom
   try {
     const [yArg = '0%'] = args as string[];
 
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('scrollToPercentage', { yArg }, { timeout: 10_000 });
+    // Use page.evaluate to execute scroll logic directly
+    const page = locator.page();
+    await page.evaluate(
+      (percentage: string) => {
+        const percent = parseFloat(percentage.replace('%', '')) / 100;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const viewportHeight = window.innerHeight;
+        const maxScroll = scrollHeight - viewportHeight;
+        const targetScroll = maxScroll * percent;
+        window.scrollTo(0, targetScroll);
+      },
+      yArg,
+      { timeout: 10_000 }
+    );
   } catch (error) {
     const e = error as Error;
     logger({
@@ -452,9 +478,9 @@ async function fillOrTypeHandler(ctx: MethodHandlerContext): Promise<void> {
 
   try {
     const text = args[0]?.toString() || '';
-    // Use executeFunction with the registered function names
-    await locator.executeFunction('clearElement');
-    await locator.executeFunction('fillElement', { text });
+    // Use Cordyceps built-in clear and fill methods
+    await locator.clear({ timeout: 5000 });
+    await locator.fill(text, { timeout: 5000 });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -475,8 +501,8 @@ async function pressKeyHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger, stagehandPage, initialUrl, domSettleTimeoutMs } = ctx;
   try {
     const key = args[0]?.toString() ?? '';
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('pressKey', { key });
+    // Use Cordyceps built-in press method
+    await locator.press(key, { timeout: 5000 });
 
     await handlePossiblePageNavigation(
       'press',
@@ -506,8 +532,8 @@ async function selectOptionHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
     const text = args[0]?.toString() || '';
-    // Use executeFunction with the registered function name
-    await locator.executeFunction('selectOption', { text }, { timeout: 5000 });
+    // Use Cordyceps built-in selectOption method
+    await locator.selectOption({ label: text }, { timeout: 5000 });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -557,8 +583,8 @@ async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
     });
 
     try {
-      // Use executeFunction with the registered function name
-      await locator.executeFunction('clickElement', undefined, { timeout: 3500 });
+      // Use Cordyceps built-in click method
+      await locator.click({ timeout: 3500 });
     } catch (fallbackError) {
       const fe = fallbackError as Error;
       logger({

@@ -1,8 +1,15 @@
-import { StagehandPage } from '../StagehandPage';
-import { AgentProvider } from '../agent/AgentProvider';
-import { StagehandAgent } from '../agent/StagehandAgent';
-import { AgentClient } from '../agent/AgentClient';
+/**
+ * Chrome Extension compatible AgentHandler using Cordyceps engine
+ *
+ * This Redux implementation replaces Playwright dependencies with Cordyceps APIs
+ * and provides comprehensive agent execution capabilities within Chrome extension
+ * security constraints.
+ */
+
+import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
+import { ChromeExtensionStagehand } from '../index';
 import { LogLine } from '../../types/log';
+import { Progress } from '@src/services/cordyceps/core/progress';
 import {
   AgentExecuteOptions,
   AgentAction,
@@ -10,132 +17,45 @@ import {
   AgentHandlerOptions,
   ActionExecutionResult,
 } from '../../types/agent';
-import { Stagehand } from '../index';
 import { StagehandFunctionName } from '../../types/stagehand';
+import { AgentProvider } from '../agent/AgentProvider';
+import { StagehandAgent } from '../agent/StagehandAgent';
+import { AgentClient } from '../agent/AgentClient';
 import { mapKeyToPlaywright } from '../agent/utils/cuaKeyMapping';
 
+// Import content script functions
+import {
+  scrollByFunction,
+  checkElementExistsFunction,
+  injectCursorAndHighlightFunction,
+  updateCursorPositionFunction,
+  animateClickFunction,
+} from './agentHandlerUtils';
+
 export class StagehandAgentHandler {
-  private stagehand: Stagehand;
-  private stagehandPage: StagehandPage;
+  private readonly stagehand: ChromeExtensionStagehand;
+  private readonly logger: (logLine: LogLine) => void;
+  private readonly browserWindow: BrowserWindow;
+  private readonly options: AgentHandlerOptions;
+
   private agent: StagehandAgent;
   private provider: AgentProvider;
-  private logger: (message: LogLine) => void;
   private agentClient: AgentClient;
-  private options: AgentHandlerOptions;
 
-  // Content script functions
-  private static readonly scrollByFunction = ({
-    scrollX,
-    scrollY,
+  constructor({
+    stagehand,
+    logger,
+    browserWindow,
+    options,
   }: {
-    scrollX: number;
-    scrollY: number;
-  }) => {
-    window.scrollBy(scrollX, scrollY);
-  };
-
-  private static readonly checkElementExistsFunction = (id: string) => {
-    return !!document.getElementById(id);
-  };
-
-  private static readonly injectCursorAndHighlightFunction = (
-    cursorId: string,
-    highlightId: string
-  ) => {
-    // Create cursor element
-    const cursor = document.createElement('div');
-    cursor.id = cursorId;
-
-    // Use the provided SVG for a custom cursor
-    cursor.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 28 28" width="28" height="28">
-      <polygon fill="#000000" points="9.2,7.3 9.2,18.5 12.2,15.6 12.6,15.5 17.4,15.5"/>
-      <rect x="12.5" y="13.6" transform="matrix(0.9221 -0.3871 0.3871 0.9221 -5.7605 6.5909)" width="2" height="8" fill="#000000"/>
-    </svg>
-    `;
-
-    // Style the cursor
-    cursor.style.position = 'absolute';
-    cursor.style.top = '0';
-    cursor.style.left = '0';
-    cursor.style.width = '28px';
-    cursor.style.height = '28px';
-    cursor.style.pointerEvents = 'none';
-    cursor.style.zIndex = '9999999';
-    cursor.style.transform = 'translate(-4px, -4px)'; // Adjust to align the pointer tip
-
-    // Create highlight element for click animation
-    const highlight = document.createElement('div');
-    highlight.id = highlightId;
-    highlight.style.position = 'absolute';
-    highlight.style.width = '20px';
-    highlight.style.height = '20px';
-    highlight.style.borderRadius = '50%';
-    highlight.style.backgroundColor = 'rgba(66, 134, 244, 0)';
-    highlight.style.transform = 'translate(-50%, -50%) scale(0)';
-    highlight.style.pointerEvents = 'none';
-    highlight.style.zIndex = '9999998';
-    highlight.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-    highlight.style.opacity = '0';
-
-    // Add elements to the document
-    document.body.appendChild(cursor);
-    document.body.appendChild(highlight);
-
-    // Add a function to update cursor position
-    const windowWithCursor = window as Window & {
-      __updateCursorPosition?: (x: number, y: number) => void;
-    };
-    windowWithCursor.__updateCursorPosition = function (x: number, y: number) {
-      if (cursor) {
-        cursor.style.transform = `translate(${x - 4}px, ${y - 4}px)`;
-      }
-    };
-
-    // Add a function to animate click
-    const windowWithClick = window as Window & {
-      __animateClick?: (x: number, y: number) => void;
-    };
-    windowWithClick.__animateClick = function (x: number, y: number) {
-      if (highlight) {
-        highlight.style.left = `${x}px`;
-        highlight.style.top = `${y}px`;
-        highlight.style.transform = 'translate(-50%, -50%) scale(1)';
-        highlight.style.opacity = '1';
-
-        setTimeout(() => {
-          highlight.style.transform = 'translate(-50%, -50%) scale(0)';
-          highlight.style.opacity = '0';
-        }, 300);
-      }
-    };
-  };
-
-  private static readonly updateCursorPositionFunction = ({ x, y }: { x: number; y: number }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window as any).__updateCursorPosition) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__updateCursorPosition(x, y);
-    }
-  };
-
-  private static readonly animateClickFunction = ({ x, y }: { x: number; y: number }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window as any).__animateClick) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__animateClick(x, y);
-    }
-  };
-
-  constructor(
-    stagehand: Stagehand,
-    stagehandPage: StagehandPage,
-    logger: (message: LogLine) => void,
-    options: AgentHandlerOptions
-  ) {
+    stagehand: ChromeExtensionStagehand;
+    logger: (logLine: LogLine) => void;
+    browserWindow: BrowserWindow;
+    options: AgentHandlerOptions;
+  }) {
     this.stagehand = stagehand;
-    this.stagehandPage = stagehandPage;
     this.logger = logger;
+    this.browserWindow = browserWindow;
     this.options = options;
 
     // Initialize the provider
@@ -159,10 +79,403 @@ export class StagehandAgentHandler {
     this.agent = new StagehandAgent(client, logger);
   }
 
+  /**
+   * Execute a task with the agent
+   */
+  public async execute(optionsOrInstruction: AgentExecuteOptions | string): Promise<AgentResult> {
+    const options =
+      typeof optionsOrInstruction === 'string'
+        ? { instruction: optionsOrInstruction }
+        : optionsOrInstruction;
+
+    // Redirect to Google if the URL is empty or about:blank
+    const page = await this.browserWindow.getCurrentPage();
+    const currentUrl = page.url();
+    if (!currentUrl || currentUrl === 'about:blank') {
+      this.logger({
+        category: 'agent',
+        message: `Page URL is empty or about:blank. Redirecting to www.google.com...`,
+        level: 0,
+      });
+      await page.goto('https://www.google.com');
+    }
+
+    this.logger({
+      category: 'agent',
+      message: `Executing agent task: ${options.instruction}`,
+      level: 1,
+    });
+
+    // Inject cursor for visual feedback
+    try {
+      await this.injectCursor();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: 'agent',
+        message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
+        level: 1,
+      });
+      // Continue execution even if cursor injection fails
+    }
+
+    // Take initial screenshot if needed
+    if (options.autoScreenshot !== false) {
+      try {
+        await this.captureAndSendScreenshot();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger({
+          category: 'agent',
+          message: `Warning: Failed to take initial screenshot: ${errorMessage}. Continuing with execution.`,
+          level: 1,
+        });
+        // Continue execution even if screenshot fails
+      }
+    }
+
+    // Execute the task
+    const result = await this.agent.execute(optionsOrInstruction);
+    if (result.usage) {
+      this.stagehand.updateMetrics(
+        StagehandFunctionName.AGENT,
+        result.usage.input_tokens,
+        result.usage.output_tokens,
+        result.usage.inference_time_ms
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Get the underlying agent instance
+   */
+  public getAgent(): StagehandAgent {
+    return this.agent;
+  }
+
+  /**
+   * Get the agent client instance
+   */
+  public getClient(): AgentClient {
+    return this.agentClient;
+  }
+
+  /**
+   * Create a simple progress object for screenshots
+   */
+  private createProgress(): Progress {
+    return {
+      log: (_message: string) => {
+        // Simple logging - could be enhanced
+      },
+      cleanupWhenAborted: (_cleanup: (error?: Error) => void) => {
+        // No-op for simplicity
+      },
+      race: <T>(promise: Promise<T> | Promise<T>[]): Promise<T> => {
+        if (Array.isArray(promise)) {
+          return Promise.race(promise);
+        }
+        return promise;
+      },
+      raceWithCleanup: <T>(promise: Promise<T>, _cleanup: (result: T) => void): Promise<T> => {
+        return promise;
+      },
+      wait: (timeoutMs: number): Promise<void> => {
+        return new Promise(resolve => setTimeout(resolve, timeoutMs));
+      },
+      abort: (_error: Error) => {
+        // No-op for simplicity
+      },
+    };
+  }
+
+  /**
+   * Capture screenshot and send to agent
+   */
+  public async captureAndSendScreenshot(): Promise<unknown> {
+    this.logger({
+      category: 'agent',
+      message: 'Taking screenshot and sending to agent',
+      level: 1,
+    });
+
+    try {
+      const page = await this.browserWindow.getCurrentPage();
+
+      // Take screenshot of the current page using Cordyceps
+      const screenshot = await page.screenshot(this.createProgress(), {
+        type: 'png',
+        fullPage: false,
+      });
+
+      // Convert to base64
+      const base64Image = screenshot.toString('base64');
+
+      // Use the captureScreenshot method on the agent client
+      return await this.agentClient.captureScreenshot({
+        base64Image,
+        currentUrl: page.url(),
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: 'agent',
+        message: `Error capturing screenshot: ${errorMessage}`,
+        level: 0,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Inject cursor and highlight elements for visual feedback
+   */
+  public async injectCursor(): Promise<void> {
+    try {
+      const page = await this.browserWindow.getCurrentPage();
+
+      // Define constants for cursor and highlight element IDs
+      const CURSOR_ID = 'stagehand-cursor';
+      const HIGHLIGHT_ID = 'stagehand-highlight';
+
+      // Check if cursor already exists
+      const cursorExists = await page.evaluate(checkElementExistsFunction, CURSOR_ID);
+
+      if (cursorExists) {
+        return;
+      }
+
+      // Inject cursor and highlight elements
+      await page.evaluate(injectCursorAndHighlightFunction, {
+        cursorId: CURSOR_ID,
+        highlightId: HIGHLIGHT_ID,
+      });
+
+      this.logger({
+        category: 'agent',
+        message: 'Cursor injected for visual feedback',
+        level: 1,
+      });
+    } catch (error) {
+      this.logger({
+        category: 'agent',
+        message: `Failed to inject cursor: ${error}`,
+        level: 0,
+      });
+    }
+  }
+
+  /**
+   * Update cursor position on the page
+   */
+  public async updateCursorPosition(x: number, y: number): Promise<void> {
+    try {
+      const page = await this.browserWindow.getCurrentPage();
+      await page.evaluate(updateCursorPositionFunction, { x, y });
+    } catch {
+      // Silently fail if cursor update fails
+      // This is not critical functionality
+    }
+  }
+
+  /**
+   * Animate click at specified coordinates
+   */
+  public async animateClick(x: number, y: number): Promise<void> {
+    try {
+      const page = await this.browserWindow.getCurrentPage();
+      await page.evaluate(animateClickFunction, { x, y });
+    } catch {
+      // Silently fail if animation fails
+      // This is not critical functionality
+    }
+  }
+
+  /**
+   * Execute a single action on the page
+   */
+  public async executeAction(action: AgentAction): Promise<ActionExecutionResult> {
+    try {
+      const page = await this.browserWindow.getCurrentPage();
+
+      switch (action.type) {
+        case 'click': {
+          const { x, y, button = 'left' } = action;
+          // Update cursor position first
+          await this.updateCursorPosition(x as number, y as number);
+          // Animate the click
+          await this.animateClick(x as number, y as number);
+          // Small delay to see the animation
+          await new Promise(resolve => setTimeout(resolve, 300));
+          // Perform the actual click using Cordyceps
+          await page.click(`body`, {
+            position: { x: x as number, y: y as number },
+            button: button as 'left' | 'right',
+          });
+          return { success: true };
+        }
+
+        case 'double_click':
+        case 'doubleClick': {
+          const { x, y } = action;
+          // Update cursor position first
+          await this.updateCursorPosition(x as number, y as number);
+          // Animate the click
+          await this.animateClick(x as number, y as number);
+          // Small delay to see the animation
+          await new Promise(resolve => setTimeout(resolve, 200));
+          // Animate the second click
+          await this.animateClick(x as number, y as number);
+          // Small delay to see the animation
+          await new Promise(resolve => setTimeout(resolve, 200));
+          // Perform the actual double click using Cordyceps
+          await page.dblclick(`body`, {
+            position: { x: x as number, y: y as number },
+          });
+          return { success: true };
+        }
+
+        case 'type': {
+          const { text } = action;
+          // Use focused element or body for typing
+          const locator = page.locator(':focus').or(page.locator('body'));
+          await locator.type(text as string);
+          return { success: true };
+        }
+
+        case 'keypress': {
+          const { keys } = action;
+          if (Array.isArray(keys)) {
+            // Use focused element or body for key presses
+            const locator = page.locator(':focus').or(page.locator('body'));
+            for (const key of keys) {
+              const mappedKey = mapKeyToPlaywright(key);
+              await locator.press(mappedKey);
+            }
+          }
+          return { success: true };
+        }
+
+        case 'scroll': {
+          const { x, y, scroll_x = 0, scroll_y = 0 } = action;
+          // First move to the position (simulate mouse move)
+          await this.updateCursorPosition(x as number, y as number);
+          // Then scroll using content script function
+          await page.evaluate(scrollByFunction, {
+            scrollX: scroll_x as number,
+            scrollY: scroll_y as number,
+          });
+          return { success: true };
+        }
+
+        case 'drag': {
+          const { path } = action;
+          if (Array.isArray(path) && path.length >= 2) {
+            const start = path[0];
+
+            // Update cursor position for start
+            await this.updateCursorPosition(start.x, start.y);
+
+            // Use Cordyceps drag functionality
+            const startLocator = page.locator(`body`);
+            await startLocator.dragTo(startLocator, {
+              sourcePosition: { x: start.x, y: start.y },
+              targetPosition: { x: path[path.length - 1].x, y: path[path.length - 1].y },
+            });
+
+            // Update cursor position for end
+            await this.updateCursorPosition(path[path.length - 1].x, path[path.length - 1].y);
+          }
+          return { success: true };
+        }
+
+        case 'move': {
+          const { x, y } = action;
+          // Update cursor position
+          await this.updateCursorPosition(x as number, y as number);
+          return { success: true };
+        }
+
+        case 'wait': {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return { success: true };
+        }
+
+        case 'screenshot': {
+          // Screenshot is handled automatically by the agent client
+          // after each action, so we don't need to do anything here
+          return { success: true };
+        }
+
+        case 'function': {
+          const { name, arguments: args = {} } = action;
+
+          if (name === 'goto' && typeof args === 'object' && args !== null && 'url' in args) {
+            await page.goto(args.url as string);
+            this.updateClientUrl();
+            return { success: true };
+          } else if (name === 'back') {
+            await page.goBack();
+            this.updateClientUrl();
+            return { success: true };
+          } else if (name === 'forward') {
+            await page.goForward();
+            this.updateClientUrl();
+            return { success: true };
+          } else if (name === 'reload') {
+            await page.reload();
+            this.updateClientUrl();
+            return { success: true };
+          }
+
+          return {
+            success: false,
+            error: `Unsupported function: ${name}`,
+          };
+        }
+
+        case 'key': {
+          // Handle the 'key' action type from Anthropic
+          const { text } = action;
+          const playwrightKey = mapKeyToPlaywright(text as string);
+          // Use focused element or body for key press
+          const locator = page.locator(':focus').or(page.locator('body'));
+          await locator.press(playwrightKey);
+          return { success: true };
+        }
+
+        default:
+          return {
+            success: false,
+            error: `Unsupported action type: ${(action as { type: string }).type}`,
+          };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.logger({
+        category: 'agent',
+        message: `Error executing action ${action.type}: ${errorMessage}`,
+        level: 0,
+      });
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Setup agent client with screenshot provider and action handler
+   */
   private setupAgentClient(): void {
     // Set up screenshot provider for any client type
     this.agentClient.setScreenshotProvider(async () => {
-      const screenshot = await this.page.screenshot({
+      const page = await this.browserWindow.getCurrentPage();
+      const screenshot = await page.screenshot(this.createProgress(), {
         fullPage: false,
       });
       // Convert to base64
@@ -223,377 +536,20 @@ export class StagehandAgentHandler {
   }
 
   /**
-   * Execute a task with the agent
+   * Update client viewport information
    */
-  async execute(optionsOrInstruction: AgentExecuteOptions | string): Promise<AgentResult> {
-    const options =
-      typeof optionsOrInstruction === 'string'
-        ? { instruction: optionsOrInstruction }
-        : optionsOrInstruction;
-
-    //Redirect to Google if the URL is empty or about:blank
-    const currentUrl = this.page.url();
-    if (!currentUrl || currentUrl === 'about:blank') {
-      this.logger({
-        category: 'agent',
-        message: `Page URL is empty or about:blank. Redirecting to www.google.com...`,
-        level: 0,
-      });
-      await this.page.goto('https://www.google.com');
-    }
-
-    this.logger({
-      category: 'agent',
-      message: `Executing agent task: ${options.instruction}`,
-      level: 1,
-    });
-
-    // Inject cursor for visual feedback
-    try {
-      await this.injectCursor();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger({
-        category: 'agent',
-        message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
-        level: 1,
-      });
-      // Continue execution even if cursor injection fails
-    }
-
-    // Take initial screenshot if needed
-    if (options.autoScreenshot !== false) {
-      try {
-        await this.captureAndSendScreenshot();
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger({
-          category: 'agent',
-          message: `Warning: Failed to take initial screenshot: ${errorMessage}. Continuing with execution.`,
-          level: 1,
-        });
-        // Continue execution even if screenshot fails
-      }
-    }
-
-    // Execute the task
-    const result = await this.agent.execute(optionsOrInstruction);
-    if (result.usage) {
-      this.stagehand.updateMetrics(
-        StagehandFunctionName.AGENT,
-        result.usage.input_tokens,
-        result.usage.output_tokens,
-        result.usage.inference_time_ms
-      );
-    }
-
-    // The actions are now executed during the agent's execution flow
-    // We don't need to execute them again here
-
-    return result;
-  }
-
-  /**
-   * Execute a single action on the page
-   */
-  private async executeAction(action: AgentAction): Promise<ActionExecutionResult> {
-    try {
-      switch (action.type) {
-        case 'click': {
-          const { x, y, button = 'left' } = action;
-          // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
-          // Animate the click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise(resolve => setTimeout(resolve, 300));
-          // Perform the actual click
-          await this.page.mouse.click(x as number, y as number, {
-            button: button as 'left' | 'right',
-          });
-          return { success: true };
-        }
-
-        case 'double_click': {
-          const { x, y } = action;
-          // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
-          // Animate the click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          // Animate the second click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          // Perform the actual double click
-          await this.page.mouse.dblclick(x as number, y as number);
-          return { success: true };
-        }
-
-        // Handle the case for "doubleClick" as well for backward compatibility
-        case 'doubleClick': {
-          const { x, y } = action;
-          // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
-          // Animate the click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          // Animate the second click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          // Perform the actual double click
-          await this.page.mouse.dblclick(x as number, y as number);
-          return { success: true };
-        }
-
-        case 'type': {
-          const { text } = action;
-          await this.page.keyboard.type(text as string);
-          return { success: true };
-        }
-
-        case 'keypress': {
-          const { keys } = action;
-          if (Array.isArray(keys)) {
-            for (const key of keys) {
-              const mappedKey = mapKeyToPlaywright(key);
-              await this.page.keyboard.press(mappedKey);
-            }
-          }
-          return { success: true };
-        }
-
-        case 'scroll': {
-          const { x, y, scroll_x = 0, scroll_y = 0 } = action;
-          // First move to the position
-          await this.page.mouse.move(x as number, y as number);
-          // Then scroll
-          await this.page.evaluate(StagehandAgentHandler.scrollByFunction, {
-            scrollX: scroll_x as number,
-            scrollY: scroll_y as number,
-          });
-          return { success: true };
-        }
-
-        case 'drag': {
-          const { path } = action;
-          if (Array.isArray(path) && path.length >= 2) {
-            const start = path[0];
-
-            // Update cursor position for start
-            await this.updateCursorPosition(start.x, start.y);
-            await this.page.mouse.move(start.x, start.y);
-            await this.page.mouse.down();
-
-            // Update cursor position for each point in the path
-            for (let i = 1; i < path.length; i++) {
-              await this.updateCursorPosition(path[i].x, path[i].y);
-              await this.page.mouse.move(path[i].x, path[i].y);
-            }
-
-            await this.page.mouse.up();
-          }
-          return { success: true };
-        }
-
-        case 'move': {
-          const { x, y } = action;
-          // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
-          await this.page.mouse.move(x as number, y as number);
-          return { success: true };
-        }
-
-        case 'wait': {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return { success: true };
-        }
-
-        case 'screenshot': {
-          // Screenshot is handled automatically by the agent client
-          // after each action, so we don't need to do anything here
-          return { success: true };
-        }
-
-        case 'function': {
-          const { name, arguments: args = {} } = action;
-
-          if (name === 'goto' && typeof args === 'object' && args !== null && 'url' in args) {
-            await this.page.goto(args.url as string);
-            this.updateClientUrl();
-            return { success: true };
-          } else if (name === 'back') {
-            await this.page.goBack();
-            this.updateClientUrl();
-            return { success: true };
-          } else if (name === 'forward') {
-            await this.page.goForward();
-            this.updateClientUrl();
-            return { success: true };
-          } else if (name === 'reload') {
-            await this.page.reload();
-            this.updateClientUrl();
-            return { success: true };
-          }
-
-          return {
-            success: false,
-            error: `Unsupported function: ${name}`,
-          };
-        }
-
-        case 'key': {
-          // Handle the 'key' action type from Anthropic
-          const { text } = action;
-          const playwrightKey = mapKeyToPlaywright(text as string);
-          await this.page.keyboard.press(playwrightKey);
-          return { success: true };
-        }
-
-        default:
-          return {
-            success: false,
-            error: `Unsupported action type: ${action.type}`,
-          };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      this.logger({
-        category: 'agent',
-        message: `Error executing action ${action.type}: ${errorMessage}`,
-        level: 0,
-      });
-
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-  }
-
   private updateClientViewport(): void {
-    const viewportSize = this.page.viewportSize();
-    if (viewportSize) {
-      this.agentClient.setViewport(viewportSize.width, viewportSize.height);
-    }
+    // Get viewport from browser window - this is a simplified approach
+    // In a real implementation, you might want to get actual viewport size
+    this.agentClient.setViewport(1280, 720); // Default viewport size
   }
 
-  private updateClientUrl(): void {
-    const url = this.page.url();
+  /**
+   * Update client URL information
+   */
+  private async updateClientUrl(): Promise<void> {
+    const page = await this.browserWindow.getCurrentPage();
+    const url = page.url();
     this.agentClient.setCurrentUrl(url);
-  }
-
-  getAgent(): StagehandAgent {
-    return this.agent;
-  }
-
-  getClient(): AgentClient {
-    return this.agentClient;
-  }
-
-  async captureAndSendScreenshot(): Promise<unknown> {
-    this.logger({
-      category: 'agent',
-      message: 'Taking screenshot and sending to agent',
-      level: 1,
-    });
-
-    try {
-      // Take screenshot of the current page
-      const screenshot = await this.page.screenshot({
-        type: 'png',
-        fullPage: false,
-      });
-
-      // Convert to base64
-      const base64Image = screenshot.toString('base64');
-
-      // Just use the captureScreenshot method on the agent client
-      return await this.agentClient.captureScreenshot({
-        base64Image,
-        currentUrl: this.page.url(),
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger({
-        category: 'agent',
-        message: `Error capturing screenshot: ${errorMessage}`,
-        level: 0,
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Inject a cursor element into the page for visual feedback
-   */
-  private async injectCursor(): Promise<void> {
-    try {
-      // Define constants for cursor and highlight element IDs
-      const CURSOR_ID = 'stagehand-cursor';
-      const HIGHLIGHT_ID = 'stagehand-highlight';
-
-      // Check if cursor already exists
-      const cursorExists = await this.page.evaluate(
-        StagehandAgentHandler.checkElementExistsFunction,
-        CURSOR_ID
-      );
-
-      if (cursorExists) {
-        return;
-      }
-
-      // Inject cursor and highlight elements
-      await this.page.evaluate(
-        StagehandAgentHandler.injectCursorAndHighlightFunction,
-        CURSOR_ID,
-        HIGHLIGHT_ID
-      );
-
-      this.logger({
-        category: 'agent',
-        message: 'Cursor injected for visual feedback',
-        level: 1,
-      });
-    } catch (error) {
-      this.logger({
-        category: 'agent',
-        message: `Failed to inject cursor: ${error}`,
-        level: 0,
-      });
-    }
-  }
-
-  /**
-   * Update the cursor position on the page
-   */
-  private async updateCursorPosition(x: number, y: number): Promise<void> {
-    try {
-      await this.page.evaluate(StagehandAgentHandler.updateCursorPositionFunction, { x, y });
-    } catch {
-      // Silently fail if cursor update fails
-      // This is not critical functionality
-    }
-  }
-
-  /**
-   * Animate a click at the given position
-   */
-  private async animateClick(x: number, y: number): Promise<void> {
-    try {
-      await this.page.evaluate(StagehandAgentHandler.animateClickFunction, { x, y });
-    } catch {
-      // Silently fail if animation fails
-      // This is not critical functionality
-    }
-  }
-
-  private get page() {
-    // stagehand.page is the live proxy you already implemented
-    return this.stagehand.page;
   }
 }
