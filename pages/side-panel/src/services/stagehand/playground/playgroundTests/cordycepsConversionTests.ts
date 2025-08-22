@@ -199,6 +199,10 @@ async function testPageNavigation(progress: TestProgress, context: TestContext):
   } finally {
     if (browserWindow) {
       browserWindow.dispose();
+
+      // Add a small delay to allow Chrome extension lifecycle to fully clean up
+      // This prevents frame ID conflicts when tests run multiple times
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   }
 }
@@ -373,6 +377,10 @@ async function testScreenshotCapture(progress: TestProgress, context: TestContex
       try {
         await browserWindow.dispose();
         progress.log('✅ BrowserWindow disposed safely');
+
+        // Add a small delay to allow Chrome extension lifecycle to fully clean up
+        // This prevents frame ID conflicts when tests run multiple times
+        await new Promise(resolve => setTimeout(resolve, 200));
       } catch (disposeError) {
         progress.log(`⚠️ Disposal warning: ${disposeError}`);
       }

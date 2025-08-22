@@ -439,30 +439,87 @@ export class StagehandObserveHandler {
   }
 
   /**
-   * Get accessibility data using Cordyceps-compatible methods
+   * Get accessibility data using Cordyceps snapshotForAI method
+   * This provides a structured accessibility tree with aria-ref identifiers
+   * that can be used directly as selectors for element interaction
    */
-  private async _getAccessibilityData(_iframes?: boolean): Promise<{
+  private async _getAccessibilityData(iframes?: boolean): Promise<{
     combinedTreeString: string;
     combinedXpathMap: Record<string, string>;
     discoveredIframes: AccessibilityNode[];
   }> {
     try {
-      // For now, return placeholder data - this would need to be implemented
-      // with actual Cordyceps accessibility tree extraction
-      const placeholderTreeString = JSON.stringify([]);
-      const placeholderXpathMap: Record<string, string> = {};
-      const placeholderIframes: AccessibilityNode[] = [];
+      const page = await this.browserWindow.getCurrentPage();
+
+      // Get AI-formatted accessibility snapshot with aria-ref identifiers
+      const aiSnapshot = await page.snapshotForAI();
 
       this.logger({
         category: 'observation',
-        message: 'Retrieved accessibility data (placeholder implementation)',
+        message: `Retrieved accessibility snapshot: ${aiSnapshot.length} characters`,
         level: 1,
+        auxiliary: {
+          snapshotLength: {
+            value: aiSnapshot.length.toString(),
+            type: 'integer',
+          },
+          includesIframes: {
+            value: (iframes || false).toString(),
+            type: 'boolean',
+          },
+        },
       });
 
+      // Extract aria-ref mappings from the snapshot
+      const ariaRefMap: Record<string, string> = {};
+
+      // Parse aria-ref identifiers from snapshot (e.g., [ref=e123], [ref=f1e45])
+      const ariaRefMatches = aiSnapshot.match(/\[ref=([ef]\d+e?\d*)\]/g);
+      if (ariaRefMatches) {
+        ariaRefMatches.forEach(match => {
+          const refId = match.match(/ref=([ef]\d+e?\d*)/)?.[1];
+          if (refId) {
+            // Map aria-ref ID to aria-ref selector format for use by observe function
+            ariaRefMap[refId] = `aria-ref=${refId}`;
+          }
+        });
+
+        this.logger({
+          category: 'observation',
+          message: `Extracted ${Object.keys(ariaRefMap).length} aria-ref mappings`,
+          level: 1,
+        });
+      }
+
+      // Extract iframe information from frame references (refs starting with 'f')
+      const discoveredIframes: AccessibilityNode[] = [];
+      const frameRefMatches = aiSnapshot.match(/\[ref=(f\d+e?\d*)\]/g);
+      if (frameRefMatches && iframes) {
+        frameRefMatches.forEach((match, index) => {
+          const frameRefId = match.match(/ref=(f\d+e?\d*)/)?.[1];
+          if (frameRefId) {
+            // Create synthetic iframe node information
+            const frameNode: AccessibilityNode = {
+              nodeId: `iframe-${index}`,
+              role: 'iframe',
+              name: `iframe element [${frameRefId}]`,
+              // Add other required AccessibilityNode properties as needed
+            };
+            discoveredIframes.push(frameNode);
+          }
+        });
+
+        this.logger({
+          category: 'observation',
+          message: `Discovered ${discoveredIframes.length} iframe references`,
+          level: 1,
+        });
+      }
+
       return {
-        combinedTreeString: placeholderTreeString,
-        combinedXpathMap: placeholderXpathMap,
-        discoveredIframes: placeholderIframes,
+        combinedTreeString: aiSnapshot,
+        combinedXpathMap: ariaRefMap,
+        discoveredIframes,
       };
     } catch (error) {
       this.logger({
@@ -471,8 +528,9 @@ export class StagehandObserveHandler {
         level: 1,
       });
 
+      // Return empty data on error to allow graceful degradation
       return {
-        combinedTreeString: JSON.stringify([]),
+        combinedTreeString: '[]',
         combinedXpathMap: {},
         discoveredIframes: [],
       };

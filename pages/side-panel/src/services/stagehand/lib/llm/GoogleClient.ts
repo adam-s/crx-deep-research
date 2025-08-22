@@ -74,9 +74,6 @@ export class GoogleClient extends LLMClient {
     modelName: AvailableModel;
     clientOptions?: ClientOptions; // Expecting { apiKey: string } here
   }) {
-    console.log(
-      `[GoogleClient.constructor] modelName=${modelName} enableCaching=${enableCaching} ######`
-    );
     super(modelName);
     if (!clientOptions?.apiKey) {
       // Try to get the API key from the environment variable GOOGLE_API_KEY
@@ -90,9 +87,6 @@ export class GoogleClient extends LLMClient {
     this.logger = logger;
     // Determine vision capability based on model name (adjust as needed)
     this.hasVision = modelName.includes('vision') || modelName.includes('gemini-1.5'); // Example logic
-    console.log(
-      `[GoogleClient.constructor] initialized successfully hasVision=${this.hasVision} ######`
-    );
   }
 
   // Helper to convert project's ChatMessage[] to Gemini's Content[]
@@ -222,9 +216,6 @@ export class GoogleClient extends LLMClient {
     logger,
     retries = 3,
   }: CreateChatCompletionOptions): Promise<T> {
-    console.log(
-      `[GoogleClient.createChatCompletion] starting with model=${this.modelName} retries=${retries} ######`
-    );
     const {
       image,
       requestId: requestIdOriginal,

@@ -56,9 +56,10 @@ export async function testDOMUtilities(
     message: '🔧 Testing DOM utilities - pure functions at http://localhost:3005...',
   });
 
+  let browserWindow: BrowserWindow | undefined;
   try {
     // Get browser window service
-    const browserWindow = await BrowserWindow.create();
+    browserWindow = await BrowserWindow.create();
 
     // Navigate to test page
     await browserWindow.newPage();
@@ -105,6 +106,19 @@ export async function testDOMUtilities(
 
     progress.log(`❌ DOM utilities test error: ${errorMessage}`);
     return false;
+  } finally {
+    // Always dispose the browser window to prevent frame leakage
+    if (browserWindow) {
+      try {
+        browserWindow.dispose();
+
+        // Add a small delay to allow Chrome extension lifecycle to fully clean up
+        // This prevents frame ID conflicts when tests run multiple times
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (disposeError) {
+        progress.log(`⚠️ Error disposing browser window: ${disposeError}`);
+      }
+    }
   }
 }
 

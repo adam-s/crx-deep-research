@@ -21,6 +21,7 @@
     "deepseek",
     "evals",
     "langchain",
-    "Screenshotter"
+    "Screenshotter",
+    "xpaths"
   ]
 }

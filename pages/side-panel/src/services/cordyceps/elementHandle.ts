@@ -801,9 +801,6 @@ export class ElementHandle extends JSHandle {
   }
   /** Convenience alias for getTextContent */
   async textContent(): Promise<string> {
-    console.log(
-      `[ElementHandle.textContent] Convenience alias called, delegating to getTextContent()`
-    );
     const result = await this.getTextContent();
     return result;
   }

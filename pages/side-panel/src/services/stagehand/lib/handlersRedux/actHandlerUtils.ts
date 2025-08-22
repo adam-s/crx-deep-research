@@ -314,6 +314,10 @@ const methodHandlerMap: Record<string, (ctx: MethodHandlerContext) => Promise<vo
 async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, logger, xpath } = ctx;
 
+  console.log(
+    `[scrollToNextChunkHandler] starting scroll to next chunk for xpath: ${xpath} ######`
+  );
+
   logger({
     category: 'action',
     message: 'scrolling to next chunk',
@@ -324,8 +328,8 @@ async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void
   });
 
   try {
-    // Use executeFunction instead of evaluate
-    await locator.executeFunction('scrollToNextChunkElementFunction', undefined, {
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('scrollToNextChunk', undefined, {
       timeout: 10_000,
     });
   } catch (error) {
@@ -357,8 +361,8 @@ async function scrollToPreviousChunkHandler(ctx: MethodHandlerContext): Promise<
   });
 
   try {
-    // Use executeFunction instead of evaluate
-    await locator.executeFunction('scrollToPreviousChunkElementFunction', undefined, {
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('scrollToPreviousChunk', undefined, {
       timeout: 10_000,
     });
   } catch (error) {
@@ -390,8 +394,8 @@ async function scrollElementIntoViewHandler(ctx: MethodHandlerContext): Promise<
   });
 
   try {
-    // Use executeFunction instead of scrollIntoViewIfNeeded
-    await locator.executeFunction('scrollElementIntoViewFunction');
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('scrollIntoView');
   } catch (error) {
     const e = error as Error;
     logger({
@@ -424,12 +428,8 @@ async function scrollElementToPercentageHandler(ctx: MethodHandlerContext): Prom
   try {
     const [yArg = '0%'] = args as string[];
 
-    // Use executeFunction instead of evaluate
-    await locator.executeFunction(
-      'scrollElementToPercentageFunction',
-      { yArg },
-      { timeout: 10_000 }
-    );
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('scrollToPercentage', { yArg }, { timeout: 10_000 });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -452,9 +452,9 @@ async function fillOrTypeHandler(ctx: MethodHandlerContext): Promise<void> {
 
   try {
     const text = args[0]?.toString() || '';
-    // Use executeFunction for clear and fill operations
-    await locator.executeFunction('clearElementFunction');
-    await locator.executeFunction('fillElementFunction', { text });
+    // Use executeFunction with the registered function names
+    await locator.executeFunction('clearElement');
+    await locator.executeFunction('fillElement', { text });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -475,8 +475,8 @@ async function pressKeyHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger, stagehandPage, initialUrl, domSettleTimeoutMs } = ctx;
   try {
     const key = args[0]?.toString() ?? '';
-    // Use executeFunction for key press since page.keyboard may not exist
-    await locator.executeFunction('pressKeyFunction', { key });
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('pressKey', { key });
 
     await handlePossiblePageNavigation(
       'press',
@@ -506,8 +506,8 @@ async function selectOptionHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
     const text = args[0]?.toString() || '';
-    // Use executeFunction for select option
-    await locator.executeFunction('selectOptionFunction', { text }, { timeout: 5000 });
+    // Use executeFunction with the registered function name
+    await locator.executeFunction('selectOption', { text }, { timeout: 5000 });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -557,8 +557,8 @@ async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
     });
 
     try {
-      // Use executeFunction instead of evaluate
-      await locator.executeFunction('clickElementFunction', undefined, { timeout: 3500 });
+      // Use executeFunction with the registered function name
+      await locator.executeFunction('clickElement', undefined, { timeout: 3500 });
     } catch (fallbackError) {
       const fe = fallbackError as Error;
       logger({

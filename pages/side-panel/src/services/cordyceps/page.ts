@@ -79,6 +79,9 @@ export class Page extends Disposable {
     super();
     this.tabId = tabId;
     this.session = session;
+
+    // Debug logging to track page lifecycle
+
     this.frameManager = this._register(new FrameManager(this));
     this.screenshotter = new Screenshotter(this);
     this._navigationDelegate = new NavigationDelegate(tabId);
@@ -220,7 +223,7 @@ export class Page extends Disposable {
    * This provides a clear API for ownership and helps in testing.
    * Also removes the actual Chrome tab.
    */
-  close(): void {
+  async close(): Promise<void> {
     // Update closed state before disposing to prevent race conditions
     if (this._closedState === 'closed') {
       return;
@@ -232,9 +235,12 @@ export class Page extends Disposable {
     this._onClose.fire(this);
 
     // Close the actual Chrome tab - this is the responsibility of Page.close()
-    chrome.tabs.remove(this.tabId).catch(error => {
+    // Wait for the tab removal to complete
+    try {
+      await chrome.tabs.remove(this.tabId);
+    } catch (error) {
       console.warn(`⚠️ Failed to remove Chrome tab ${this.tabId}:`, error);
-    });
+    }
 
     // Now dispose of resources
     this.dispose();
@@ -722,6 +728,22 @@ export class Page extends Disposable {
     return await this.mainFrame().type(selector, text, options);
   }
 
+  /**
+   * Wait for page evaluation context to be ready using a backoff strategy.
+   * This method tests if page.evaluate() is working properly before attempting real evaluations.
+   * Delegates to the main frame's waitForEvaluationReady method.
+   *
+   * @param backoffDelays Array of delay times in milliseconds for each retry attempt (default: [0, 10, 20, 30, 50, 80, 100])
+   * @param timeout Total timeout in milliseconds for the entire operation (default: 5000)
+   * @returns Promise that resolves when page.evaluate() is working, rejects if timeout is reached
+   */
+  async waitForEvaluationReady(
+    backoffDelays: number[] = [0, 10, 20, 30, 50, 80, 100],
+    timeout: number = 5000
+  ): Promise<void> {
+    return await this.mainFrame().waitForEvaluationReady(backoffDelays, timeout);
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
@@ -769,8 +791,11 @@ export class Page extends Disposable {
 
   async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {
     const bufferLike = await this.screenshotter.screenshotPage(progress, options);
+
     // Convert BrowserBuffer to Node.js Buffer for compatibility
-    return convertBrowserBufferToNodeBuffer(bufferLike);
+    const result = convertBrowserBufferToNodeBuffer(bufferLike);
+
+    return result;
   }
 
   /**
@@ -785,18 +810,65 @@ export class Page extends Disposable {
   async safeNonStallingEvaluateInAllFrames<Args extends unknown[]>(
     func: (...args: Args) => unknown,
     world: chrome.scripting.ExecutionWorld,
-    options: { throwOnJSErrors?: boolean } = {},
+    options: { throwOnJSErrors?: boolean; skipSlowFrames?: boolean; maxFrameTimeout?: number } = {},
     ...args: Args
   ): Promise<void> {
+    const maxFrameTimeout = options.maxFrameTimeout ?? 3000; // 3 second default per frame
+    const skipSlowFrames = options.skipSlowFrames ?? true; // Skip slow frames by default
     const frames = this.frameManager.frames();
+    // Add timeout to the entire operation to prevent infinite hanging
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('safeNonStallingEvaluateInAllFrames timed out after 30 seconds'));
+      }, 30000);
+    });
 
-    await Promise.all(
-      frames.map(async frame => {
+    const evaluationPromise = Promise.all(
+      frames.map(async (frame, index) => {
         try {
-          // Use frame's execution context to safely evaluate the function
-          const context = await frame.getContext();
-          await context.executeScript(func, world, ...args);
+          // Create frame-specific timeout if skipSlowFrames is enabled
+          const frameProcessing = async () => {
+            // Test frame connectivity with a simple evaluation first
+            try {
+              await chrome.scripting.executeScript({
+                target: { tabId: frame.tabId, frameIds: [frame.frameId] },
+                func: () => true,
+                world: 'MAIN',
+              });
+            } catch (connectError) {
+              return; // Skip this frame if we can't connect
+            }
+
+            // Use frame's execution context to safely evaluate the function
+            const context = await frame.getContext();
+
+            await context.executeScript(func, world, ...args);
+          };
+
+          // Apply timeout if skipSlowFrames is enabled
+          if (skipSlowFrames) {
+            const frameTimeoutPromise = new Promise<never>((_, reject) => {
+              setTimeout(() => {
+                reject(
+                  new Error(
+                    `Frame ${index} (${frame.frameId}) timed out after ${maxFrameTimeout}ms`
+                  )
+                );
+              }, maxFrameTimeout);
+            });
+
+            await Promise.race([frameProcessing(), frameTimeoutPromise]);
+          } else {
+            await frameProcessing();
+          }
         } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+
+          if (skipSlowFrames && errorMessage.includes('timed out')) {
+            // Don't throw for timeout errors when skipSlowFrames is true
+            return;
+          }
+
           // Only throw if it's a JavaScript error and throwOnJSErrors is true
           if (options.throwOnJSErrors && isJavaScriptErrorInEvaluate(e)) {
             throw e;
@@ -806,6 +878,8 @@ export class Page extends Disposable {
         }
       })
     );
+
+    await Promise.race([evaluationPromise, timeoutPromise]);
   }
 
   async expectScreenshot(
@@ -869,31 +943,6 @@ export class Page extends Disposable {
         errorMessage: (error as Error).message,
         timedOut: false,
       };
-    }
-  }
-
-  /**
-   * Wait for network stability with race condition handling.
-   * This method now delegates to content script readiness instead of complex network tracking.
-   *
-   * @param progress Progress controller for abort handling
-   * @param options Network stability options (kept for backward compatibility)
-   * @returns Promise that resolves when content script is ready
-   */
-  async waitForNetworkStability(
-    progress: Progress,
-    _options: {
-      idleTime?: number;
-      timeout?: number;
-      ignoredResourceTypes?: string[];
-    } = {}
-  ): Promise<void> {
-    try {
-      await this.waitForContentScriptReady(progress);
-      return;
-    } catch (error) {
-      console.warn('Page.waitForNetworkStability: Content script readiness failed:', error);
-      throw error;
     }
   }
 

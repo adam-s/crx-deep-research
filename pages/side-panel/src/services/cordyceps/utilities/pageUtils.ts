@@ -280,8 +280,6 @@ export async function snapshotFrameForAI(
     const { ref } = iframeInfo;
     const { frameBodySelector } = generateFrameSelectors(ref);
 
-    console.log(`🔍 Attempting to resolve iframe reference: ${ref} -> ${frameBodySelector}`);
-
     let child;
     try {
       child = await progress.race(
@@ -379,20 +377,20 @@ export class StateAwareEvent<T> extends Disposable {
   private _lastEventData: T | undefined;
 
   public readonly event: Event<T> = (listener, thisArgs?, disposables?) => {
+    // Subscribe to future events first (this will receive new events when they fire)
+    const futureEventDisposable = this._emitter.event(listener, thisArgs, disposables);
+
     // If event already fired, immediately call listener with last event data
     if (this._hasFired && this._lastEventData !== undefined) {
-      // Schedule on next tick to maintain async behavior
-      setTimeout(() => {
-        try {
-          listener.call(thisArgs, this._lastEventData!);
-        } catch (error) {
-          console.error('Error in state-aware event listener:', error);
-        }
-      }, 0);
+      // Call immediately and synchronously to avoid race conditions
+      try {
+        listener.call(thisArgs, this._lastEventData!);
+      } catch (error) {
+        console.error('Error in state-aware event listener:', error);
+      }
     }
 
-    // Subscribe to future events (this will receive new events when they fire)
-    return this._emitter.event(listener, thisArgs, disposables);
+    return futureEventDisposable;
   };
 
   /**

@@ -9,16 +9,33 @@ import {
   CRX_DEEP_RESEARCH_NAVIGATION_EVENT,
 } from '@shared/utils/message';
 
-// Send the loaded message to indicate this content script is ready
-chrome.runtime.sendMessage({
-  type: CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED,
+// Log injection info
+console.log(`🚀 Content cordyceps (ISOLATED world) loading in frame`, {
+  url: window.location.href,
+  isMainFrame: window === window.top,
+  frameElement: window.frameElement,
 });
+
+// Send the loaded message to indicate this content script is ready
+chrome.runtime.sendMessage(
+  {
+    type: CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED,
+  },
+  response => {
+    console.log(`📤 Sent CRX_DEEP_RESEARCH_CONTENT_SCRIPT_LOADED, response:`, response);
+  }
+);
 
 // Send navigation event to signal content script readiness for waitForLoadState('networkidle')
 // This signals that the content script is ready and network has stabilized
-chrome.runtime.sendMessage({
-  type: CRX_DEEP_RESEARCH_NAVIGATION_EVENT,
-  detail: { url: window.location.href },
-});
+chrome.runtime.sendMessage(
+  {
+    type: CRX_DEEP_RESEARCH_NAVIGATION_EVENT,
+    detail: { url: window.location.href },
+  },
+  response => {
+    console.log(`📤 Sent CRX_DEEP_RESEARCH_NAVIGATION_EVENT, response:`, response);
+  }
+);
 
-console.log('Content cordyceps (ISOLATED world) loaded - sent navigation ready event');
+console.log('✅ Content cordyceps (ISOLATED world) loaded - sent navigation ready event');

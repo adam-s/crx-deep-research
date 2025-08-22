@@ -989,17 +989,11 @@ export class HandledInjectedScript {
     files: { name: string; mimeType: string; buffer: ArrayBuffer }[],
     options: { force?: boolean; directoryUpload?: boolean } = {}
   ): { success: boolean; error?: string; filesSet: number } {
-    console.log(
-      `[HandledInjectedScript.setInputFiles] MAIN world - Handle: ${handle}, Files: ${files.length} ######`
-    );
-
     try {
       // Get the element by handle
       const element = this.getElementByHandle(handle);
-      console.log(`[HandledInjectedScript.setInputFiles] Element found: ${!!element} ######`);
 
       if (!element) {
-        console.log(`[HandledInjectedScript.setInputFiles] Element not found for handle ######`);
         return {
           success: false,
           error: 'Element not found for handle',
@@ -1009,7 +1003,6 @@ export class HandledInjectedScript {
 
       // Check if element is connected to the DOM
       if (!element.isConnected) {
-        console.log(`[HandledInjectedScript.setInputFiles] Element not connected to DOM ######`);
         return {
           success: false,
           error: 'Element is not connected to the DOM',
@@ -1019,7 +1012,6 @@ export class HandledInjectedScript {
 
       // Validate it's an input element
       if (element.tagName !== 'INPUT') {
-        console.log(`[HandledInjectedScript.setInputFiles] Element is not INPUT ######`);
         return {
           success: false,
           error: 'Element is not an INPUT element',
@@ -1031,7 +1023,6 @@ export class HandledInjectedScript {
 
       // Validate input type
       if (inputElement.type !== 'file') {
-        console.log(`[HandledInjectedScript.setInputFiles] Input type is not file ######`);
         return {
           success: false,
           error: 'Input element is not of type "file"',
@@ -1042,7 +1033,6 @@ export class HandledInjectedScript {
       // Validate multiple files support
       const multiple = files.length > 1;
       if (multiple && !inputElement.multiple && !inputElement.webkitdirectory) {
-        console.log(`[HandledInjectedScript.setInputFiles] Multiple files not supported ######`);
         return {
           success: false,
           error: 'Input element does not support multiple files',
@@ -1052,7 +1042,6 @@ export class HandledInjectedScript {
 
       // Validate directory upload
       if (options.directoryUpload && !inputElement.webkitdirectory) {
-        console.log(`[HandledInjectedScript.setInputFiles] Directory upload not supported ######`);
         return {
           success: false,
           error: 'Input element does not support directory upload (webkitdirectory)',
@@ -1073,7 +1062,6 @@ export class HandledInjectedScript {
 
       // Check if element is disabled (unless forced)
       if (!options.force && inputElement.disabled) {
-        console.log(`[HandledInjectedScript.setInputFiles] Input element is disabled ######`);
         return {
           success: false,
           error: 'Input element is disabled',
@@ -1083,7 +1071,6 @@ export class HandledInjectedScript {
 
       // Check if element is visible (unless forced)
       if (!options.force && !this._isElementVisible(element)) {
-        console.log(`[HandledInjectedScript.setInputFiles] Input element is not visible ######`);
         return {
           success: false,
           error: 'Input element is not visible',
@@ -1203,8 +1190,6 @@ export class HandledInjectedScript {
    * This ensures that event listeners on the page are properly notified.
    */
   private _dispatchFileEvents(inputElement: HTMLInputElement): void {
-    console.log(`[HandledInjectedScript._dispatchFileEvents] Dispatching file events ######`);
-
     // Dispatch input event (fires during the file selection)
     const inputEvent = new Event('input', {
       bubbles: true,
@@ -1218,8 +1203,6 @@ export class HandledInjectedScript {
       cancelable: false,
     });
     inputElement.dispatchEvent(changeEvent);
-
-    console.log(`[HandledInjectedScript._dispatchFileEvents] Events dispatched ######`);
   }
 
   /**

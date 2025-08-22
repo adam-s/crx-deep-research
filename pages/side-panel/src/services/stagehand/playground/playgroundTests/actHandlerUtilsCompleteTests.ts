@@ -194,50 +194,50 @@ async function testLivePageExecution(): Promise<TestResults> {
 
       // Test executeFunction calls (this validates the registration system)
       try {
-        // Test scroll functions
-        await testElement.executeFunction('scrollToNextChunkElementFunction');
-        console.log('✅ scrollToNextChunkElementFunction: Executed via executeFunction');
+        // Test scroll functions (using correct registered names)
+        await testElement.executeFunction('scrollToNextChunk');
+        console.log('✅ scrollToNextChunk: Executed via executeFunction');
         results.passed++;
 
-        await testElement.executeFunction('scrollToPreviousChunkElementFunction');
-        console.log('✅ scrollToPreviousChunkElementFunction: Executed via executeFunction');
+        await testElement.executeFunction('scrollToPreviousChunk');
+        console.log('✅ scrollToPreviousChunk: Executed via executeFunction');
         results.passed++;
 
-        await testElement.executeFunction('scrollElementIntoViewFunction');
-        console.log('✅ scrollElementIntoViewFunction: Executed via executeFunction');
+        await testElement.executeFunction('scrollIntoView');
+        console.log('✅ scrollIntoView: Executed via executeFunction');
         results.passed++;
 
-        await testElement.executeFunction('scrollElementToPercentageFunction', { yArg: '50%' });
-        console.log('✅ scrollElementToPercentageFunction: Executed via executeFunction with args');
+        await testElement.executeFunction('scrollToPercentage', { yArg: '50%' });
+        console.log('✅ scrollToPercentage: Executed via executeFunction with args');
         results.passed++;
 
-        // Test input-related functions
+        // Test input-related functions (using correct registered names)
         const inputElement = await page.locator('input').first();
         if (inputElement) {
-          await inputElement.executeFunction('fillElementFunction', { text: 'test input' });
-          console.log('✅ fillElementFunction: Executed via executeFunction');
+          await inputElement.executeFunction('fillElement', { text: 'test input' });
+          console.log('✅ fillElement: Executed via executeFunction');
           results.passed++;
 
-          await inputElement.executeFunction('clearElementFunction');
-          console.log('✅ clearElementFunction: Executed via executeFunction');
+          await inputElement.executeFunction('clearElement');
+          console.log('✅ clearElement: Executed via executeFunction');
           results.passed++;
 
-          await inputElement.executeFunction('focusElementFunction');
-          console.log('✅ focusElementFunction: Executed via executeFunction');
+          await inputElement.executeFunction('focusElement');
+          console.log('✅ focusElement: Executed via executeFunction');
           results.passed++;
         } else {
           console.log('⚠️ No input element found for input tests');
         }
 
-        // Test button interactions
+        // Test button interactions (using correct registered names)
         const buttonElement = await page.locator('button').first();
         if (buttonElement) {
-          await buttonElement.executeFunction('clickElementFunction');
-          console.log('✅ clickElementFunction: Executed via executeFunction');
+          await buttonElement.executeFunction('clickElement');
+          console.log('✅ clickElement: Executed via executeFunction');
           results.passed++;
 
-          await buttonElement.executeFunction('hoverElementFunction');
-          console.log('✅ hoverElementFunction: Executed via executeFunction');
+          await buttonElement.executeFunction('hoverElement');
+          console.log('✅ hoverElement: Executed via executeFunction');
           results.passed++;
 
           await buttonElement.executeFunction('doubleClickElementFunction');

@@ -205,7 +205,6 @@ async function bootstrapStagehandAdapter(
     });
 
     const initialized = await adapter.initialize();
-    console.log(`[bootstrapStagehandAdapter] Adapter initialization result: ${initialized} ######`);
 
     if (initialized) {
       window.__stagehandCordycepsAdapter_main = adapter;
@@ -222,26 +221,20 @@ async function bootstrapStagehandAdapter(
 }
 
 const loader = async (): Promise<void> => {
-  console.log(`[loader] Starting content-cordyceps-main loader ######`);
-
   // Initialize handle manager for MAIN world
   const handleManager = bootstrapHandleManager();
-  console.log(`[loader] Handle manager bootstrapped ######`);
 
   // Initialize history tracker following the bootstrap pattern
   const historyTracker = bootstrapHistoryTracker();
-  console.log(`[loader] History tracker bootstrapped ######`);
 
   // Initialize HandledInjectedScript for DOM operations
   const handledInjectedScript = bootstrapHandledInjectedScript(handleManager);
-  console.log(`[loader] HandledInjectedScript bootstrapped ######`);
 
   // BrowserUse script functionality is loaded via import
   console.log('🌳 BrowserUse DOM tree functionality loaded');
 
   // Initialize Stagehand adapter
   const stagehandAdapter = await bootstrapStagehandAdapter(handleManager);
-  console.log(`[loader] Stagehand adapter result: ${!!stagehandAdapter} ######`);
 
   console.log('🔧 Content cordyceps main loaded with:', {
     historyTracker,

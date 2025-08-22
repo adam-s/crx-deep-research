@@ -32,7 +32,6 @@ import {
   testWaitForFunctionality,
   testWaitForEventFunctionality,
   testWaitForLoadStateFunctionality,
-  testBrowserContextNetworkStability,
   testNavigationAutoWait,
   testNavigationGoBack,
   testNavigationGoForward,
@@ -357,24 +356,8 @@ export class LocatorTest extends PlaygroundTest {
         });
       }
 
-      // Test browser context network stability
-      progress.log('Testing BrowserContext network stability functionality');
-      try {
-        // Create a fresh progress controller for this test to avoid timeout issues
-        const browserContextProgressController = new ProgressController(15000); // 15 second timeout
-        await browserContextProgressController.run(async browserContextProgress => {
-          await testBrowserContextNetworkStability(page, browserContextProgress, this.context);
-        });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        progress.log(`BrowserContext network stability test failed (non-fatal): ${errorMessage}`);
-        this.context.events.emit({
-          timestamp: Date.now(),
-          severity: Severity.Warning,
-          message: 'BrowserContext network stability test failed but continuing',
-          details: { error: errorMessage },
-        });
-      }
+      // Network stability test removed - no longer supported
+      progress.log('Network stability test skipped - functionality removed');
 
       // Test Active Tab Management functionality (after all navigation and form tests)
       progress.log(

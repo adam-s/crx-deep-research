@@ -45,8 +45,6 @@ export interface IBrowserUsePlaygroundService {
   runContextTests: () => Promise<void>;
   /** Run quick context test */
   runQuickContextTest: () => Promise<boolean>;
-  /** Run _waitForStableNetwork functionality tests */
-  runWaitForStableNetworkTests: () => Promise<void>;
   /** Run _isUrlAllowed functionality tests */
   runUrlAllowedTests: () => Promise<void>;
   /** Run quick URL allowed test */
@@ -124,9 +122,6 @@ export class BrowserUsePlaygroundService
 
       // Run browser-use context tests
       await this.runContextTests();
-
-      // Run _waitForStableNetwork functionality tests
-      await this.runWaitForStableNetworkTests();
 
       // Run _isUrlAllowed functionality tests
       await this.runUrlAllowedTests();
@@ -536,44 +531,6 @@ export class BrowserUsePlaygroundService
         error: error instanceof Error ? error : new Error(String(error)),
       });
       return false;
-    }
-  }
-
-  public async runWaitForStableNetworkTests(): Promise<void> {
-    this.events.emit({
-      timestamp: Date.now(),
-      severity: Severity.Info,
-      message: 'Starting _waitForStableNetwork functionality tests',
-    });
-
-    try {
-      // Import the test functions dynamically
-      const { runAllWaitForStableNetworkTests } = await import(
-        './playgroundTests/waitForStableNetworkTest'
-      );
-
-      // Create test context compatible with the test requirements
-      const testContext = {
-        events: this.events,
-        browserUseService: this,
-      };
-
-      // Run the comprehensive _waitForStableNetwork tests
-      await runAllWaitForStableNetworkTests(testContext);
-
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Success,
-        message: '🎉 All _waitForStableNetwork tests passed successfully!',
-      });
-    } catch (error) {
-      this.events.emit({
-        timestamp: Date.now(),
-        severity: Severity.Error,
-        message: '_waitForStableNetwork tests failed',
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
-      throw error;
     }
   }
 

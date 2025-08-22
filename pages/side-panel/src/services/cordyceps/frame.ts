@@ -266,7 +266,6 @@ export class Frame extends Disposable {
   private _childFrames = new Set<Frame>();
   public frameId: number;
   public readonly frameManager: FrameManager;
-  public readonly tabId: number;
   private _url?: string;
   private _name: string = '';
   private _context?: FrameExecutionContext;
@@ -291,7 +290,7 @@ export class Frame extends Disposable {
     super();
     this.frameId = frameId;
     this.frameManager = parentFrame ? parentFrame.frameManager : frameManager;
-    this.tabId = this.frameManager.tabId;
+
     this._parentFrame = parentFrame;
     this._url = url;
     this._currentDocument = { documentId: undefined, request: undefined };
@@ -312,6 +311,14 @@ export class Frame extends Disposable {
     }
     // Set up NavigationTracker event bridge for lifecycle synchronization
     this._setupNavigationTrackerBridge();
+  }
+
+  /**
+   * Get the current tab ID dynamically from the frame manager.
+   * This ensures the tab ID is always current, even after tab switches.
+   */
+  get tabId(): number {
+    return this.frameManager.tabId;
   }
 
   // #region START nav
@@ -950,18 +957,60 @@ export class Frame extends Disposable {
    * @returns Promise resolving to the frame's execution context
    */
   async getContext(progress?: Progress): Promise<FrameExecutionContext> {
+    const logPrefix = `🔧 Frame ${this.frameId} getContext():`;
+    progress?.log(`${logPrefix} Starting getContext call`);
+
     if (this._context) {
+      progress?.log(`${logPrefix} Context already exists, returning immediately`);
       return this._context;
     }
 
-    // Wait for content script readiness and execution context creation
-    await this.waitForContentScriptReady(progress);
+    progress?.log(`${logPrefix} No context found, waiting for content script readiness`);
 
-    // Handle edge case where context creation is delayed
-    if (!this._context) {
-      await this._waitForContextCreation();
+    // Test frame connectivity with direct chrome.scripting instead of this.evaluate
+    // to avoid circular dependency
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: this.tabId, frameIds: [this.frameId] },
+        func: () => true,
+        world: 'MAIN',
+      });
+    } catch (evalError) {
+      // If we can't evaluate, frame might be unresponsive but continue anyway
+      console.warn(
+        `Frame ${this.frameId} connectivity test failed, continuing anyway: ${evalError}`
+      );
     }
 
+    // Add timeout to content script readiness - reduced from 10s to 2s for better UX
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(`Frame ${this.frameId} content script readiness timed out after 2 seconds`)
+        );
+      }, 2000); // Reduced from 10000ms to 2000ms
+    });
+
+    // Wait for content script readiness and execution context creation
+    await Promise.race([this.waitForContentScriptReady(progress), timeoutPromise]);
+    progress?.log(`${logPrefix} Content script readiness complete`);
+
+    // If context is still undefined after content script is ready,
+    // it may have been cleared during navigation. Recreate it.
+    if (!this._context) {
+      progress?.log(`${logPrefix} Context still null, creating execution context`);
+      this.frameManager.page.createExecutionContext(this);
+      progress?.log(`${logPrefix} Execution context creation call completed`);
+    }
+
+    // Handle edge case where context creation is still delayed
+    if (!this._context) {
+      progress?.log(`${logPrefix} Context still null, waiting for context creation`);
+      await this._waitForContextCreation();
+      progress?.log(`${logPrefix} Context creation wait completed`);
+    }
+
+    progress?.log(`${logPrefix} Returning context successfully`);
     return this._context!;
   }
 
@@ -1538,6 +1587,63 @@ export class Frame extends Disposable {
     );
   }
 
+  /**
+   * Wait for page evaluation context to be ready using a backoff strategy.
+   * This method tests if page.evaluate() is working properly before attempting real evaluations.
+   *
+   * @param backoffDelays Array of delay times in milliseconds for each retry attempt (default: [0, 10, 20, 30, 50, 80, 100])
+   * @param timeout Total timeout in milliseconds for the entire operation (default: 5000)
+   * @returns Promise that resolves when page.evaluate() is working, rejects if timeout is reached
+   */
+  async waitForEvaluationReady(
+    backoffDelays: number[] = [0, 10, 20, 30, 50, 80, 100],
+    timeout: number = 5000
+  ): Promise<void> {
+    // First check if this frame is detached - fail fast to avoid waiting
+    if (this.isDetached()) {
+      throw new Error(`Frame ${this.frameId} is detached and cannot be evaluated`);
+    }
+
+    const startTime = Date.now();
+
+    for (const delay of backoffDelays) {
+      // Check if we've exceeded the total timeout
+      if (Date.now() - startTime > timeout) {
+        throw new Error(`Frame evaluation readiness timeout after ${timeout}ms`);
+      }
+
+      // Check if frame became detached during the wait
+      if (this.isDetached()) {
+        throw new Error(`Frame ${this.frameId} became detached during evaluation readiness check`);
+      }
+
+      try {
+        const testPromise = this.evaluate(() => {
+          return 1 + 1;
+        });
+
+        const timeoutPromise = new Promise<number>(resolve => {
+          setTimeout(() => resolve(-1), delay);
+        });
+
+        const result = await Promise.race([testPromise, timeoutPromise]);
+
+        if (result === 2) {
+          return;
+        }
+      } catch (error) {
+        // If frame became detached, don't continue with more backoff attempts
+        if (this.isDetached()) {
+          throw new Error(`Frame ${this.frameId} became detached during evaluation attempt`);
+        }
+      }
+    }
+
+    throw new Error(
+      `Frame evaluation not ready after all backoff attempts: ${backoffDelays.join(', ')}ms`
+    );
+  }
+
   async evaluate<R, Arg>(
     pageFunction: (...args: [Arg]) => R,
     arg?: Arg,
@@ -2012,11 +2118,13 @@ export class Frame extends Disposable {
    */
   async waitForContentScriptReady(progress?: Progress): Promise<void> {
     const { ContentScriptReadinessManager } = await import('./navigation/contentScriptReadiness');
+
     const barrier = ContentScriptReadinessManager.getInstance().getBarrier(
       this.tabId,
       this.frameId
     );
-    return barrier.waitForReady(progress);
+    const result = await barrier.waitForReady(progress);
+    return result;
   }
 }
 

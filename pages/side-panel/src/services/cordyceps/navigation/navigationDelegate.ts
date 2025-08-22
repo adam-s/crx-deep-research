@@ -20,7 +20,6 @@ export class NavigationDelegate {
     } catch (error) {
       // Chrome tabs API might fail if no browser-level history available
       // This is expected behavior - fallback to history.back() for document-level history
-      console.debug('chrome.tabs.goBack not available, using history.back() fallback:', error);
 
       // Fallback to history.back() via script injection
       return executeHistoryBack(this._tabId);
@@ -37,13 +36,6 @@ export class NavigationDelegate {
       await chrome.tabs.goForward(this._tabId);
       return true;
     } catch (error) {
-      // Chrome tabs API might fail if no browser-level forward history available
-      // This is expected behavior - fallback to history.forward() for document-level history
-      console.debug(
-        'chrome.tabs.goForward not available, using history.forward() fallback:',
-        error
-      );
-
       // Fallback to history.forward() via script injection
       return executeHistoryForward(this._tabId);
     }

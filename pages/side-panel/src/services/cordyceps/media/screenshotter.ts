@@ -500,12 +500,8 @@ function inPagePrepareForScreenshots(
 }
 
 function inPageScrollAndCapture() {
-  console.log('[inPageScrollAndCapture] starting initialization');
   const originalScrollX = window.scrollX;
   const originalScrollY = window.scrollY;
-  console.log(
-    `[inPageScrollAndCapture] original scroll position: (${originalScrollX}, ${originalScrollY})`
-  );
 
   // Disable smooth scrolling for faster, more predictable scrolling
   const originalScrollBehavior = document.documentElement.style.scrollBehavior;
@@ -554,7 +550,6 @@ function inPageScrollAndCapture() {
     ySegments,
   };
 
-  console.log('[inPageScrollAndCapture] returning result:', result);
   return result;
 }
 
@@ -603,29 +598,22 @@ function inPageScrollToSegment(xIndex: number, yIndex: number) {
     xIndex,
     yIndex,
   };
-  console.log(`[inPageScrollToSegment] actual scroll position:`, actualPosition);
 
   // Return actual scroll position (might be constrained)
   return actualPosition;
 }
 
 function inPageRestoreScroll() {
-  console.log('[inPageRestoreScroll] restoring original scroll position');
   const state = window.__scrollCaptureState;
   if (!state) {
-    console.log('[inPageRestoreScroll] no state found, nothing to restore');
     return;
   }
 
-  console.log(
-    `[inPageRestoreScroll] restoring to (${state.originalScrollX}, ${state.originalScrollY})`
-  );
   document.documentElement.style.scrollBehavior = state.originalScrollBehavior;
   window.scrollTo(state.originalScrollX, state.originalScrollY);
 
   // Clean up
   delete window.__scrollCaptureState;
-  console.log('[inPageRestoreScroll] restoration complete');
 }
 
 // ============================================================================
@@ -833,15 +821,6 @@ export class Screenshotter {
     fitsViewport: boolean,
     scale: 'css' | 'device'
   ): Promise<BufferLike> {
-    console.log(`[Screenshotter.takeScreenshot] starting with params:`, {
-      format,
-      documentRect,
-      viewportRect,
-      quality,
-      fitsViewport,
-      scale,
-    });
-
     progress.log('taking screenshot via Chrome extension API');
 
     // Get device pixel ratio for proper scaling
@@ -850,17 +829,11 @@ export class Screenshotter {
 
     // Chrome extension limitation: captureVisibleTab can only capture visible content
     if (!fitsViewport && documentRect) {
-      console.log(
-        `[Screenshotter.takeScreenshot] content doesn't fit viewport, using scroll-and-stitch`
-      );
       progress.log('content extends beyond viewport, using scroll-and-stitch approach');
       return await this._takeFullPageScreenshot(progress, format, quality, scale, dpr);
     }
     try {
       // Use Chrome's captureVisibleTab API for screenshot capture
-      console.log(
-        `[Screenshotter.takeScreenshot] calling safeCaptureVisibleTab with format: ${format}, quality: ${quality}`
-      );
       const dataUrl = await safeCaptureVisibleTab({
         format: format === 'png' ? 'png' : 'jpeg',
         quality: quality ?? (format === 'jpeg' ? 80 : undefined),
@@ -893,10 +866,6 @@ export class Screenshotter {
     scale: 'css' | 'device',
     dpr: number
   ): Promise<BufferLike> {
-    console.log(
-      `[Screenshotter._takeFullPageScreenshot] starting with format: ${format}, ` +
-        `quality: ${quality}, scale: ${scale}, dpr: ${dpr}`
-    );
     progress.log('capturing full page using scroll-and-stitch method');
 
     // Initialize scroll capture in the page
@@ -924,23 +893,10 @@ export class Screenshotter {
 
     try {
       // Capture each segment
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] capturing ${xSegments} x ${ySegments} = ` +
-          `${xSegments * ySegments} segments`
-      );
       for (let yIndex = 0; yIndex < ySegments; yIndex++) {
         for (let xIndex = 0; xIndex < xSegments; xIndex++) {
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] capturing segment ` +
-              `${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`
-          );
           progress.log(
             `capturing segment ${xIndex + 1},${yIndex + 1} of ${xSegments},${ySegments}`
-          );
-
-          // Scroll to this segment
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] scrolling to segment (${xIndex}, ${yIndex})`
           );
           const segmentInfo = await mainFrameContext.executeScript(
             inPageScrollToSegment,
@@ -949,7 +905,6 @@ export class Screenshotter {
             yIndex
           );
 
-          console.log(`[Screenshotter._takeFullPageScreenshot] segmentInfo:`, segmentInfo);
           if (!segmentInfo) {
             throw new Error(`Failed to scroll to segment ${xIndex},${yIndex}`);
           }
@@ -957,28 +912,14 @@ export class Screenshotter {
           // Wait for scroll to complete and render (increased from 200ms)
           await ScreenshotUtils.sleep(SEGMENT_SETTLE_DELAY_MS);
 
-          // Capture this segment
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] capturing segment at (${segmentInfo.x}, ${segmentInfo.y})`
-          );
           const dataUrl = await safeCaptureVisibleTab({
             format: format === 'png' ? 'png' : 'jpeg',
             quality: quality ?? (format === 'jpeg' ? 80 : undefined),
           });
 
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] captured dataUrl length: ${dataUrl?.length || 'null'}`
-          );
           const base64Data = dataUrl.split(',')[1];
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] segment ` +
-              `${segmentInfo.xIndex},${segmentInfo.yIndex} base64Data length: ${base64Data?.length}`
-          );
-          const buffer = BufferPolyfill.from(base64Data, 'base64');
-          console.log(
-            `[Screenshotter._takeFullPageScreenshot] segment buffer length: ${buffer.length}`
-          );
 
+          const buffer = BufferPolyfill.from(base64Data, 'base64');
           screenshots.push({
             buffer,
             x: segmentInfo.x,
@@ -991,12 +932,6 @@ export class Screenshotter {
 
       // Stitch all screenshots together
       progress.log('stitching segments together');
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] stitching ${screenshots.length} screenshots together`
-      );
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] total canvas size: ${totalWidth}x${totalHeight}`
-      );
       const stitchedBuffer = await this._stitchScreenshots(
         screenshots,
         totalWidth,
@@ -1006,20 +941,11 @@ export class Screenshotter {
         quality
       );
 
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] final stitched buffer size: ${stitchedBuffer.length} bytes`
-      );
       return stitchedBuffer;
     } finally {
       // Always restore original scroll position
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] restoring scroll position in finally block`
-      );
       const mainFrameContext = await this._page.mainFrame().getContext();
       await mainFrameContext.executeScript(inPageRestoreScroll, 'MAIN');
-      console.log(
-        `[Screenshotter._takeFullPageScreenshot] scroll position restored in finally block`
-      );
     }
   }
 
@@ -1067,10 +993,6 @@ export class Screenshotter {
     // Convert to buffer
     const blob = await ScreenshotCanvas.canvasToBlob(canvas, mime, qualityPercent);
     const buffer = await ScreenshotCanvas.blobToBuffer(blob);
-
-    console.log(
-      `[Screenshotter._stitchScreenshots] created BrowserBuffer with size: ${buffer.length}`
-    );
 
     return buffer;
   }
@@ -1130,10 +1052,6 @@ export class Screenshotter {
     // Convert to buffer
     const blob = await ScreenshotCanvas.canvasToBlob(canvas, mime, qualityPercent);
     const resultBuffer = await ScreenshotCanvas.blobToBuffer(blob);
-
-    console.log(
-      `[Screenshotter._clipScreenshot] created BrowserBuffer with size: ${resultBuffer.length}`
-    );
 
     return resultBuffer;
   }

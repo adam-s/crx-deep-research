@@ -2,11 +2,7 @@ import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { Page } from '@src/services/cordyceps/page';
 import { ElementHandle } from '@src/services/cordyceps/elementHandle';
 import { FrameLocator, Frame } from '@src/services/cordyceps/frame';
-import {
-  RequestInfo,
-  ResponseInfo,
-  ScreenshotOptions,
-} from '@src/services/cordyceps/utilities/types';
+import { ScreenshotOptions } from '@src/services/cordyceps/utilities/types';
 import { BrowserState, TabInfo } from './views';
 import type {
   NavigateOptionsWithProgress,
@@ -527,6 +523,20 @@ export class BrowserContext {
     try {
       console.log('🚪 Closing browser-use context');
 
+      // Clean up ContentScriptReadinessManager
+      try {
+        const { ContentScriptReadinessManager } = await import(
+          '../../cordyceps/navigation/contentScriptReadiness'
+        );
+        const instance = ContentScriptReadinessManager.getInstance();
+        if (instance) {
+          console.log('🧹 Disposing ContentScriptReadinessManager');
+          instance.dispose();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error disposing ContentScriptReadinessManager:', error);
+      }
+
       // Clear our pages reference (but don't actually close browser tabs)
       this.pages = [];
 
@@ -545,237 +555,6 @@ export class BrowserContext {
    */
   isActive(): boolean {
     return this.session.state === BrowserContextState.ACTIVE;
-  }
-
-  /**
-   * @TODO change after public methods use
-   *
-   * Wait for network to stabilize using advanced filtering
-   * This matches the Python implementation's _wait_for_stable_network method
-   */
-  async waitForStableNetwork(): Promise<void> {
-    // Network tracking disabled - using content script readiness instead
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const page = await this.browserWindow.getCurrentPage();
-
-    // Define relevant resource types and content types for filtering
-    const RELEVANT_RESOURCE_TYPES = new Set([
-      'document',
-      'stylesheet',
-      'image',
-      'font',
-      'script',
-      'fetch',
-      'xhr',
-      'iframe',
-    ]);
-
-    const RELEVANT_CONTENT_TYPES = [
-      'text/html',
-      'text/css',
-      'application/javascript',
-      'image/',
-      'font/',
-      'application/json',
-    ];
-
-    // Additional patterns to filter out
-    const IGNORED_URL_PATTERNS = [
-      // Analytics and tracking
-      'analytics',
-      'tracking',
-      'telemetry',
-      'beacon',
-      'metrics',
-      // Ad-related
-      'doubleclick',
-      'adsystem',
-      'adserver',
-      'advertising',
-      // Social media widgets
-      'facebook.com/plugins',
-      'platform.twitter',
-      'linkedin.com/embed',
-      // Live chat and support
-      'livechat',
-      'zendesk',
-      'intercom',
-      'crisp.chat',
-      'hotjar',
-      // Push notifications
-      'push-notifications',
-      'onesignal',
-      'pushwoosh',
-      // Background sync/heartbeat
-      'heartbeat',
-      'ping',
-      'alive',
-      // WebRTC and streaming
-      'webrtc',
-      'rtmp://',
-      'wss://',
-      // Common CDNs for dynamic content
-      'cloudfront.net',
-      'fastly.net',
-    ];
-
-    const pendingRequests = new Set<RequestInfo>();
-    let lastActivity = Date.now();
-    const startTime = Date.now();
-
-    // Setting up request/response listeners
-
-    // Network tracking disabled - functions kept for reference
-    // Set up listener for new requests
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onRequest = (request: RequestInfo) => {
-      // Request received
-
-      // Filter by resource type
-      if (!RELEVANT_RESOURCE_TYPES.has(request.resourceType)) {
-        return;
-      }
-
-      // Filter out specific resource types
-      if (
-        ['websocket', 'media', 'eventsource', 'manifest', 'other'].includes(request.resourceType)
-      ) {
-        return;
-      }
-
-      // Filter out by URL patterns
-      const url = request.url.toLowerCase();
-      if (IGNORED_URL_PATTERNS.some(pattern => url.includes(pattern))) {
-        return;
-      }
-
-      // Filter out data URLs and blob URLs
-      if (url.startsWith('data:') || url.startsWith('blob:')) {
-        return;
-      }
-
-      // Filter out requests with specific headers
-      const headers = request.headers;
-      if (
-        headers['purpose'] === 'prefetch' ||
-        headers['sec-fetch-dest'] === 'video' ||
-        headers['sec-fetch-dest'] === 'audio'
-      ) {
-        return;
-      }
-
-      pendingRequests.add(request);
-      lastActivity = Date.now();
-    };
-
-    // Set up listener for responses
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onResponse = (response: ResponseInfo) => {
-      const request = response.request;
-
-      if (!pendingRequests.has(request)) {
-        return;
-      }
-
-      // Filter by content type if available
-      const contentType = (response.headers['content-type'] || '').toLowerCase();
-
-      // Skip if content type indicates streaming or real-time data
-      if (
-        [
-          'streaming',
-          'video',
-          'audio',
-          'webm',
-          'mp4',
-          'event-stream',
-          'websocket',
-          'protobuf',
-        ].some(t => contentType.includes(t))
-      ) {
-        pendingRequests.delete(request);
-        return;
-      }
-
-      // Only process relevant content types
-      if (!RELEVANT_CONTENT_TYPES.some(ct => contentType.includes(ct))) {
-        pendingRequests.delete(request);
-        return;
-      }
-
-      // Skip if response is too large (likely not essential for page load)
-      const contentLength = response.headers['content-length'];
-      if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
-        // 5MB
-        pendingRequests.delete(request);
-        return;
-      }
-
-      pendingRequests.delete(request);
-      lastActivity = Date.now();
-    };
-
-    // Add event listeners using Cordyceps Page events
-    // Network tracking has been removed - using content script readiness instead
-    // const requestDisposable = page.onRequest(onRequest);
-    // const responseDisposable = page.onResponse(onResponse);
-    // Event listeners added (disabled)
-
-    try {
-      // Wait for network to stabilize
-      const maxWaitTime = (this.config.maximumWaitPageLoadTime || 5) * 1000; // In milliseconds
-      const networkIdleTime = (this.config.waitForNetworkIdlePageLoadTime || 0.5) * 1000; // In milliseconds
-
-      // Starting network stabilization wait
-
-      return new Promise<void>(resolve => {
-        const checkNetworkIdle = () => {
-          const now = Date.now();
-          const elapsedSinceLastActivity = now - lastActivity;
-          const totalElapsed = now - startTime;
-
-          // Network check
-
-          // Wait for network idle
-          if (pendingRequests.size === 0 && elapsedSinceLastActivity >= networkIdleTime) {
-            // Network is stable, resolving
-            cleanup();
-            resolve();
-            return;
-          }
-
-          // Time out if waiting too long
-          if (totalElapsed > maxWaitTime) {
-            // Network wait timed out, resolving anyway
-            cleanup();
-            resolve(); // Resolve anyway to continue
-            return;
-          }
-
-          // Otherwise check again after a short delay
-          setTimeout(checkNetworkIdle, 100);
-        };
-
-        const cleanup = () => {
-          // Network listeners disabled - no cleanup needed
-          // requestDisposable.dispose();
-          // responseDisposable.dispose();
-        };
-
-        // Start checking
-        // Starting periodic network check
-        checkNetworkIdle();
-      });
-    } catch (e: unknown) {
-      console.error(
-        `[browserContext.waitForStableNetwork] Error while waiting for stable network:`,
-        e
-      );
-      // Network listeners disabled - no cleanup needed
-      // requestDisposable.dispose();
-      // responseDisposable.dispose();
-      throw e;
-    }
   }
 
   /**
@@ -872,9 +651,10 @@ export class BrowserContext {
     const startTime = Date.now();
 
     try {
-      // Wait for network to stabilize with smart filtering
-      // About to call _waitForStableNetwork()
-      await this.waitForStableNetwork();
+      // Simple wait for basic page loading
+      // Use a short wait period instead of complex network monitoring
+      const idleTime = (this.config.waitForNetworkIdlePageLoadTime || 0.5) * 1000;
+      await new Promise(resolve => setTimeout(resolve, idleTime));
 
       // Check if the loaded URL is allowed
       // About to get current page for URL check
@@ -2237,10 +2017,10 @@ export class BrowserContext {
       );
 
       // Close the Cordyceps Page - this now handles both cleanup and Chrome tab removal
-      page.close();
+      await page.close();
 
-      // Wait a brief moment for the tab removal to be processed by the system
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for the tab removal to be processed by the system
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Get remaining pages from BrowserWindow (source of truth after cleanup)
       const remainingPages = this.browserWindow.pages();
@@ -2249,6 +2029,9 @@ export class BrowserContext {
       console.log(
         `After close: ${allTabsAfter.length} total tabs, ${remainingPages.length} BrowserWindow pages`
       );
+
+      // Update our pages array first before any other operations
+      this.pages = remainingPages;
 
       if (remainingPages.length > 0) {
         // Switch to the first available tab
@@ -2259,9 +2042,6 @@ export class BrowserContext {
 
         // Use chrome.tabs.update to activate the tab
         await chrome.tabs.update(firstPage.tabId, { active: true });
-
-        // Update our pages array explicitly to ensure synchronization
-        this.pages = this.browserWindow.pages();
 
         // Also call getCurrentPage to ensure proper state management
         await this.getCurrentPage();
@@ -2274,6 +2054,10 @@ export class BrowserContext {
 
       // Log final state for debugging
       console.log(`closeCurrentTab completed: ${this.pages.length} pages remaining`);
+      console.log(
+        'Final pages array:',
+        this.pages.map(p => ({ tabId: p.tabId, url: p.url() }))
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Failed to close current tab:`, errorMessage);

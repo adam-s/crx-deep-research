@@ -26,7 +26,7 @@ async function createThumbnail(buffer: Buffer, sourceFormat: 'png' | 'jpeg'): Pr
         sourceFormat,
         outputFormat: THUMBNAIL_CONFIG.format,
         quality: THUMBNAIL_CONFIG.quality,
-      },
+      }
     );
 
     const base64 = thumbnailBuffer.toString('base64');
@@ -40,7 +40,7 @@ async function createThumbnail(buffer: Buffer, sourceFormat: 'png' | 'jpeg'): Pr
 export async function testScreenshotterFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
     context.events.emit({
@@ -48,7 +48,6 @@ export async function testScreenshotterFunctionality(
       severity: Severity.Info,
       message: 'Starting screenshotter functionality tests',
     });
-
     // Test 1: Basic screenshotPage with default options
     progress.log('Test 1: Testing basic screenshotPage with default options');
     try {
@@ -86,7 +85,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 1 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 1 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -117,7 +116,7 @@ export async function testScreenshotterFunctionality(
       }
 
       progress.log(
-        `✅ Test 2 passed: JPEG screenshot with quality captured (${screenshot.length} bytes)`,
+        `✅ Test 2 passed: JPEG screenshot with quality captured (${screenshot.length} bytes)`
       );
 
       context.events.emit({
@@ -135,7 +134,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 2 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 2 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -164,7 +163,7 @@ export async function testScreenshotterFunctionality(
 
       if (!screenshot || !(screenshot instanceof Buffer)) {
         throw new Error(
-          'Full page screenshot should return a Buffer, but got: ' + typeof screenshot,
+          'Full page screenshot should return a Buffer, but got: ' + typeof screenshot
         );
       }
 
@@ -184,7 +183,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 3 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 3 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -236,7 +235,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 4 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 4 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -267,12 +266,12 @@ export async function testScreenshotterFunctionality(
       if (!screenshot || !(screenshot instanceof Buffer)) {
         throw new Error(
           'Screenshot with disabled animations should return a Buffer, but got: ' +
-            typeof screenshot,
+            typeof screenshot
         );
       }
 
       progress.log(
-        `✅ Test 5 passed: Screenshot with disabled animations captured (${screenshot.length} bytes)`,
+        `✅ Test 5 passed: Screenshot with disabled animations captured (${screenshot.length} bytes)`
       );
 
       context.events.emit({
@@ -290,7 +289,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 5 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 5 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -320,12 +319,12 @@ export async function testScreenshotterFunctionality(
 
       if (!screenshot || !(screenshot instanceof Buffer)) {
         throw new Error(
-          'Screenshot with custom style should return a Buffer, but got: ' + typeof screenshot,
+          'Screenshot with custom style should return a Buffer, but got: ' + typeof screenshot
         );
       }
 
       progress.log(
-        `✅ Test 6 passed: Screenshot with custom style captured (${screenshot.length} bytes)`,
+        `✅ Test 6 passed: Screenshot with custom style captured (${screenshot.length} bytes)`
       );
 
       context.events.emit({
@@ -343,7 +342,7 @@ export async function testScreenshotterFunctionality(
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('screenshotPage not implemented yet')) {
         progress.log(
-          '✅ Test 6 expected: screenshotPage method called successfully (not implemented yet)',
+          '✅ Test 6 expected: screenshotPage method called successfully (not implemented yet)'
         );
         context.events.emit({
           timestamp: Date.now(),
@@ -420,7 +419,7 @@ export async function testScreenshotterFunctionality(
         async p => {
           await frame.rafrafTimeout(p, 100);
         },
-        { timeout: 30000 },
+        { timeout: 30000 }
       );
       const duration = Date.now() - startTime;
 
@@ -467,18 +466,18 @@ export async function testScreenshotterFunctionality(
         progress,
         selector,
         50, // Small timeout for testing
-        options,
+        options
       );
 
       if (!screenshot || !(screenshot instanceof Buffer)) {
         throw new Error(
           'rafrafTimeoutScreenshotElementWithProgress should return a Buffer, but got: ' +
-            typeof screenshot,
+            typeof screenshot
         );
       }
 
       progress.log(
-        `✅ Test 9 passed: rafrafTimeoutScreenshotElementWithProgress captured (${screenshot.length} bytes)`,
+        `✅ Test 9 passed: rafrafTimeoutScreenshotElementWithProgress captured (${screenshot.length} bytes)`
       );
 
       // Generate thumbnail for console display
@@ -519,7 +518,7 @@ export async function testScreenshotterFunctionality(
 
       if (!result.actual || !(result.actual instanceof Buffer)) {
         throw new Error(
-          'expectScreenshot should return actual Buffer, but got: ' + typeof result.actual,
+          'expectScreenshot should return actual Buffer, but got: ' + typeof result.actual
         );
       }
 
@@ -528,7 +527,7 @@ export async function testScreenshotterFunctionality(
       }
 
       progress.log(
-        `✅ Test 10 passed: expectScreenshot returned actual screenshot (${result.actual.length} bytes)`,
+        `✅ Test 10 passed: expectScreenshot returned actual screenshot (${result.actual.length} bytes)`
       );
 
       // Generate thumbnail for console display
@@ -573,12 +572,12 @@ export async function testScreenshotterFunctionality(
 
       if (!screenshot || !(screenshot instanceof Buffer)) {
         throw new Error(
-          'Element JPEG screenshot should return a Buffer, but got: ' + typeof screenshot,
+          'Element JPEG screenshot should return a Buffer, but got: ' + typeof screenshot
         );
       }
 
       progress.log(
-        `✅ Test 11 passed: Element JPEG screenshot captured (${screenshot.length} bytes)`,
+        `✅ Test 11 passed: Element JPEG screenshot captured (${screenshot.length} bytes)`
       );
 
       // Generate thumbnail for console display
@@ -663,7 +662,7 @@ export async function testScreenshotterFunctionality(
       if (!result.actual || !(result.actual instanceof Buffer)) {
         throw new Error(
           'expectScreenshot with locator should return actual Buffer, but got: ' +
-            typeof result.actual,
+            typeof result.actual
         );
       }
 
@@ -672,7 +671,7 @@ export async function testScreenshotterFunctionality(
       }
 
       progress.log(
-        `✅ Test 13 passed: expectScreenshot with locator returned actual screenshot (${result.actual.length} bytes)`,
+        `✅ Test 13 passed: expectScreenshot with locator returned actual screenshot (${result.actual.length} bytes)`
       );
 
       // Generate thumbnail for console display
@@ -710,7 +709,7 @@ export async function testScreenshotterFunctionality(
     });
 
     progress.log(
-      '🎉 All screenshotter tests completed - screenshotPage method called with various options!',
+      '🎉 All screenshotter tests completed - screenshotPage method called with various options!'
     );
   } catch (error) {
     context.events.emit({
@@ -726,7 +725,7 @@ export async function testScreenshotterFunctionality(
     throw new Error(
       `Screenshotter functionality test failed: ${
         error instanceof Error ? error.message : String(error)
-      }`,
+      }`
     );
   }
 }

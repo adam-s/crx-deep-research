@@ -51,6 +51,7 @@ export class OpenAICUAClient extends AgentClient {
     // Store client options for reference
     this.clientOptions = {
       apiKey: this.apiKey,
+      dangerouslyAllowBrowser: true, // Allow browser usage for Chrome extension environment
     };
 
     // Initialize the OpenAI client

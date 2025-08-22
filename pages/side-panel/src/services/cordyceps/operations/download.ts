@@ -130,7 +130,7 @@ export class Download extends Disposable {
 
     console.log(`📁 Download ${this._id} marked for save to: ${path}`);
     console.log(
-      'Note: Actual file copy must be handled by user due to Chrome extension security restrictions',
+      'Note: Actual file copy must be handled by user due to Chrome extension security restrictions'
     );
   }
 
@@ -182,7 +182,7 @@ export class Download extends Disposable {
    */
   async createReadStream(): Promise<never> {
     throw new Error(
-      'createReadStream is not supported in Chrome extension environment. Use chrome.downloads API directly for file access.',
+      'createReadStream is not supported in Chrome extension environment. Use chrome.downloads API directly for file access.'
     );
   }
 
@@ -280,7 +280,6 @@ export class Download extends Disposable {
   }
 
   dispose(): void {
-    console.log(`🗑️ [Download] Disposing download ${this._id}`);
     super.dispose();
   }
 }

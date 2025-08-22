@@ -46,9 +46,6 @@ export class OpenAIClient extends LLMClient {
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
   }) {
-    console.log(
-      `[OpenAIClient.constructor] modelName=${modelName} enableCaching=${enableCaching} ######`
-    );
     super(modelName);
     this.clientOptions = clientOptions || {};
 
@@ -62,10 +59,6 @@ export class OpenAIClient extends LLMClient {
       dangerouslyAllowBrowser: true,
     };
 
-    console.log(
-      `[OpenAIClient.constructor] creating OpenAI client with apiKey=${!!openAiConfig.apiKey} ######`
-    );
-
     // Validate API key before creating client
     if (!openAiConfig.apiKey || typeof openAiConfig.apiKey !== 'string') {
       throw new StagehandError('OpenAI API key is required but not provided or invalid');
@@ -75,7 +68,6 @@ export class OpenAIClient extends LLMClient {
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
-    console.log(`[OpenAIClient.constructor] initialized successfully ######`);
   }
 
   async createChatCompletion<T = LLMResponse>({
@@ -83,9 +75,6 @@ export class OpenAIClient extends LLMClient {
     logger,
     retries = 3,
   }: CreateChatCompletionOptions): Promise<T> {
-    console.log(
-      `[OpenAIClient.createChatCompletion] starting with model=${this.modelName} retries=${retries} ######`
-    );
     // Advanced TypeScript: Create mutable copy with guaranteed non-null properties
     let options: Required<Pick<ChatCompletionOptions, 'requestId' | 'messages'>> &
       ChatCompletionOptions = {
@@ -374,12 +363,7 @@ export class OpenAIClient extends LLMClient {
         type: 'function',
       })),
     };
-
-    console.log(
-      `[OpenAIClient.createChatCompletion] calling OpenAI API with model=${this.modelName} ######`
-    );
     const response = await this.client.chat.completions.create(body);
-    console.log(`[OpenAIClient.createChatCompletion] received response from OpenAI API ######`);
 
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {

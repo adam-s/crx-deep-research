@@ -918,14 +918,10 @@ export class HandledInjectedScript {
     error?: string;
     filesSet: number;
   } {
-    console.log(`[HandledInjectedScript.setInputFiles] Called with handle: ${handle} ######`);
-    console.log(`[HandledInjectedScript.setInputFiles] Files count: ${files.length} ######`);
-    console.log(`[HandledInjectedScript.setInputFiles] Options: ######`);
     console.log(options);
 
     try {
       const element = this.getElementByHandle(handle);
-      console.log(`[HandledInjectedScript.setInputFiles] Element found: ${!!element} ######`);
 
       if (!element) {
         console.log(
@@ -1042,7 +1038,6 @@ export class HandledInjectedScript {
       );
       return result;
     } catch (error) {
-      console.log(`[HandledInjectedScript.setInputFiles] Caught error: ######`);
       console.log(error);
       return {
         success: false,

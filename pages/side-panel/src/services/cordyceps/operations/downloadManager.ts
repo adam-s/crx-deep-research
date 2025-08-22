@@ -100,8 +100,6 @@ export class DownloadManager extends Disposable {
   private _setupChromeDownloadListeners(): void {
     // Listen for download creation
     chrome.downloads.onCreated.addListener((downloadItem: chrome.downloads.DownloadItem) => {
-      console.log('📥 [DownloadManager] Download created:', downloadItem);
-
       const downloadInfo: DownloadInfo = {
         id: downloadItem.id,
         url: downloadItem.url,
@@ -130,7 +128,6 @@ export class DownloadManager extends Disposable {
 
     // Listen for download erasure
     chrome.downloads.onErased.addListener((downloadId: number) => {
-      console.log('🗑️ [DownloadManager] Download erased from history:', downloadId);
       this._cleanupDownloadTracking(downloadId);
     });
   }
@@ -160,10 +157,6 @@ export class DownloadManager extends Disposable {
 
     // Add a small delay to ensure waitForEvent is set up before firing
     setTimeout(() => {
-      // Emit started event
-      console.log(
-        `🚀 [DownloadManager] Firing download started event for page: ${targetPage?.tabId || 'none'}, download: ${downloadInfo.id}`
-      );
       this._onDownloadStarted.fire({ download, page: targetPage });
     }, 10); // Small delay to ensure event listeners are ready
 
@@ -190,17 +183,12 @@ export class DownloadManager extends Disposable {
 
   private _handleDownloadChanged(delta: chrome.downloads.DownloadDelta): void {
     if (delta.state?.current === 'complete') {
-      console.log('✅ [DownloadManager] Download completed:', delta.id);
       const download = this._downloads.get(delta.id);
       if (download) {
         const page = this._pageRegistry.get(download.page().tabId);
         this._onDownloadCompleted.fire({ download, page });
       }
     } else if (delta.state?.current === 'interrupted') {
-      console.log('❌ [DownloadManager] Download interrupted:', delta.id);
-      if (delta.error?.current) {
-        console.log('  Interrupt reason:', delta.error.current);
-      }
       const download = this._downloads.get(delta.id);
       if (download) {
         const page = this._pageRegistry.get(download.page().tabId);
@@ -466,7 +454,6 @@ export class DownloadManager extends Disposable {
   }
 
   dispose(): void {
-    console.log('🗑️ [DownloadManager] Disposing download manager');
     this._downloadListeners.clear();
 
     // Clear all timeouts

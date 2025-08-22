@@ -79,7 +79,7 @@ export async function testUtilityFunctions(
     const page = await browserWindow.getCurrentPage();
 
     // Navigate to test page
-    await page.goto('http://localhost:3005/testWebPage.html');
+    await page.goto('http://localhost:3005');
 
     // Test 1: Data validation utilities
     await testDataValidationUtilities(context, page);

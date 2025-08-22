@@ -150,12 +150,25 @@ export class FrameManager extends Disposable {
 
   private _attachMainFrame(frameId: number, url?: string): Frame {
     if (this._mainFrame) {
+      // If it's the same frame ID, just update the URL and return existing frame
+      if (this._mainFrame.frameId === frameId) {
+        if (url) {
+          this._mainFrame.setUrl(url);
+        }
+        return this._mainFrame;
+      }
+
+      // Different frame ID - dispose old frame and create new promise
       this._mainFrame.dispose();
       this._frames.delete(this._mainFrame.frameId);
-    } else {
-      this._mainFrame = this._register(new Frame(frameId, this, null, url));
-      this._mainFrameResolve(this._mainFrame);
+      // Create a new promise for the new main frame
+      this._mainFramePromise = new Promise(resolve => (this._mainFrameResolve = resolve));
     }
+
+    // Create a new main frame
+    this._mainFrame = this._register(new Frame(frameId, this, null, url));
+    this._mainFrameResolve(this._mainFrame);
+
     this._frames.set(frameId, this._mainFrame);
 
     // Create execution context immediately for main frame

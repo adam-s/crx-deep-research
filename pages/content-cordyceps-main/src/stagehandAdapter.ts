@@ -82,11 +82,6 @@ export class StagehandCordycepsAdapter {
    * Initialize the adapter and verify Stagehand utilities are available
    */
   async initialize(): Promise<boolean> {
-    console.log(`[StagehandCordycepsAdapter.initialize] Starting initialization ######`);
-    console.log(
-      `[StagehandCordycepsAdapter.initialize] isInitialized: ${this.isInitialized} ######`
-    );
-
     if (this.isInitialized) return true;
 
     // Check if Stagehand utilities are available
@@ -94,10 +89,6 @@ export class StagehandCordycepsAdapter {
       window.__stagehandInjected &&
       typeof window.getScrollableElementXpaths === 'function' &&
       typeof window.generateXPathsForElement === 'function';
-
-    console.log(
-      `[StagehandCordycepsAdapter.initialize] __stagehandInjected: ${!!window.__stagehandInjected} ######`
-    );
     const w = window as unknown as Record<string, unknown>;
     console.log(
       `[StagehandCordycepsAdapter.initialize] getScrollableElementXpaths: ${typeof w.getScrollableElementXpaths} ######`

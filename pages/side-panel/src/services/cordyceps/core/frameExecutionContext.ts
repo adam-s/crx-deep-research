@@ -136,6 +136,11 @@ export class FrameExecutionContext extends Disposable {
     world: chrome.scripting.ExecutionWorld = 'MAIN',
     ...args: Args
   ): Promise<Awaited<T> | undefined> {
+    // Check if frame is detached before attempting execution
+    if (this.frame.isDetached()) {
+      throw new Error(`Cannot execute script: frame ${this.frame.frameId} is detached`);
+    }
+
     try {
       const results = (await chrome.scripting.executeScript({
         target: {
@@ -146,6 +151,7 @@ export class FrameExecutionContext extends Disposable {
         func,
         args,
       })) as ScriptInjectionResult<T>[];
+
       if (chrome.runtime.lastError) {
         throw new Error(chrome.runtime.lastError.message);
       }
@@ -155,6 +161,7 @@ export class FrameExecutionContext extends Disposable {
       if (mainResult?.error) {
         throw new Error(mainResult.error.message);
       }
+
       return mainResult?.result;
     } catch (e) {
       const method = func.name || 'executeScript';
@@ -714,18 +721,10 @@ export class FrameExecutionContext extends Disposable {
       }
     | undefined
   > {
-    console.log(`[FrameExecutionContext.setInputFiles] Starting with world: ${world} ######`);
-
     // Route to appropriate implementation based on execution world
     if (world === 'MAIN') {
-      console.log(
-        `[FrameExecutionContext.setInputFiles] Using base64 approach for MAIN world ######`
-      );
       return this.setInputFilesWithBase64(handle, files, options, world);
     } else {
-      console.log(
-        `[FrameExecutionContext.setInputFiles] Using port-based approach for ISOLATED world ######`
-      );
       return this._setInputFilesWithPorts(handle, files, options, world);
     }
   }
@@ -786,16 +785,6 @@ export class FrameExecutionContext extends Disposable {
       transferIds.push(transferId);
     }
 
-    // 4) Execute setInputFiles in the content script with the transfer IDs
-    console.log(
-      `[FrameExecutionContext._setInputFilesWithPorts] About to execute script in ${world} world ######`
-    );
-    console.log(
-      `[FrameExecutionContext._setInputFilesWithPorts] handle: ${handle}, portId: ${portId} ######`
-    );
-    console.log(
-      `[FrameExecutionContext._setInputFilesWithPorts] transferIds: ${JSON.stringify(transferIds)} ######`
-    );
     const result = await this.executeScript(
       (
         handle: string,
@@ -803,17 +792,8 @@ export class FrameExecutionContext extends Disposable {
         transferIds: string[],
         options: { force?: boolean; directoryUpload?: boolean }
       ) => {
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] handle: ${handle}, portId: ${portId} ######`
-        );
         const injected = window.__cordyceps_handledInjectedScript;
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] Injected script available: ${!!injected} ######`
-        );
         const port = injected.fileTransferPortManager.getPort(portId);
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] Port available: ${!!port} ######`
-        );
         if (!port) {
           return { success: false, error: 'Transfer port not found', filesSet: 0 };
         }
@@ -822,9 +802,6 @@ export class FrameExecutionContext extends Disposable {
         const built: { name: string; mimeType: string; buffer: ArrayBuffer }[] = [];
         for (const id of transferIds) {
           const data = port.getIncomingBuffer(id);
-          console.log(
-            `[FrameExecutionContext._setInputFilesWithPorts.script] Transfer data for ${id}: ${!!data} ######`
-          );
           if (!data) {
             return { success: false, error: 'Missing transferred data', filesSet: 0 };
           }
@@ -832,16 +809,7 @@ export class FrameExecutionContext extends Disposable {
           built.push({ name: data.name, mimeType: data.mimeType, buffer: data.buffer });
         }
 
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] About to call setInputFiles ######`
-        );
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] handle: ${handle}, files: ${built.length} ######`
-        );
         const result = injected.setInputFiles(handle, built, options);
-        console.log(
-          `[FrameExecutionContext._setInputFilesWithPorts.script] result: ${JSON.stringify(result)} ######`
-        );
         return result;
       },
       world,
@@ -851,9 +819,6 @@ export class FrameExecutionContext extends Disposable {
       options
     );
 
-    console.log(`[FrameExecutionContext._setInputFilesWithPorts] Final result: ######`);
-    console.log(result);
-    console.log(`[FrameExecutionContext._setInputFilesWithPorts] Method complete ######`);
     return result;
   }
 
@@ -875,13 +840,6 @@ export class FrameExecutionContext extends Disposable {
     options: { force?: boolean; directoryUpload?: boolean } = {},
     world: chrome.scripting.ExecutionWorld = 'MAIN'
   ): Promise<{ success: boolean; error?: string; filesSet: number }> {
-    console.log(
-      `[FrameExecutionContext.setInputFilesWithBase64] Starting base64 file transfer ######`
-    );
-    console.log(
-      `[FrameExecutionContext.setInputFilesWithBase64] Handle: ${handle}, Files: ${files.length} ######`
-    );
-
     try {
       // 1) Convert files to base64 format
       const base64Files: Base64FileData[] = [];
@@ -893,33 +851,17 @@ export class FrameExecutionContext extends Disposable {
           size: file.buffer.byteLength,
           base64,
         });
-        console.log(
-          `[FrameExecutionContext.setInputFilesWithBase64] Converted ${file.name} to base64 ` +
-            `(${base64.length} chars) ######`
-        );
       }
 
       // 2) Execute script directly with base64 data
-      console.log(
-        `[FrameExecutionContext.setInputFilesWithBase64] Executing script in ${world} world ######`
-      );
       const result = await this.executeScript(
         (
           handle: string,
           base64Files: Base64FileData[],
           options: { force?: boolean; directoryUpload?: boolean }
         ) => {
-          console.log(
-            `[FrameExecutionContext.setInputFilesWithBase64.script] Handle: ${handle}, ` +
-              `Files: ${base64Files.length} ######`
-          );
-
           // Check if MAIN world injected script is available
           const injected = window.__cordyceps_handledInjectedScript;
-          console.log(
-            `[FrameExecutionContext.setInputFilesWithBase64.script] Injected script available: ` +
-              `${!!injected} ######`
-          );
 
           if (!injected) {
             return {
@@ -947,17 +889,7 @@ export class FrameExecutionContext extends Disposable {
                 mimeType: base64File.mimeType,
                 buffer: bytes.buffer,
               });
-
-              console.log(
-                `[FrameExecutionContext.setInputFilesWithBase64.script] Reconstructed ` +
-                  `${base64File.name} from base64 ######`
-              );
             } catch (error) {
-              console.error(
-                `[FrameExecutionContext.setInputFilesWithBase64.script] Failed to reconstruct ` +
-                  `${base64File.name}:`,
-                error
-              );
               return {
                 success: false,
                 error: `Failed to reconstruct file: ${base64File.name}`,
@@ -967,15 +899,7 @@ export class FrameExecutionContext extends Disposable {
           }
 
           // Call the MAIN world setInputFiles method
-          console.log(
-            `[FrameExecutionContext.setInputFilesWithBase64.script] Calling setInputFiles with ` +
-              `${reconstructedFiles.length} files ######`
-          );
           const result = injected.setInputFiles(handle, reconstructedFiles, options);
-          console.log(
-            `[FrameExecutionContext.setInputFilesWithBase64.script] Result: ` +
-              `${JSON.stringify(result)} ######`
-          );
 
           return result;
         },
@@ -984,10 +908,6 @@ export class FrameExecutionContext extends Disposable {
         base64Files,
         options
       );
-
-      console.log(`[FrameExecutionContext.setInputFilesWithBase64] Final result: ######`);
-      console.log(result);
-      console.log(`[FrameExecutionContext.setInputFilesWithBase64] Method complete ######`);
 
       return (
         result || {
@@ -998,7 +918,6 @@ export class FrameExecutionContext extends Disposable {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[FrameExecutionContext.setInputFilesWithBase64] Error:`, error);
 
       return {
         success: false,
@@ -1031,7 +950,6 @@ export class FrameExecutionContext extends Disposable {
       );
       return result;
     } catch (error) {
-      console.error(`[FrameExecutionContext.executeElementFunction] Error:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown execution error',

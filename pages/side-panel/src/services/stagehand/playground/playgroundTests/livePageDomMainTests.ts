@@ -130,32 +130,90 @@ export async function testLivePageDomMain(
   try {
     // Test 1: Presence detection
     progress.log('Test 1: Detect Stagehand global utilities');
-    const presence = await page.evaluate((): StagehandPresenceResult => {
-      const w = window as Window;
-      const genFns = w as unknown as {
-        generateXPathsForElement?: (el: Node) => Promise<string[]>;
-        getScrollableElements?: (n?: number) => HTMLElement[];
-        canElementScroll?: (e: HTMLElement) => boolean;
-      };
-      return {
-        injected: !!w.__stagehandInjected,
-        hasGenerate: typeof genFns.generateXPathsForElement === 'function',
-        hasScrollableXpaths: typeof w.getScrollableElementXpaths === 'function',
-        hasGetNodeFromXpath: typeof w.getNodeFromXpath === 'function',
-        hasWaitForScrollEnd: typeof w.waitForElementScrollEnd === 'function',
-        hasGetScrollableElements: typeof genFns.getScrollableElements === 'function',
-        hasCanElementScroll: typeof genFns.canElementScroll === 'function',
-        shadowBackdoor: !!w.__stagehand__,
-      };
-    });
+
+    // Wait for page evaluation to be ready using backoff strategy
+    try {
+      await page.waitForEvaluationReady();
+    } catch (error) {
+      throw new Error(`Page evaluation context not ready: ${error}`);
+    }
+
+    // Wait for Stagehand utilities to be injected with retry logic
+    let presence: StagehandPresenceResult;
+    let attempt = 0;
+    const maxAttempts = 10;
+    const retryDelay = 100; // ms
+
+    do {
+      attempt++;
+
+      try {
+        presence = await page.evaluate((attemptNum): StagehandPresenceResult => {
+          const w = window as Window;
+          const genFns = w as unknown as {
+            generateXPathsForElement?: (el: Node) => Promise<string[]>;
+            getScrollableElements?: (n?: number) => HTMLElement[];
+            canElementScroll?: (e: HTMLElement) => boolean;
+          };
+
+          console.log(
+            `[testLivePageDomMain] attempt ${attemptNum} presence check: injected=${!!w.__stagehandInjected} ######`
+          );
+
+          return {
+            injected: !!w.__stagehandInjected,
+            hasGenerate: typeof genFns.generateXPathsForElement === 'function',
+            hasScrollableXpaths: typeof w.getScrollableElementXpaths === 'function',
+            hasGetNodeFromXpath: typeof w.getNodeFromXpath === 'function',
+            hasWaitForScrollEnd: typeof w.waitForElementScrollEnd === 'function',
+            hasGetScrollableElements: typeof genFns.getScrollableElements === 'function',
+            hasCanElementScroll: typeof genFns.canElementScroll === 'function',
+            shadowBackdoor: !!w.__stagehand__,
+          };
+        }, attempt);
+      } catch (error) {
+        console.log(
+          `[testLivePageDomMain] presence check failed on attempt ${attempt}: ${error} ######`
+        );
+        // Set default failure state
+        presence = {
+          injected: false,
+          hasGenerate: false,
+          hasScrollableXpaths: false,
+          hasGetNodeFromXpath: false,
+          hasWaitForScrollEnd: false,
+          hasGetScrollableElements: false,
+          hasCanElementScroll: false,
+          shadowBackdoor: false,
+        };
+      }
+
+      if (presence.injected) {
+        console.log(
+          `[testLivePageDomMain] Stagehand utilities detected on attempt ${attempt} ######`
+        );
+        break;
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    } while (attempt < maxAttempts);
+
     details.presence = presence;
 
-    if (!presence.injected) throw new Error('Stagehand utilities not injected');
+    if (!presence.injected) throw new Error('Stagehand utilities not injected after retries');
     testResults.push('Presence detection');
     progress.log('✅ Stagehand utilities detected');
 
     // Test 2: XPath generation & node lookup
     progress.log('Test 2: Generate XPaths for #action-button and resolve via getNodeFromXpath');
+
+    // Ensure page evaluation is ready before complex operations
+    try {
+      await page.waitForEvaluationReady();
+    } catch (error) {}
+
     const xpathResult = await page.evaluate((): XPathTestResult => {
       const target = document.querySelector('#action-button');
       if (!target) {
@@ -204,6 +262,12 @@ export async function testLivePageDomMain(
 
     // Test 3: Scrollable elements & XPath list
     progress.log('Test 3: Retrieve scrollable elements and their XPaths');
+
+    // Ensure page evaluation is ready before scrollable elements test
+    try {
+      await page.waitForEvaluationReady();
+    } catch (error) {}
+
     const scrollable = await page.evaluate((): ScrollableElementsResult => {
       const w = window as Window;
       const results: ScrollableElementsResult = { totalReturned: 0, elements: [] };
@@ -247,6 +311,11 @@ export async function testLivePageDomMain(
     progress.log('Test 4: Trigger scroll and wait for scroll end');
     let scrollWait: ScrollWaitResult | null = null;
     if ((details.presence as StagehandPresenceResult).hasWaitForScrollEnd) {
+      // Ensure page evaluation is ready before scroll wait test
+      try {
+        await page.waitForEvaluationReady();
+      } catch (error) {}
+
       scrollWait = await page.evaluate(async (): Promise<ScrollWaitResult | null> => {
         const w = window as Window;
         const el = document.scrollingElement as HTMLElement | null;
@@ -269,6 +338,12 @@ export async function testLivePageDomMain(
 
     // Test 5: Shadow DOM backdoor (best-effort)
     progress.log('Test 5: Shadow DOM backdoor inspection');
+
+    // Ensure page evaluation is ready before shadow DOM test
+    try {
+      await page.waitForEvaluationReady();
+    } catch (error) {}
+
     const shadowInfo = await page.evaluate((): ShadowBackdoorResult => {
       const w = window as Window;
       const result: ShadowBackdoorResult = {
@@ -319,6 +394,21 @@ export async function testLivePageDomMain(
       details: { error: errorMessage },
     });
     throw error;
+  } finally {
+    // Always dispose the browser window to prevent frame leakage
+    if (browserWindow) {
+      try {
+        browserWindow.dispose();
+        progress.log('🧹 Browser window disposed for cleanup');
+
+        // Add a small delay to allow Chrome extension lifecycle to fully clean up
+        // This prevents frame ID conflicts when tests run multiple times
+        await new Promise(resolve => setTimeout(resolve, 200));
+        progress.log('✅ Cleanup delay completed');
+      } catch (disposeError) {
+        progress.log(`⚠️ Error disposing browser window: ${disposeError}`);
+      }
+    }
   }
 }
 
@@ -334,32 +424,95 @@ export async function runLivePageDomMainTests(
 
 // Quick smoke test returning boolean for integration checks
 export async function quickStagehandPresenceTest(): Promise<boolean> {
+  let browserWindow: BrowserWindow | undefined;
   try {
-    const browserWindow = await BrowserWindow.create();
+    browserWindow = await BrowserWindow.create();
     const page = await browserWindow.getCurrentPage();
     await page.goto('http://localhost:3005');
     await page.waitForLoadState();
-    const presence = await page.evaluate((): StagehandPresenceResult => {
-      const w = window as Window;
-      const genFns = w as unknown as {
-        generateXPathsForElement?: (el: Node) => Promise<string[]>;
-        getScrollableElements?: (n?: number) => HTMLElement[];
-        canElementScroll?: (e: HTMLElement) => boolean;
-      };
-      return {
-        injected: !!w.__stagehandInjected,
-        hasGenerate: typeof genFns.generateXPathsForElement === 'function',
-        hasScrollableXpaths: typeof w.getScrollableElementXpaths === 'function',
-        hasGetNodeFromXpath: typeof w.getNodeFromXpath === 'function',
-        hasWaitForScrollEnd: typeof w.waitForElementScrollEnd === 'function',
-        hasGetScrollableElements: typeof genFns.getScrollableElements === 'function',
-        hasCanElementScroll: typeof genFns.canElementScroll === 'function',
-        shadowBackdoor: !!w.__stagehand__,
-      };
-    });
+
+    // Ensure page evaluation is ready before presence test
+    try {
+      await page.waitForEvaluationReady();
+    } catch (error) {
+      return false;
+    }
+
+    // Wait for Stagehand utilities with retry logic
+    let presence: StagehandPresenceResult;
+    let attempt = 0;
+    const maxAttempts = 5; // Fewer attempts for quick test
+    const retryDelay = 100; // ms
+
+    do {
+      attempt++;
+
+      try {
+        presence = await page.evaluate((attemptNum): StagehandPresenceResult => {
+          const w = window as Window;
+          const genFns = w as unknown as {
+            generateXPathsForElement?: (el: Node) => Promise<string[]>;
+            getScrollableElements?: (n?: number) => HTMLElement[];
+            canElementScroll?: (e: HTMLElement) => boolean;
+          };
+
+          console.log(
+            `[quickStagehandPresenceTest] attempt ${attemptNum}: injected=${!!w.__stagehandInjected} ######`
+          );
+
+          return {
+            injected: !!w.__stagehandInjected,
+            hasGenerate: typeof genFns.generateXPathsForElement === 'function',
+            hasScrollableXpaths: typeof w.getScrollableElementXpaths === 'function',
+            hasGetNodeFromXpath: typeof w.getNodeFromXpath === 'function',
+            hasWaitForScrollEnd: typeof w.waitForElementScrollEnd === 'function',
+            hasGetScrollableElements: typeof genFns.getScrollableElements === 'function',
+            hasCanElementScroll: typeof genFns.canElementScroll === 'function',
+            shadowBackdoor: !!w.__stagehand__,
+          };
+        }, attempt);
+      } catch (error) {
+        console.log(
+          `[quickStagehandPresenceTest] presence check failed on attempt ${attempt}: ${error} ######`
+        );
+        // Set default failure state
+        presence = {
+          injected: false,
+          hasGenerate: false,
+          hasScrollableXpaths: false,
+          hasGetNodeFromXpath: false,
+          hasWaitForScrollEnd: false,
+          hasGetScrollableElements: false,
+          hasCanElementScroll: false,
+          shadowBackdoor: false,
+        };
+      }
+
+      if (presence.injected) {
+        break;
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    } while (attempt < maxAttempts);
+
     return presence.injected && presence.hasGenerate;
   } catch (error) {
     console.warn('quickStagehandPresenceTest error:', error);
     return false;
+  } finally {
+    // Always dispose the browser window to prevent frame leakage
+    if (browserWindow) {
+      try {
+        browserWindow.dispose();
+
+        // Add a small delay to allow Chrome extension lifecycle to fully clean up
+        // This prevents frame ID conflicts when tests run multiple times
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (disposeError) {
+        console.warn('Error disposing browser window in quickStagehandPresenceTest:', disposeError);
+      }
+    }
   }
 }

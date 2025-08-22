@@ -26,6 +26,7 @@ export class StateAwareEventTest extends PlaygroundTest {
     });
 
     await this._testImmediateSubscription(page, progress);
+    // Don't run late subscription immediately - the events need to remain fired
     await this._testLateSubscription(page, progress);
     await this._testNavigationReset(page, progress);
     await this._testMultipleSubscribers(page, progress);
@@ -100,13 +101,13 @@ export class StateAwareEventTest extends PlaygroundTest {
       message: '📋 Test 2: Late subscription after events fired (KEY TEST)',
     });
 
-    // Wait for page to fully load
-    await page.waitForLoadState('load', { timeout: 5000 });
+    // NOTE: We don't navigate here - we're testing late subscription to events
+    // that were already fired in the previous test (_testImmediateSubscription)
 
     this.context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,
-      message: '  📍 Page fully loaded, now subscribing to events...',
+      message: '  📍 Testing late subscription to already-fired events...',
     });
 
     let lateLoadFired = false;

@@ -34,10 +34,6 @@ export { testWaitForFunctionality } from './waitForFunctionality';
 export { testWaitForEventFunctionality } from './waitForEventFunctionality';
 export { testWaitForLoadStateFunctionality } from './waitForLoadStateFunctionality';
 export { networkEventFunctionality as testNetworkEventFunctionality } from './networkEventFunctionality';
-export {
-  testBrowserContextNetworkStability,
-  testNetworkStabilityPerformance,
-} from './browserContextNetworkStability';
 export { debugNetworkEvents } from './debugNetworkEventsWithSnapshots';
 export { testCompareEventSubscriptions } from './compareEventSubscriptions';
 export { testPageListenersFix } from './testPageListenersFix';

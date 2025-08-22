@@ -23,11 +23,14 @@ export class ContentScriptReadinessBarrier extends Disposable {
    * Mark this frame as ready (called when CRX_DEEP_RESEARCH_NAVIGATION_EVENT is received)
    */
   markReady(): void {
-    if (this._isReady) return;
+    if (this._isReady) {
+      return;
+    }
 
     this._isReady = true;
-    this._readyPromise?.resolve();
-    console.log(`📋 Frame ${this.frameId} in tab ${this.tabId} is ready`);
+    if (this._readyPromise) {
+      this._readyPromise.resolve();
+    }
   }
 
   /**
@@ -41,17 +44,19 @@ export class ContentScriptReadinessBarrier extends Disposable {
    * Wait for the frame to be ready with optional timeout via Progress
    */
   async waitForReady(progress?: Progress): Promise<void> {
-    if (this._isReady) return;
+    if (this._isReady) {
+      return;
+    }
 
     if (!this._readyPromise) {
       this._readyPromise = new ManualPromise<void>();
     }
 
     if (progress) {
-      return progress.race(this._readyPromise);
+      return await progress.race(this._readyPromise);
+    } else {
+      return await this._readyPromise;
     }
-
-    return this._readyPromise;
   }
 
   dispose(): void {
@@ -67,10 +72,14 @@ export class ContentScriptReadinessManager extends Disposable {
   private static _instance: ContentScriptReadinessManager | null = null;
 
   private readonly _barriers = new Map<string, ContentScriptReadinessBarrier>();
+  private readonly _frameLifecycle = new Map<string, { created: number; lastSeen: number }>();
+  private _cleanupInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     super();
     this._setupNavigationListener();
+    this._setupFrameLifecycleTracking();
+    this._startPeriodicCleanup();
   }
 
   public static getInstance(): ContentScriptReadinessManager {
@@ -85,6 +94,9 @@ export class ContentScriptReadinessManager extends Disposable {
    */
   getBarrier(tabId: number, frameId: number): ContentScriptReadinessBarrier {
     const key = `${tabId}:${frameId}`;
+
+    // Track frame activity
+    this._trackFrameActivity(tabId, frameId);
 
     let barrier = this._barriers.get(key);
     if (!barrier) {
@@ -121,6 +133,106 @@ export class ContentScriptReadinessManager extends Disposable {
     keysToRemove.forEach(key => this._barriers.delete(key));
   }
 
+  /**
+   * Clean up a specific frame barrier (internal method)
+   */
+  private _cleanupFrameBarrier(tabId: number, frameId: number, _reason: string): void {
+    const key = `${tabId}:${frameId}`;
+    const barrier = this._barriers.get(key);
+    if (barrier) {
+      barrier.dispose();
+      this._barriers.delete(key);
+    }
+
+    // Also clean up lifecycle tracking
+    this._frameLifecycle.delete(key);
+  }
+
+  /**
+   * Track frame creation and update last seen timestamp
+   */
+  private _trackFrameActivity(tabId: number, frameId: number): void {
+    const key = `${tabId}:${frameId}`;
+    const now = Date.now();
+    const existing = this._frameLifecycle.get(key);
+
+    if (!existing) {
+      this._frameLifecycle.set(key, { created: now, lastSeen: now });
+    } else {
+      existing.lastSeen = now;
+    }
+  }
+
+  /**
+   * Set up frame lifecycle tracking using Chrome APIs
+   */
+  private _setupFrameLifecycleTracking(): void {
+    if (chrome.webNavigation) {
+      // Track when frames are committed (created/navigated)
+      chrome.webNavigation.onCommitted?.addListener(details => {
+        this._trackFrameActivity(details.tabId, details.frameId);
+      });
+
+      // Track when frames encounter errors
+      chrome.webNavigation.onErrorOccurred?.addListener(details => {
+        if (details.frameId !== 0) {
+          this._cleanupFrameBarrier(
+            details.tabId,
+            details.frameId,
+            `navigation error: ${details.error}`
+          );
+        }
+      });
+
+      // Track when frames are about to navigate (potential destruction)
+      chrome.webNavigation.onBeforeNavigate?.addListener(details => {
+        if (details.frameId !== 0) {
+          // Frame navigation event - no action needed
+        }
+      });
+
+      // Track when frames are destroyed during document lifecycle
+      chrome.webNavigation.onDOMContentLoaded?.addListener(details => {
+        this._trackFrameActivity(details.tabId, details.frameId);
+      });
+    }
+
+    // Track tab closure
+    if (chrome.tabs) {
+      chrome.tabs.onRemoved?.addListener(tabId => {
+        this.removeTabBarriers(tabId);
+      });
+    }
+  }
+
+  /**
+   * Start periodic cleanup of stale barriers
+   */
+  private _startPeriodicCleanup(): void {
+    const CLEANUP_INTERVAL = 30000; // 30 seconds
+    const STALE_THRESHOLD = 60000; // 1 minute
+
+    this._cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const staleFrames: string[] = [];
+
+      // Find stale frames
+      for (const [key, lifecycle] of this._frameLifecycle) {
+        if (now - lifecycle.lastSeen > STALE_THRESHOLD) {
+          staleFrames.push(key);
+        }
+      }
+
+      // Clean up stale barriers
+      if (staleFrames.length > 0) {
+        for (const key of staleFrames) {
+          const [tabId, frameId] = key.split(':').map(Number);
+          this._cleanupFrameBarrier(tabId, frameId, 'stale frame cleanup');
+        }
+      }
+    }, CLEANUP_INTERVAL);
+  }
+
   private _setupNavigationListener(): void {
     // Listen for the navigation events that indicate content script is ready
     const messageListener = (
@@ -134,13 +246,37 @@ export class ContentScriptReadinessManager extends Disposable {
         if (tabId !== undefined && frameId !== undefined) {
           const barrier = this.getBarrier(tabId, frameId);
           barrier.markReady();
-
-          console.log(`🎯 Content script ready signal received for tab ${tabId}, frame ${frameId}`);
         }
       }
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
+
+    // FRAME LIFECYCLE TRACKING: Listen for tab/frame destruction
+    if (chrome.webNavigation) {
+      // Track when frames are created
+      chrome.webNavigation.onCommitted?.addListener(details => {
+        if (details.frameId !== 0) {
+          // Only track sub-frames
+          this._trackFrameActivity(details.tabId, details.frameId);
+        }
+      });
+
+      // Track when frames are destroyed
+      chrome.webNavigation.onErrorOccurred?.addListener(details => {
+        if (details.frameId !== 0) {
+          this._cleanupFrameBarrier(details.tabId, details.frameId, 'navigation error');
+        }
+      });
+
+      // Track when frames are removed
+      chrome.webNavigation.onBeforeNavigate?.addListener(details => {
+        if (details.frameId !== 0) {
+          // Update activity but don't cleanup yet - wait for actual completion
+          this._trackFrameActivity(details.tabId, details.frameId);
+        }
+      });
+    }
 
     // Cleanup listener on dispose
     this._register({
@@ -151,13 +287,29 @@ export class ContentScriptReadinessManager extends Disposable {
   }
 
   dispose(): void {
+    // Stop periodic cleanup timer
+    if (this._cleanupInterval) {
+      clearInterval(this._cleanupInterval);
+      this._cleanupInterval = null;
+    }
+
     // Dispose all barriers
     for (const barrier of this._barriers.values()) {
-      barrier.dispose();
+      try {
+        barrier.dispose();
+      } catch (error) {
+        // Error disposing barrier - continue with cleanup
+      }
     }
     this._barriers.clear();
 
+    // Clear frame lifecycle tracking
+    this._frameLifecycle.clear();
+
+    // Dispose parent (handles navigation listeners)
     super.dispose();
+
+    // Clear singleton instance
     ContentScriptReadinessManager._instance = null;
   }
 }

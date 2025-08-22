@@ -69,12 +69,6 @@ export class FrameSelectors {
     // This is for later when we support frame navigation
     const frameChunks = splitSelectorByFrame(selector);
 
-    console.log(`🔍 Resolving frame selector: "${selector}"`);
-    console.log(
-      `   Split into ${frameChunks.length} chunks:`,
-      frameChunks.map(chunk => stringifySelector(chunk))
-    );
-
     for (const chunk of frameChunks) {
       visitAllSelectorParts(chunk, (part, nested) => {
         if (nested && part.name === 'internal:control' && part.body === 'enter-frame') {
@@ -95,8 +89,6 @@ export class FrameSelectors {
       const context = frame.context;
       const frameChunk = stringifySelector(frameChunks[i]);
 
-      console.log(`🔍 Evaluating frame chunk ${i}: "${frameChunk}" in frame ${frame.frameId}`);
-
       const handleId = await context.frameSelectorEvaluation(
         info.parsed,
         info.strict,
@@ -110,8 +102,6 @@ export class FrameSelectors {
         throw new InvalidSelectorError(`Could not find frame for selector "${selector}"`);
       }
 
-      console.log(`✅ Frame chunk resolved to handle: ${handleId}`);
-
       const handle = new ElementHandle(context, handleId);
 
       const childFrame = await handle.contentFrame();
@@ -119,8 +109,6 @@ export class FrameSelectors {
         console.error(`❌ Handle did not resolve to iframe for selector: "${frameChunk}"`);
         throw new InvalidSelectorError(`Selector "${selector}" did not resolve to an iframe`);
       }
-
-      console.log(`✅ Found child frame: ${childFrame.frameId}`);
       frame = childFrame;
     }
     if (frame !== this._frame) scope = undefined;
