@@ -40,12 +40,14 @@ interface Logger {
 interface MethodHandlerContext {
   locator: Locator;
   xpath: string;
+  selector: string;
   method: string;
   args: string[];
   logger: Logger;
   stagehandPage: StagehandPage;
   initialUrl: string;
   domSettleTimeoutMs?: number;
+  actionTimeoutMs?: number; // New timeout for individual action operations
 }
 
 // Error classes with proper TypeScript patterns
@@ -63,125 +65,22 @@ class StagehandClickError extends Error {
   }
 }
 
-// Error classes with proper TypeScript patterns (for future shadow DOM implementation)
-// class StagehandShadowRootMissingError extends Error {
-//   constructor(message: string) {
-//     super(`Shadow root missing: ${message}`);
-//     this.name = 'StagehandShadowRootMissingError';
-//   }
-// }
-
-// class StagehandShadowSegmentEmptyError extends Error {
-//   constructor() {
-//     super('Shadow segment is empty');
-//     this.name = 'StagehandShadowSegmentEmptyError';
-//   }
-// }
-
-// class StagehandShadowSegmentNotFoundError extends Error {
-//   constructor(segment: string) {
-//     super(`Shadow segment not found: ${segment}`);
-//     this.name = 'StagehandShadowSegmentNotFoundError';
-//   }
-// }
-
-// Constants for iframe and xpath/css conversion
+// Constants for iframe detection
 const IFRAME_STEP_RE = /^iframe(\[[^\]]+])?$/i;
 
-// Utility functions for XPath to CSS conversion (for future shadow DOM implementation)
-// function stepToCss(step: string): string {
-//   const m = step.match(/^([a-zA-Z*][\w-]*)(?:\[(\d+)])?$/);
-//   if (!m) return step;
-//   const [, tag, idxRaw] = m;
-//   const idx = idxRaw ? Number(idxRaw) : null;
-//   if (tag === '*') return idx ? `*:nth-child(${idx})` : `*`;
-//   return idx ? `${tag}:nth-of-type(${idx})` : tag;
-// }
-
-// const buildDirect = (steps: string[]): string => steps.map(stepToCss).join(' > ');
-// const buildDesc = (steps: string[]): string => steps.map(stepToCss).join(' ');
-
-// Advanced TypeScript interfaces for improved type safety (for future shadow DOM implementation)
-// interface ShadowDomResolverResult {
-//   id: string | null;
-//   noRoot: boolean;
-// }
-
-// interface StagehandClosedAccess {
-//   getClosedRoot?: (host: Element) => ShadowRoot | undefined;
-// }
-
-// Content script function for shadow DOM resolution (for future implementation)
-// const shadowDomResolverFunction = (
-//   host: Element,
-//   { direct, desc, attr, timeout }: { direct: string; desc: string; attr: string; timeout: number }
-// ): Promise<ShadowDomResolverResult> => {
-//   interface LocalStagehandWindow {
-//     __stagehand__?: StagehandClosedAccess;
-//   }
-//
-//   const backdoor = (window as unknown as LocalStagehandWindow).__stagehand__;
-//
-//   const root = (host as HTMLElement).shadowRoot ?? backdoor?.getClosedRoot?.(host);
-//   if (!root) return Promise.resolve({ id: null, noRoot: true });
-//
-//   const tryFind = (): Element | null =>
-//     (root.querySelector(direct) as Element | null) ?? (root.querySelector(desc) as Element | null);
-//
-//   return new Promise<ShadowDomResolverResult>(resolve => {
-//     const mark = (el: Element): ShadowDomResolverResult => {
-//       let v = el.getAttribute(attr);
-//       if (!v) {
-//         v = 'sh_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-//         el.setAttribute(attr, v);
-//       }
-//       return { id: v, noRoot: false };
-//     };
-//
-//     const first = tryFind();
-//     if (first) return resolve(mark(first));
-//
-//     const start = Date.now();
-//     const tick = (): void => {
-//       const el = tryFind();
-//       if (el) return resolve(mark(el));
-//       if (Date.now() - start >= timeout) return resolve({ id: null, noRoot: false });
-//       setTimeout(tick, 50);
-//     };
-//     tick();
-//   });
-// };
-
-// Content script functions for element operations (will be used when executeFunction is implemented)
-
-/** Resolve one contiguous shadow segment and return a stable Locator. */
+/**
+ * Resolve one contiguous shadow segment and return a stable Locator.
+ * TODO: Implement shadow DOM resolution when Cordyceps supports evaluate
+ */
 async function resolveShadowSegment(
   hostLoc: Locator,
   _shadowSteps: string[],
   _attr = 'data-__stagehand-id',
   _timeout = 1500
 ): Promise<Locator> {
-  // TODO: Implement shadow DOM resolution when Cordyceps supports evaluate
   // For now, return a basic locator
   const shadowSelector = `[data-__stagehand-id]`;
   return hostLoc.locator(shadowSelector);
-
-  // Original code (commented for future implementation):
-  // const direct = buildDirect(shadowSteps);
-  // const desc = buildDesc(shadowSteps);
-  // const { id, noRoot } = await hostLoc.evaluate<
-  //   { id: string | null; noRoot: boolean },
-  //   { direct: string; desc: string; attr: string; timeout: number }
-  // >(shadowDomResolverFunction, { direct, desc, attr, timeout });
-  //
-  // if (noRoot) {
-  //   throw new StagehandShadowRootMissingError(`segment='${shadowSteps.join('/')}'`);
-  // }
-  // if (!id) {
-  //   throw new StagehandShadowSegmentNotFoundError(shadowSteps.join('/'));
-  // }
-  //
-  // return hostLoc.locator(`stagehand=${id}`);
 }
 
 /**
@@ -311,12 +210,11 @@ const methodHandlerMap: Record<string, (ctx: MethodHandlerContext) => Promise<vo
  * MethodHandlerContext Functions - These match the original API exactly
  */
 
+/**
+ * Scrolls to the next chunk of content on the page.
+ */
 async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, logger, xpath } = ctx;
-
-  console.log(
-    `[scrollToNextChunkHandler] starting scroll to next chunk for xpath: ${xpath} ######`
-  );
 
   logger({
     category: 'action',
@@ -328,11 +226,9 @@ async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void
   });
 
   try {
-    // Use page.evaluate to execute scroll logic directly
     const page = locator.page();
     await page.evaluate(
       () => {
-        // Scroll down by viewport height
         const scrollAmount = window.innerHeight * 0.8;
         window.scrollBy(0, scrollAmount);
       },
@@ -355,6 +251,9 @@ async function scrollToNextChunkHandler(ctx: MethodHandlerContext): Promise<void
   }
 }
 
+/**
+ * Scrolls to the previous chunk of content on the page.
+ */
 async function scrollToPreviousChunkHandler(ctx: MethodHandlerContext): Promise<void> {
   const { locator, logger, xpath } = ctx;
 
@@ -368,11 +267,9 @@ async function scrollToPreviousChunkHandler(ctx: MethodHandlerContext): Promise<
   });
 
   try {
-    // Use page.evaluate to execute scroll logic directly
     const page = locator.page();
     await page.evaluate(
       () => {
-        // Scroll up by viewport height
         const scrollAmount = window.innerHeight * 0.8;
         window.scrollBy(0, -scrollAmount);
       },
@@ -426,6 +323,9 @@ async function scrollElementIntoViewHandler(ctx: MethodHandlerContext): Promise<
   }
 }
 
+/**
+ * Scrolls element to a specified percentage of its scrollable height.
+ */
 async function scrollElementToPercentageHandler(ctx: MethodHandlerContext): Promise<void> {
   const { args, xpath, logger, locator } = ctx;
 
@@ -441,11 +341,33 @@ async function scrollElementToPercentageHandler(ctx: MethodHandlerContext): Prom
 
   try {
     const [yArg = '0%'] = args as string[];
-
-    // Use page.evaluate to execute scroll logic directly
     const page = locator.page();
+
+    // Use page.evaluate with optimized scroll logic
     await page.evaluate(
       (percentage: string) => {
+        // Try to use Stagehand scroll utilities if available
+        const w = window as unknown as Record<string, unknown>;
+
+        // Check if we have scrollable element utilities
+        if (typeof w.getScrollableElements === 'function') {
+          console.log(`📜 Using Stagehand scrollable elements utility`);
+          const getScrollableElements = w.getScrollableElements as (topN?: number) => HTMLElement[];
+          const scrollableElements = getScrollableElements(1); // Get the main scrollable element
+
+          if (scrollableElements.length > 0) {
+            const element = scrollableElements[0];
+            const percent = parseFloat(percentage.replace('%', '')) / 100;
+            const scrollHeight = element.scrollHeight;
+            const clientHeight = element.clientHeight;
+            const maxScroll = scrollHeight - clientHeight;
+            const targetScroll = maxScroll * percent;
+            element.scrollTo(0, targetScroll);
+            return;
+          }
+        }
+
+        // Fallback to basic window scroll
         const percent = parseFloat(percentage.replace('%', '')) / 100;
         const scrollHeight = document.documentElement.scrollHeight;
         const viewportHeight = window.innerHeight;
@@ -473,14 +395,16 @@ async function scrollElementToPercentageHandler(ctx: MethodHandlerContext): Prom
   }
 }
 
+/**
+ * Fills or types text into an input element.
+ */
 async function fillOrTypeHandler(ctx: MethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger } = ctx;
+  const { locator, xpath, args, logger, actionTimeoutMs = 5000 } = ctx;
 
   try {
     const text = args[0]?.toString() || '';
-    // Use Cordyceps built-in clear and fill methods
-    await locator.clear({ timeout: 5000 });
-    await locator.fill(text, { timeout: 5000 });
+    await locator.clear({ timeout: actionTimeoutMs });
+    await locator.fill(text, { timeout: actionTimeoutMs });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -497,12 +421,23 @@ async function fillOrTypeHandler(ctx: MethodHandlerContext): Promise<void> {
   }
 }
 
+/**
+ * Presses a keyboard key on the focused element.
+ */
 async function pressKeyHandler(ctx: MethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger, stagehandPage, initialUrl, domSettleTimeoutMs } = ctx;
+  const {
+    locator,
+    xpath,
+    args,
+    logger,
+    stagehandPage,
+    initialUrl,
+    domSettleTimeoutMs,
+    actionTimeoutMs = 5000,
+  } = ctx;
   try {
     const key = args[0]?.toString() ?? '';
-    // Use Cordyceps built-in press method
-    await locator.press(key, { timeout: 5000 });
+    await locator.press(key, { timeout: actionTimeoutMs });
 
     await handlePossiblePageNavigation(
       'press',
@@ -528,12 +463,14 @@ async function pressKeyHandler(ctx: MethodHandlerContext): Promise<void> {
   }
 }
 
+/**
+ * Selects an option from a dropdown by label text.
+ */
 async function selectOptionHandler(ctx: MethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger } = ctx;
+  const { locator, xpath, args, logger, actionTimeoutMs = 5000 } = ctx;
   try {
     const text = args[0]?.toString() || '';
-    // Use Cordyceps built-in selectOption method
-    await locator.selectOption({ label: text }, { timeout: 5000 });
+    await locator.selectOption({ label: text }, { timeout: actionTimeoutMs });
   } catch (error) {
     const e = error as Error;
     logger({
@@ -550,8 +487,20 @@ async function selectOptionHandler(ctx: MethodHandlerContext): Promise<void> {
   }
 }
 
+/**
+ * Clicks an element using page.evaluate() with fallback to Cordyceps locator.
+ */
 async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger, stagehandPage, initialUrl, domSettleTimeoutMs } = ctx;
+  const {
+    locator,
+    xpath,
+    args,
+    logger,
+    stagehandPage,
+    initialUrl,
+    domSettleTimeoutMs,
+    actionTimeoutMs = 5000,
+  } = ctx;
 
   logger({
     category: 'action',
@@ -566,12 +515,140 @@ async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
   });
 
   try {
-    await locator.click({ timeout: 3500 });
+    // Use injected utility functions for element interaction
+    const clickResult = await stagehandPage.page.evaluate((selector: string) => {
+      console.log(`🚀 Starting click evaluation for selector: ${selector}`);
+
+      try {
+        // Handle aria-ref selectors
+        if (selector.startsWith('aria-ref=')) {
+          const ariaRef = selector.replace('aria-ref=', '');
+          const element = document.querySelector(`[aria-ref="${ariaRef}"]`) as HTMLElement;
+          if (element) {
+            element.click();
+            console.log(`✅ Element clicked successfully via aria-ref`);
+            return true;
+          } else {
+            console.log(`❌ Element not found for aria-ref: ${ariaRef}`);
+            throw new Error(`Element not found for aria-ref: ${ariaRef}`);
+          }
+        }
+
+        // Handle XPath selectors using injected utilities
+        if (selector.startsWith('//') || selector.startsWith('/')) {
+          console.log(`🔍 Processing XPath selector: ${selector}`);
+
+          const w = window as unknown as Record<string, unknown>;
+
+          // Try Cordyceps getElementByXPath utility first
+          if (typeof w.__cordyceps_main_getElementByXPath === 'function') {
+            console.log(`🔧 Using Cordyceps getElementByXPath utility`);
+            const getElement = w.__cordyceps_main_getElementByXPath as (
+              xpath: string
+            ) => Element | null;
+            const element = getElement(selector) as HTMLElement;
+
+            if (element) {
+              // Ensure element is visible
+              const rect = element.getBoundingClientRect();
+              if (rect.width === 0 || rect.height === 0) {
+                throw new Error(`Element is not visible: ${selector}`);
+              }
+
+              element.click();
+              console.log(`✅ Click performed successfully using Cordyceps utility`);
+              return true;
+            }
+          }
+
+          // Try Stagehand getNodeFromXpath utility
+          if (typeof w.getNodeFromXpath === 'function') {
+            console.log(`🎭 Using Stagehand getNodeFromXpath utility`);
+            const getElement = w.getNodeFromXpath as (xpath: string) => Element | null;
+            const element = getElement(selector) as HTMLElement;
+
+            if (!element) {
+              // Try whitespace normalization for text-based selectors
+              if (selector.includes('contains(text(),')) {
+                console.log(`🔄 Trying with normalized whitespace...`);
+                const buttons = document.querySelectorAll('button');
+                for (const button of buttons) {
+                  const normalizedText = button.textContent?.replace(/\s+/g, ' ').trim();
+                  const targetText = selector.match(/"([^"]+)"/)?.[1];
+                  if (targetText && normalizedText?.includes(targetText)) {
+                    console.log(`✅ Found button with normalized text matching`);
+                    button.click();
+                    return true;
+                  }
+                }
+              }
+              throw new Error(`Element not found for XPath: ${selector}`);
+            }
+
+            // Ensure element is visible
+            const rect = element.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+              throw new Error(`Element is not visible: ${selector}`);
+            }
+
+            element.click();
+            console.log(`✅ Click performed successfully using Stagehand utility`);
+            return true;
+          }
+
+          // Fallback to direct XPath evaluation
+          console.log(`📍 Fallback: Using document.evaluate for XPath`);
+          const result = document.evaluate(
+            selector,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          );
+          const element = result.singleNodeValue as HTMLElement;
+
+          if (!element) {
+            throw new Error(`Element not found for XPath: ${selector}`);
+          }
+
+          element.click();
+          console.log(`✅ Click performed successfully with fallback`);
+          return true;
+        }
+
+        // Handle CSS selectors
+        const element = document.querySelector(selector) as HTMLElement;
+        if (element) {
+          element.click();
+          console.log(`✅ Element clicked successfully via CSS`);
+          return true;
+        } else {
+          throw new Error(`Element not found for CSS selector: ${selector}`);
+        }
+      } catch (error) {
+        console.log(`❌ Error in page.evaluate click:`, error);
+        throw error;
+      }
+    }, xpath);
+
+    if (!clickResult) {
+      throw new Error(`Click operation failed for XPath: ${xpath}`);
+    }
+
+    logger({
+      category: 'action',
+      message: 'Element clicked successfully using page.evaluate()',
+      level: 1,
+      auxiliary: {
+        xpath: { value: xpath, type: 'string' },
+        method: { value: 'page-evaluate-click', type: 'string' },
+      },
+    });
   } catch (error) {
     const e = error as Error;
     logger({
       category: 'action',
-      message: 'Cordyceps click failed, falling back to JS click',
+      message: 'page.evaluate() click failed, falling back to Cordyceps locator',
       level: 1,
       auxiliary: {
         error: { value: e.message, type: 'string' },
@@ -583,13 +660,24 @@ async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
     });
 
     try {
-      // Use Cordyceps built-in click method
-      await locator.click({ timeout: 3500 });
+      // Fallback to Cordyceps locator approach
+      await locator.waitFor({ state: 'visible', timeout: actionTimeoutMs });
+      await locator.click({ timeout: actionTimeoutMs });
+
+      logger({
+        category: 'action',
+        message: 'Cordyceps locator click succeeded',
+        level: 1,
+        auxiliary: {
+          xpath: { value: xpath, type: 'string' },
+          method: { value: 'cordyceps-click', type: 'string' },
+        },
+      });
     } catch (fallbackError) {
       const fe = fallbackError as Error;
       logger({
         category: 'action',
-        message: 'error performing click (JS fallback)',
+        message: 'error performing click (both methods failed)',
         level: 0,
         auxiliary: {
           error: { value: fe.message, type: 'string' },
@@ -603,6 +691,7 @@ async function clickElementHandler(ctx: MethodHandlerContext): Promise<void> {
     }
   }
 
+  // Wait for possible page navigation after click
   await handlePossiblePageNavigation(
     'click',
     xpath,
@@ -1175,75 +1264,6 @@ function waitForVisibleFunction(
   });
 }
 
-// Additional content script functions that match the original API exactly
-const scrollToNextChunkFunction = (element: Element): Promise<void> => {
-  const waitForScrollEnd = (el: HTMLElement | Element): Promise<void> =>
-    new Promise<void>(resolve => {
-      let last = el.scrollTop ?? 0;
-      const check = () => {
-        const cur = el.scrollTop ?? 0;
-        if (cur === last) return resolve();
-        last = cur;
-        requestAnimationFrame(check);
-      };
-      requestAnimationFrame(check);
-    });
-
-  const tagName = element.tagName.toLowerCase();
-
-  if (tagName === 'html' || tagName === 'body') {
-    const height = window.visualViewport?.height ?? window.innerHeight;
-
-    window.scrollBy({ top: height, left: 0, behavior: 'smooth' });
-
-    const scrollingRoot = (document.scrollingElement ?? document.documentElement) as HTMLElement;
-
-    return waitForScrollEnd(scrollingRoot);
-  }
-
-  const height = (element as HTMLElement).getBoundingClientRect().height;
-
-  (element as HTMLElement).scrollBy({
-    top: height,
-    left: 0,
-    behavior: 'smooth',
-  });
-
-  return waitForScrollEnd(element);
-};
-
-const scrollToPreviousChunkFunction = (element: Element): Promise<void> => {
-  const waitForScrollEnd = (el: HTMLElement | Element): Promise<void> =>
-    new Promise<void>(resolve => {
-      let last = el.scrollTop ?? 0;
-      const check = () => {
-        const cur = el.scrollTop ?? 0;
-        if (cur === last) return resolve();
-        last = cur;
-        requestAnimationFrame(check);
-      };
-      requestAnimationFrame(check);
-    });
-
-  const tagName = element.tagName.toLowerCase();
-
-  if (tagName === 'html' || tagName === 'body') {
-    const height = window.visualViewport?.height ?? window.innerHeight;
-    window.scrollBy({ top: -height, left: 0, behavior: 'smooth' });
-
-    const rootScrollingEl = (document.scrollingElement ?? document.documentElement) as HTMLElement;
-
-    return waitForScrollEnd(rootScrollingEl);
-  }
-  const height = (element as HTMLElement).getBoundingClientRect().height;
-  (element as HTMLElement).scrollBy({
-    top: -height,
-    left: 0,
-    behavior: 'smooth',
-  });
-  return waitForScrollEnd(element);
-};
-
 // Export all functions for use in other modules
 export {
   // Element operations functions (generic system)
@@ -1281,8 +1301,4 @@ export {
 
   // Method handler map
   methodHandlerMap,
-
-  // Content script functions (for executeFunction calls)
-  scrollToNextChunkFunction,
-  scrollToPreviousChunkFunction,
 };

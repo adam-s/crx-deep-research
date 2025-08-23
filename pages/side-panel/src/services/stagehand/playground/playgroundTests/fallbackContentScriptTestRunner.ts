@@ -23,6 +23,10 @@ import {
   runHandleIntegrationTest,
 } from './stagehandFallbackContentScriptTests';
 import { testAriaRefProcessing, AriaRefProgress } from './ariaRefProcessingTests';
+import { testA11yUtils, A11yUtilsProgress } from './a11yUtilsTests';
+import { testAgentClient } from './agentClientTests';
+import { testCacheSystem } from './cacheTests';
+import { runDomTests } from './domTests';
 
 export class FallbackContentScriptTestRunner extends BaseTestRunner {
   public readonly name = 'Fallback Content Script Tests';
@@ -37,11 +41,42 @@ export class FallbackContentScriptTestRunner extends BaseTestRunner {
 
   public async run(): Promise<void> {
     await this.executeTest('Complete Fallback Content Script Test Suite', async () => {
-      // Run ARIA reference processing tests first
-      await this.runAriaRefProcessingTests();
+      const testSuites = [
+        { name: 'ARIA Reference Processing Tests', runner: () => this.runAriaRefProcessingTests() },
+        { name: 'AgentClient Tests', runner: () => this.runAgentClientTests() },
+        { name: 'A11y Utils Tests', runner: () => this.runA11yUtilsTests() },
+        { name: 'Cache System Tests', runner: () => this.runCacheSystemTests() },
+        { name: 'DOM Utils Tests', runner: () => this.runDomUtilsTests() },
+        { name: 'Fallback Function Tests', runner: () => this.runFallbackFunctionTests() },
+      ];
 
-      // Then run fallback function tests
-      await this.runFallbackFunctionTests();
+      const results: { name: string; success: boolean; error?: string }[] = [];
+
+      for (const testSuite of testSuites) {
+        try {
+          await testSuite.runner();
+          results.push({ name: testSuite.name, success: true });
+          this.emitInfo(`✅ ${testSuite.name} completed successfully`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          results.push({ name: testSuite.name, success: false, error: errorMessage });
+          this.emitError(`❌ ${testSuite.name} failed: ${errorMessage}`);
+          // Continue with next test instead of stopping
+        }
+      }
+
+      // Report final summary
+      const passed = results.filter(r => r.success).length;
+      const total = results.length;
+      const summary = `Test Suite Summary: ${passed}/${total} passed`;
+
+      if (passed === total) {
+        this.emitSuccess(summary);
+      } else {
+        this.emitWarning(summary, {
+          failed: results.filter(r => !r.success).map(r => ({ name: r.name, error: r.error })),
+        });
+      }
     });
   }
 
@@ -60,6 +95,110 @@ export class FallbackContentScriptTestRunner extends BaseTestRunner {
       const context = { events: this._events };
 
       await testAriaRefProcessing(progress, context);
+    });
+  }
+
+  /**
+   * Run A11y utils tests
+   */
+  public async runA11yUtilsTests(): Promise<void> {
+    await this.executeTest('A11y Utils Tests', async () => {
+      this.emitInfo('♿ Starting A11y Utils Tests...', {
+        testType: 'Unit & Integration Tests',
+        description:
+          'Validate accessibility utility functions, tree building, and Chrome extension compatibility',
+      });
+
+      const progress = new A11yUtilsProgress('StagehandPlayground');
+      const context = {
+        events: this._events,
+        storage: this._storage,
+      };
+
+      await testA11yUtils(progress, context);
+    });
+  }
+
+  /**
+   * Run AgentClient tests
+   */
+  public async runAgentClientTests(): Promise<void> {
+    await this.executeTest('AgentClient Tests', async () => {
+      this.emitInfo('🤖 Starting AgentClient Tests...', {
+        testType: 'Unit Tests',
+        description:
+          'Validate AgentClient abstract class, concrete implementations, and interface compliance',
+      });
+
+      const context = {
+        events: this._events,
+        storage: this._storage,
+      };
+
+      await testAgentClient(context);
+    });
+  }
+
+  /**
+   * Run Cache System tests
+   */
+  public async runCacheSystemTests(): Promise<void> {
+    await this.executeTest('Cache System Tests', async () => {
+      this.emitInfo('🗄️ Starting Cache System Tests...', {
+        testType: 'Unit & Integration Tests',
+        description:
+          'Validate BaseCache, ActionCache, LLMCache functionality, locking mechanisms, and storage integration',
+      });
+
+      // Create progress logger that emits to the test system
+      const progress = {
+        log: (message: string) => {
+          this.emitInfo(`   ${message}`);
+        },
+      };
+
+      // Use the real storage service instead of mock storage
+      const success = await testCacheSystem(progress, this._storage as never);
+
+      if (!success) {
+        throw new Error('Cache system tests failed');
+      }
+    });
+  }
+
+  /**
+   * Run DOM Utils tests
+   */
+  public async runDomUtilsTests(): Promise<void> {
+    await this.executeTest('DOM Utils Tests', async () => {
+      this.emitInfo('🔧 Starting DOM Utils Tests...', {
+        testType: 'Unit & Integration Tests',
+        description:
+          'Validate DOM utility functions including element checking, XPath utilities, scroll detection, and element processing',
+      });
+
+      // Navigate to test page for DOM testing
+      let page: Page | null = null;
+
+      try {
+        page = await this.getOrCreatePage();
+        if (!page) {
+          throw new Error('Failed to obtain a valid page for DOM testing');
+        }
+
+        // Navigate to the test page that has rich DOM structure
+        await page.goto('http://localhost:3005');
+        this.emitInfo('📄 Loaded test page with rich DOM structure');
+
+        // Run the DOM tests
+        await runDomTests();
+      } catch (error) {
+        this.emitError(
+          'DOM Utils Tests failed',
+          error instanceof Error ? error : new Error(String(error))
+        );
+        throw error;
+      }
     });
   }
 

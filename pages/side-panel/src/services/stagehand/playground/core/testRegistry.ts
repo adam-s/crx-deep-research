@@ -14,6 +14,7 @@ import { EventMessage } from '@src/utils/types';
 import { ITestRunner } from './baseTestRunner';
 import { FallbackContentScriptTestRunner } from '../playgroundTests';
 import { IntegrationTestRunner } from './integrationTestRunner';
+import { HandlerTestRunner } from '../playgroundTests/simpleHandlerTestRunner';
 
 export interface ITestRegistry {
   /**
@@ -60,6 +61,11 @@ export interface ITestRegistry {
    * Run ARIA reference processing tests
    */
   runAriaRefProcessingTest(): Promise<void>;
+
+  /**
+   * Run handler tests
+   */
+  runHandlerTests(): Promise<void>;
 }
 
 export class TestRegistry extends Disposable implements ITestRegistry {
@@ -98,6 +104,13 @@ export class TestRegistry extends Disposable implements ITestRegistry {
     this._register(integrationRunner);
     this._testRunners.set('integration', integrationRunner);
     this._testRunners.set('integration-tests', integrationRunner);
+
+    // Create handler test runner
+    const handlerRunner = new HandlerTestRunner(this._events, this._logService, this._storage);
+    this._register(handlerRunner);
+    this._testRunners.set('handler', handlerRunner);
+    this._testRunners.set('handlers', handlerRunner);
+    this._testRunners.set('simple-handlers', handlerRunner);
   }
 
   public getTestRunner(name: string): ITestRunner | undefined {
@@ -173,5 +186,14 @@ export class TestRegistry extends Disposable implements ITestRegistry {
     }
 
     await runner.runAriaRefProcessingTests();
+  }
+
+  public async runHandlerTests(): Promise<void> {
+    const runner = this._testRunners.get('handler') as HandlerTestRunner;
+    if (!runner) {
+      throw new Error('Handler test runner not found');
+    }
+
+    await runner.run();
   }
 }

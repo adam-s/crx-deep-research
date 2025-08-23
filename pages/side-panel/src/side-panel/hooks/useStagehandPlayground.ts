@@ -73,7 +73,7 @@ export const useStagehandPlayground = (): UseStagehandPlaygroundReturn => {
 
     try {
       setError(null);
-      await stagehandPlaygroundService.runFallbackContentScriptTests();
+      await stagehandPlaygroundService.runAllTests();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to run tests';
       setError(errorMessage);

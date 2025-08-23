@@ -27,6 +27,8 @@ export interface IStagehandPlaygroundService {
   runElephantResearchTest: () => Promise<void>;
   /** Run ARIA reference processing tests */
   runAriaRefProcessingTest: () => Promise<void>;
+  /** Run handler tests */
+  runHandlerTests: () => Promise<void>;
   /** Run all tests in sequence */
   runAllTests: () => Promise<void>;
   /** Run integration tests only */
@@ -69,6 +71,10 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
 
   public async runAriaRefProcessingTest(): Promise<void> {
     await this._testRegistry.runAriaRefProcessingTest();
+  }
+
+  public async runHandlerTests(): Promise<void> {
+    await this._testRegistry.runHandlerTests();
   }
 
   public async runAllTests(): Promise<void> {

@@ -29,24 +29,26 @@ export class StagehandActHandler {
   private readonly browserWindow: BrowserWindow;
   private readonly selfHeal: boolean;
   private readonly experimental: boolean;
+  private readonly defaultTimeoutMs: number;
 
   constructor({
     logger,
     browserWindow,
     selfHeal = true,
     experimental = false,
+    defaultTimeoutMs = 5000,
   }: {
     logger: (logLine: LogLine) => void;
     browserWindow: BrowserWindow;
     selfHeal?: boolean;
     experimental?: boolean;
+    defaultTimeoutMs?: number;
   }) {
-    console.log(`[StagehandActHandler.constructor] initializing ######`);
     this.logger = logger;
     this.browserWindow = browserWindow;
     this.selfHeal = selfHeal;
     this.experimental = experimental;
-    console.log(`[StagehandActHandler.constructor] initialization complete ######`);
+    this.defaultTimeoutMs = defaultTimeoutMs;
   }
 
   /**
@@ -55,12 +57,9 @@ export class StagehandActHandler {
    */
   public async actFromObserveResult(
     observe: ObserveResult,
-    domSettleTimeoutMs?: number
+    domSettleTimeoutMs?: number,
+    retryCount = 0
   ): Promise<ActResult> {
-    console.log(
-      `[StagehandActHandler.actFromObserveResult] starting with method=${observe.method} selector=${observe.selector} ######`
-    );
-
     this.logger({
       category: 'action',
       message: 'Performing act from an ObserveResult',
@@ -75,7 +74,6 @@ export class StagehandActHandler {
 
     const method = observe.method;
     if (!method || method === 'not-supported') {
-      console.log(`[StagehandActHandler.actFromObserveResult] unsupported method ######`);
       this.logger({
         category: 'action',
         message: 'Cannot execute ObserveResult with unsupported method',
@@ -100,16 +98,11 @@ export class StagehandActHandler {
     }
 
     const args = observe.arguments ?? [];
-    // Keep the full selector format to handle both xpath= and aria-ref= formats
     const selector: string = observe.selector;
 
     try {
-      console.log(`[StagehandActHandler.actFromObserveResult] executing method=${method} ######`);
       await this._performCordycepsMethod(method, args, selector, domSettleTimeoutMs ?? 1000);
 
-      console.log(
-        `[StagehandActHandler.actFromObserveResult] action completed successfully ######`
-      );
       return {
         success: true,
         message: `Action [${method}] performed successfully on selector: ${selector}`,
@@ -117,7 +110,27 @@ export class StagehandActHandler {
       };
     } catch (err: unknown) {
       const error = err as Error;
-      console.log(`[StagehandActHandler.actFromObserveResult] error: ${error.message} ######`);
+
+      // Check if we've reached the maximum retry limit (prevent infinite loops)
+      const MAX_RETRIES = 1;
+      if (retryCount >= MAX_RETRIES) {
+        this.logger({
+          category: 'action',
+          message: 'Error performing act from an ObserveResult - max retries reached',
+          level: 1,
+          auxiliary: {
+            error: { value: error.message, type: 'string' },
+            trace: { value: error.stack || '', type: 'string' },
+            retryCount: { value: String(retryCount), type: 'string' },
+          },
+        });
+        return {
+          success: false,
+          message: `Failed to perform act after ${retryCount} retries: ${error.message}`,
+          action: observe.description || `ObserveResult action (${method})`,
+        };
+      }
+
       if (!this.selfHeal || err instanceof PlaywrightCommandMethodNotSupportedException) {
         this.logger({
           category: 'action',
@@ -135,8 +148,7 @@ export class StagehandActHandler {
         };
       }
 
-      // Try to use observeAct on a failed ObserveResult-act if selfHeal is true
-      console.log(`[StagehandActHandler.actFromObserveResult] attempting self-heal ######`);
+      // Try self-heal with retry
       this.logger({
         category: 'action',
         message:
@@ -146,34 +158,31 @@ export class StagehandActHandler {
           error: { value: error.message, type: 'string' },
           trace: { value: error.stack || '', type: 'string' },
           observeResult: { value: JSON.stringify(observe), type: 'object' },
+          retryCount: { value: String(retryCount), type: 'string' },
         },
       });
 
       try {
-        // Create a basic self-heal implementation
-        // This would require integration with the observe handler
-        console.log(
-          `[StagehandActHandler.actFromObserveResult] self-heal not implemented, returning error ######`
-        );
-        return {
-          success: false,
-          message: `Failed to perform act: ${error.message} (self-heal not implemented)`,
-          action: observe.description || `ObserveResult action (${method})`,
-        };
+        // Wait a moment for the page to stabilize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Retry the same action with incremented retry count
+        return await this.actFromObserveResult(observe, domSettleTimeoutMs, retryCount + 1);
       } catch (healErr: unknown) {
         const healError = healErr as Error;
         this.logger({
           category: 'action',
-          message: 'Error performing act from an ObserveResult on fallback',
+          message: 'Error performing act from an ObserveResult after self-heal retry',
           level: 1,
           auxiliary: {
-            error: { value: healError.message, type: 'string' },
-            trace: { value: healError.stack || '', type: 'string' },
+            originalError: { value: error.message, type: 'string' },
+            healError: { value: healError.message, type: 'string' },
+            healTrace: { value: healError.stack || '', type: 'string' },
           },
         });
         return {
           success: false,
-          message: `Failed to perform act: ${healError.message}`,
+          message: `Failed to perform act: ${error.message}. Self-heal retry also failed: ${healError.message}`,
           action: observe.description || `ObserveResult action (${method})`,
         };
       }
@@ -190,56 +199,31 @@ export class StagehandActHandler {
     llmClient: LLMClient,
     requestId: string
   ): Promise<ActResult> {
-    console.log(`[StagehandActHandler.observeAct] starting with requestId=${requestId} ######`);
-    console.log(
-      `[StagehandActHandler.observeAct] actionOrOptions type: ${typeof actionOrOptions} ######`
-    );
-    console.log(
-      `[StagehandActHandler.observeAct] actionOrOptions: ${JSON.stringify(actionOrOptions)} ######`
-    );
-    console.log(
-      `[StagehandActHandler.observeAct] observeHandler exists: ${!!observeHandler} ######`
-    );
-    console.log(`[StagehandActHandler.observeAct] llmClient exists: ${!!llmClient} ######`);
-    console.log(`[StagehandActHandler.observeAct] llmClient type: ${llmClient?.type} ######`);
-
     // Extract the action string
     let action: string;
     const observeOptions: Partial<ObserveOptions> = {};
 
-    console.log(`[StagehandActHandler.observeAct] processing actionOrOptions ######`);
     if (typeof actionOrOptions === 'object' && actionOrOptions !== null) {
-      console.log(`[StagehandActHandler.observeAct] actionOrOptions is object ######`);
       if (!('action' in actionOrOptions)) {
-        console.log(
-          `[StagehandActHandler.observeAct] ERROR: no action field in actionOrOptions ######`
-        );
         throw new StagehandInvalidArgumentError(
           'Invalid argument. Action options must have an `action` field.'
         );
       }
 
       if (typeof actionOrOptions.action !== 'string' || actionOrOptions.action.length === 0) {
-        console.log(`[StagehandActHandler.observeAct] ERROR: invalid action value ######`);
         throw new StagehandInvalidArgumentError('Invalid argument. No action provided.');
       }
 
       action = actionOrOptions.action;
-      console.log(`[StagehandActHandler.observeAct] extracted action: "${action}" ######`);
 
       // Extract options that should be passed to observe
       if (actionOrOptions.modelName) {
         observeOptions.modelName = actionOrOptions.modelName;
-        console.log(
-          `[StagehandActHandler.observeAct] extracted modelName: ${actionOrOptions.modelName} ######`
-        );
       }
       if (actionOrOptions.modelClientOptions) {
         observeOptions.modelClientOptions = actionOrOptions.modelClientOptions;
-        console.log(`[StagehandActHandler.observeAct] extracted modelClientOptions ######`);
       }
     } else {
-      console.log(`[StagehandActHandler.observeAct] ERROR: actionOrOptions is not object ######`);
       throw new StagehandInvalidArgumentError(
         'Invalid argument. Valid arguments are: a string, an ActOptions object with an `action` field not empty, or an ObserveResult with a `selector` and `method` field.'
       );
@@ -247,127 +231,67 @@ export class StagehandActHandler {
 
     // doObserveAndAct is just a wrapper of observeAct and actFromObserveResult.
     const doObserveAndAct = async (): Promise<ActResult> => {
-      console.log(
-        `[StagehandActHandler.observeAct] building instruction for action="${action}" ######`
-      );
       const instruction = buildActObservePrompt(
         action,
         Object.values(SupportedPlaywrightAction),
         actionOrOptions.variables
       );
-      console.log(
-        `[StagehandActHandler.observeAct] instruction built: ${instruction.substring(0, 200)}... ######`
-      );
 
-      console.log(`[StagehandActHandler.observeAct] calling observe handler ######`);
-      console.log(
-        `[StagehandActHandler.observeAct] observe parameters - llmClient: ${llmClient.type}, requestId: ${requestId} ######`
-      );
+      const observeResults = await observeHandler.observe({
+        instruction,
+        llmClient,
+        requestId,
+        drawOverlay: false,
+        returnAction: true,
+        fromAct: true,
+        iframes: actionOrOptions?.iframes,
+      });
 
-      try {
-        const observeResults = await observeHandler.observe({
-          instruction,
-          llmClient,
-          requestId,
-          drawOverlay: false,
-          returnAction: true,
-          fromAct: true,
-          iframes: actionOrOptions?.iframes,
-        });
-        console.log(
-          `[StagehandActHandler.observeAct] observe handler completed, results: ${observeResults.length} ######`
-        );
-
-        if (observeResults.length === 0) {
-          console.log(`[StagehandActHandler.observeAct] no observe results found ######`);
-          return {
-            success: false,
-            message: `Failed to perform act: No observe results found for action`,
-            action,
-          };
-        }
-
-        const element: ObserveResult = observeResults[0];
-        console.log(
-          `[StagehandActHandler.observeAct] found element with method=${element.method} ######`
-        );
-
-        if (actionOrOptions.variables) {
-          console.log(
-            `[StagehandActHandler.observeAct] processing variables: ${Object.keys(actionOrOptions.variables)} ######`
-          );
-          Object.keys(actionOrOptions.variables).forEach(key => {
-            if (element.arguments) {
-              element.arguments = element.arguments.map(arg =>
-                arg.replace(`%${key}%`, actionOrOptions.variables![key])
-              );
-            }
-          });
-          console.log(`[StagehandActHandler.observeAct] variables processed ######`);
-        }
-
-        console.log(`[StagehandActHandler.observeAct] calling actFromObserveResult ######`);
-        const result = await this.actFromObserveResult(element, actionOrOptions.domSettleTimeoutMs);
-        console.log(
-          `[StagehandActHandler.observeAct] actFromObserveResult completed with success: ${result.success} ######`
-        );
-        return result;
-      } catch (error) {
-        const err = error as Error;
-        console.log(
-          `[StagehandActHandler.observeAct] ERROR in doObserveAndAct: ${err.message} ######`
-        );
-        console.log(`[StagehandActHandler.observeAct] ERROR stack: ${err.stack} ######`);
-        throw error;
+      if (observeResults.length === 0) {
+        return {
+          success: false,
+          message: `Failed to perform act: No observe results found for action`,
+          action,
+        };
       }
+
+      const element: ObserveResult = observeResults[0];
+
+      if (actionOrOptions.variables) {
+        Object.keys(actionOrOptions.variables).forEach(key => {
+          if (element.arguments) {
+            element.arguments = element.arguments.map(arg =>
+              arg.replace(`%${key}%`, actionOrOptions.variables![key])
+            );
+          }
+        });
+      }
+
+      const result = await this.actFromObserveResult(element, actionOrOptions.domSettleTimeoutMs);
+      return result;
     };
 
     // If no user defined timeoutMs, just do observeAct + actFromObserveResult with no timeout
     if (!actionOrOptions.timeoutMs) {
-      console.log(
-        `[StagehandActHandler.observeAct] no timeout specified, calling doObserveAndAct directly ######`
-      );
-      try {
-        const result = await doObserveAndAct();
-        console.log(
-          `[StagehandActHandler.observeAct] doObserveAndAct completed with success: ${result.success} ######`
-        );
-        return result;
-      } catch (error) {
-        const err = error as Error;
-        console.log(
-          `[StagehandActHandler.observeAct] ERROR in direct doObserveAndAct: ${err.message} ######`
-        );
-        throw error;
-      }
+      const result = await doObserveAndAct();
+      return result;
     }
 
     // Race observeAct + actFromObserveResult vs. the timeoutMs
     const { timeoutMs } = actionOrOptions;
-    console.log(`[StagehandActHandler.observeAct] racing with timeout=${timeoutMs}ms ######`);
-    try {
-      const result = await Promise.race([
-        doObserveAndAct(),
-        new Promise<ActResult>(resolve => {
-          setTimeout(() => {
-            console.log(`[StagehandActHandler.observeAct] timeout reached ######`);
-            resolve({
-              success: false,
-              message: `Action timed out after ${timeoutMs}ms`,
-              action,
-            });
-          }, timeoutMs);
-        }),
-      ]);
-      console.log(
-        `[StagehandActHandler.observeAct] race completed with success: ${result.success} ######`
-      );
-      return result;
-    } catch (error) {
-      const err = error as Error;
-      console.log(`[StagehandActHandler.observeAct] ERROR in race: ${err.message} ######`);
-      throw error;
-    }
+    const result = await Promise.race([
+      doObserveAndAct(),
+      new Promise<ActResult>(resolve => {
+        setTimeout(() => {
+          resolve({
+            success: false,
+            message: `Action timed out after ${timeoutMs}ms`,
+            action,
+          });
+        }, timeoutMs);
+      }),
+    ]);
+    return result;
   }
 
   /**
@@ -379,40 +303,21 @@ export class StagehandActHandler {
     selectorString: string,
     domSettleTimeoutMs: number
   ): Promise<void> {
-    console.log(
-      `[StagehandActHandler._performCordycepsMethod] method=${method} selector=${selectorString} ######`
-    );
-
     const page = await this.browserWindow.getCurrentPage();
-
     let locator;
     let selectorValue: string; // For logging purposes
 
     // Handle different selector formats
     if (selectorString.startsWith('aria-ref=')) {
-      // Handle aria-ref selectors directly with Cordyceps locator
-      console.log(
-        `[StagehandActHandler._performCordycepsMethod] using aria-ref selector: ${selectorString} ######`
-      );
       locator = page.locator(selectorString);
       selectorValue = selectorString;
     } else {
       // Handle xpath selectors (strip xpath= prefix if present)
       const xpath = selectorString.replace(/^xpath=/i, '').trim();
       selectorValue = xpath;
-      console.log(
-        `[StagehandActHandler._performCordycepsMethod] using xpath selector: ${xpath} ######`
-      );
-
       if (this.experimental) {
-        console.log(
-          `[StagehandActHandler._performCordycepsMethod] using experimental deepLocatorWithShadow ######`
-        );
         locator = await deepLocatorWithShadow(page, xpath);
       } else {
-        console.log(
-          `[StagehandActHandler._performCordycepsMethod] using standard deepLocator ######`
-        );
         locator = deepLocator(page, xpath);
       }
     }
@@ -478,28 +383,23 @@ export class StagehandActHandler {
       },
       initialUrl,
       domSettleTimeoutMs,
+      actionTimeoutMs: this.defaultTimeoutMs,
     };
 
     try {
-      console.log(`[StagehandActHandler._performCordycepsMethod] looking up method handler ######`);
       // 1) Look up a function in the map
       const methodFn = methodHandlerMap[method];
 
       // 2) If found, call it
       if (methodFn) {
-        console.log(`[StagehandActHandler._performCordycepsMethod] calling method handler ######`);
         await methodFn(context);
 
         // 3) Otherwise, see if it's a valid locator method
       } else if (typeof locator[method as keyof typeof locator] === 'function') {
-        console.log(
-          `[StagehandActHandler._performCordycepsMethod] calling fallback locator method ######`
-        );
         await fallbackLocatorMethod(context);
 
         // 4) If still unknown, we can't handle it
       } else {
-        console.log(`[StagehandActHandler._performCordycepsMethod] unsupported method ######`);
         this.logger({
           category: 'action',
           message: 'chosen method is invalid',
@@ -512,13 +412,9 @@ export class StagehandActHandler {
       }
 
       // Always wait for DOM to settle
-      console.log(`[StagehandActHandler._performCordycepsMethod] waiting for DOM to settle ######`);
       await this._waitForSettledDom(domSettleTimeoutMs);
     } catch (e: unknown) {
       const error = e as Error;
-      console.log(
-        `[StagehandActHandler._performCordycepsMethod] error executing method: ${error.message} ######`
-      );
       this.logger({
         category: 'action',
         message: 'error performing method',
@@ -539,10 +435,6 @@ export class StagehandActHandler {
    * Wait for DOM to settle using Cordyceps
    */
   private async _waitForSettledDom(timeoutMs = 1000): Promise<void> {
-    console.log(
-      `[StagehandActHandler._waitForSettledDom] waiting for DOM settle (${timeoutMs}ms) ######`
-    );
-
     try {
       const page = await this.browserWindow.getCurrentPage();
 
@@ -551,13 +443,8 @@ export class StagehandActHandler {
 
       // Additional small delay for DOM mutations to complete
       await new Promise(resolve => setTimeout(resolve, 100));
-
-      console.log(`[StagehandActHandler._waitForSettledDom] DOM settled successfully ######`);
     } catch (error: unknown) {
       const err = error as Error;
-      console.log(
-        `[StagehandActHandler._waitForSettledDom] timeout or error: ${err.message} ######`
-      );
       // Don't throw, just log and continue
       this.logger({
         category: 'action',

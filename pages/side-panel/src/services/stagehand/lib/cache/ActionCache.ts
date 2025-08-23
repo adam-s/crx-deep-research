@@ -127,7 +127,13 @@ export class ActionCache extends BaseCache<ActionEntry> {
     previousSelectors: string[];
     requestId: string;
   }): Promise<void> {
-    await super.delete(cacheHashObj);
+    // Use only the hash key properties that match addActionStep and getActionStep
+    const hashKey = {
+      url: cacheHashObj.url,
+      action: cacheHashObj.action,
+      previousSelectors: cacheHashObj.previousSelectors,
+    };
+    await super.delete(hashKey);
   }
 
   /**

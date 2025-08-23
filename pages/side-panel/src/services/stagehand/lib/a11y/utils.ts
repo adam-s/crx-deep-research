@@ -16,6 +16,26 @@ import { ChromeExtensionStagehandPage } from '../ChromeExtensionStagehandPage';
 import { LogLine } from '../../types/log';
 import { Frame } from '../../../cordyceps/frame';
 
+// Type declaration for fallback functions
+declare global {
+  interface Window {
+    __stagehand_fallback_buildBackendIdMaps?: (targetFrame?: string) => Promise<{
+      tagNameMap: Record<string, string>;
+      xpathMap: Record<string, string>;
+    }>;
+    __stagehand_fallback_buildHierarchicalTree?: (
+      elements: Element[],
+      options?: { decorateScrollable?: boolean }
+    ) => Promise<{
+      tree: AccessibilityNode[];
+      simplified: string;
+      iframes: unknown[];
+      idToUrl: Record<string, string>;
+      handleMap: Record<string, string>;
+    }>;
+  }
+}
+
 const PUA_START = 0xe000;
 const PUA_END = 0xf8ff;
 
@@ -89,11 +109,25 @@ export async function buildBackendIdMaps(
   _targetFrame?: Frame
 ): Promise<BackendIdMaps> {
   try {
+    // Wait a moment to ensure DOM is ready
+    await new Promise(resolve => setTimeout(resolve, 10));
+
     // Use page.evaluate to build DOM mappings in the browser context
     const result = await sp.page.evaluate(() => {
+      // Check if document is ready
+      if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+        console.warn('buildBackendIdMaps: document not ready, state:', document.readyState);
+        return null;
+      }
+
       // Check if fallback function exists
       if (typeof window.__stagehand_fallback_buildBackendIdMaps === 'function') {
-        return window.__stagehand_fallback_buildBackendIdMaps();
+        try {
+          return window.__stagehand_fallback_buildBackendIdMaps();
+        } catch (error) {
+          console.warn('buildBackendIdMaps: fallback function failed:', error);
+          // Continue to inline implementation
+        }
       }
 
       // Fallback implementation using browser-use approach
@@ -149,15 +183,40 @@ export async function buildBackendIdMaps(
         return { tagNameMap, xpathMap };
       }
 
-      return buildDomMappings();
+      try {
+        return buildDomMappings();
+      } catch (error) {
+        console.warn('buildBackendIdMaps: inline function failed:', error);
+        return null;
+      }
     });
+
+    // Add null/undefined check with more detailed logging
+    if (!result || typeof result !== 'object') {
+      console.warn('buildBackendIdMaps: got invalid result from page.evaluate, using empty maps', {
+        result,
+        resultType: typeof result,
+        isNull: result === null,
+        isUndefined: result === undefined,
+      });
+      return {
+        tagNameMap: {},
+        xpathMap: {},
+      };
+    }
 
     return {
       tagNameMap: result.tagNameMap || {},
       xpathMap: result.xpathMap || {},
     };
   } catch (error) {
-    console.error('Failed to build backend ID maps:', error);
+    console.error('Failed to build backend ID maps:', error, {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : 'No stack trace',
+      experimental,
+      hasPage: !!sp.page,
+      targetFrame: _targetFrame,
+    });
     return {
       tagNameMap: {},
       xpathMap: {},
@@ -359,11 +418,17 @@ export async function getAccessibilityTree(
 ): Promise<TreeResult> {
   try {
     // 0. DOM helpers (maps, xpath)
-    const { tagNameMap, xpathMap } = await buildBackendIdMaps(
+    const backendIdMapsResult = await buildBackendIdMaps(
       experimental,
       stagehandPage,
       undefined // targetFrame not used in Chrome extension implementation
     );
+
+    if (!backendIdMapsResult) {
+      throw new Error('buildBackendIdMaps returned null or undefined');
+    }
+
+    const { tagNameMap, xpathMap } = backendIdMapsResult;
 
     // 1. Use page.evaluate to get accessibility tree from browser
     const axResult = await stagehandPage.page.evaluate((selectorParam?: string) => {

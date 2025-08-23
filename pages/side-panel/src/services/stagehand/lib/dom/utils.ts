@@ -1,5 +1,3 @@
-import { StagehandDomProcessError } from '../../types/stagehandErrors';
-
 /**
  * Tests if the element actually responds to .scrollTo(...)
  * and that scrollTop changes as expected.
@@ -23,7 +21,7 @@ export function canElementScroll(elem: HTMLElement): boolean {
 
     // If scrollTop never changed, consider it unscrollable
     if (elem.scrollTop === originalTop) {
-      throw new StagehandDomProcessError('scrollTop did not change');
+      return false;
     }
 
     // Scroll back to original place
