@@ -140,7 +140,7 @@ export class StagehandExtractHandler {
   }
 
   /**
-   * Extract structured data using DOM and LLM inference with intelligent chunking
+   * Extract structured data using DOM and LLM inference
    */
   private async domExtract<T extends z.ZodObject<z.ZodRawShape>>({
     instruction,
@@ -204,54 +204,22 @@ export class StagehandExtractHandler {
       });
     }
 
-    // Check content size and apply chunking if needed
-    const contentSizeKB = Math.round(outputString.length / 1024);
-    const maxContentSizeKB = 100; // Conservative limit for GPT-4o context window
+    // Transform user defined schema to replace string().url() with .number()
+    const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(schema);
 
-    this.logger({
-      category: 'extraction',
-      message: `Content size: ${contentSizeKB}KB`,
-      level: 1,
-      auxiliary: {
-        contentSize: {
-          value: contentSizeKB.toString(),
-          type: 'integer',
-        },
-        requiresChunking: {
-          value: (contentSizeKB > maxContentSizeKB).toString(),
-          type: 'boolean',
-        },
-      },
+    // call extract inference with transformed schema
+    const extractionResponse = await extract({
+      instruction,
+      domElements: outputString,
+      schema: transformedSchema,
+      chunksSeen: 1,
+      chunksTotal: 1,
+      llmClient,
+      requestId: requestId || 'extract-request',
+      userProvidedInstructions: this.userProvidedInstructions,
+      logger: this.logger,
+      logInferenceToFile: false, // Chrome extension doesn't have file logging
     });
-
-    let extractionResponse;
-
-    if (contentSizeKB > maxContentSizeKB) {
-      // Use chunking approach for large content
-      extractionResponse = await this._extractWithChunking({
-        instruction,
-        outputString,
-        schema,
-        llmClient,
-        requestId: requestId || 'extract-request',
-      });
-    } else {
-      // Use single extraction for smaller content
-      const [transformedSchema] = transformUrlStringsToNumericIds(schema);
-
-      extractionResponse = await extract({
-        instruction,
-        domElements: outputString,
-        schema: transformedSchema,
-        chunksSeen: 1,
-        chunksTotal: 1,
-        llmClient,
-        requestId: requestId || 'extract-request',
-        userProvidedInstructions: this.userProvidedInstructions,
-        logger: this.logger,
-        logInferenceToFile: false,
-      });
-    }
 
     const {
       metadata: { completed },
@@ -263,9 +231,9 @@ export class StagehandExtractHandler {
 
     this.stagehand.updateMetrics(
       StagehandFunctionName.EXTRACT,
-      promptTokens || 0,
-      completionTokens || 0,
-      inferenceTimeMs || 0
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs
     );
 
     this.logger({
@@ -306,7 +274,6 @@ export class StagehandExtractHandler {
     }
 
     // revert to original schema and populate with URLs
-    const [, urlFieldPaths] = transformUrlStringsToNumericIds(schema);
     for (const { segments } of urlFieldPaths) {
       injectUrls(output, segments, idToUrlMapping);
     }
@@ -475,317 +442,6 @@ export class StagehandExtractHandler {
   // =============================================================================
   // PRIVATE HELPER METHODS
   // =============================================================================
-
-  /**
-   * Extract data using intelligent chunking for large content
-   */
-  private async _extractWithChunking<T extends z.ZodObject<z.ZodRawShape>>({
-    instruction,
-    outputString,
-    schema,
-    llmClient,
-    requestId,
-  }: {
-    instruction: string;
-    outputString: string;
-    schema: T;
-    llmClient: LLMClient;
-    requestId: string;
-  }): Promise<{
-    metadata: { completed: boolean };
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    inference_time_ms?: number;
-    [key: string]: unknown;
-  }> {
-    this.logger({
-      category: 'extraction',
-      message: 'Using chunking approach for large content',
-      level: 1,
-    });
-
-    // Transform schema for chunking
-    const [transformedSchema] = transformUrlStringsToNumericIds(schema);
-
-    // Start with conservative 20KB chunks to avoid rate limits
-    // If we hit rate limits, we'll handle retries with delays
-    const chunkSize = 20 * 1024; // 20KB chunks
-
-    // Create intelligent chunks by looking for natural breakpoints
-    const chunks = this._createIntelligentChunks(outputString, chunkSize);
-
-    // Limit to maximum 10 chunks to prevent excessive API usage and costs
-    const maxChunks = 10;
-    const chunksToProcess = chunks.slice(0, maxChunks);
-
-    if (chunks.length > maxChunks) {
-      this.logger({
-        category: 'extraction',
-        message: `Content has ${chunks.length} chunks, processing first ${maxChunks} to avoid excessive API usage`,
-        level: 1,
-      });
-    }
-
-    this.logger({
-      category: 'extraction',
-      message: `Created ${chunks.length} chunks, processing ${chunksToProcess.length} chunks for extraction`,
-      level: 1,
-      auxiliary: {
-        totalChunks: {
-          value: chunks.length.toString(),
-          type: 'integer',
-        },
-        processingChunks: {
-          value: chunksToProcess.length.toString(),
-          type: 'integer',
-        },
-      },
-    });
-
-    // Initialize result accumulator
-    const results: Array<Partial<z.infer<T>>> = [];
-    let totalPromptTokens = 0;
-    let totalCompletionTokens = 0;
-    let totalInferenceTime = 0;
-
-    // Process each chunk
-    for (let i = 0; i < chunksToProcess.length; i++) {
-      const chunk = chunksToProcess[i];
-      const chunkInstruction = `${instruction}\n\nNote: This is chunk ${i + 1} of ${chunksToProcess.length}. Extract relevant information from this section of the page.`;
-
-      try {
-        this.logger({
-          category: 'extraction',
-          message: `Processing chunk ${i + 1}/${chunksToProcess.length} (${Math.round(chunk.length / 1024)}KB)`,
-          level: 1,
-        });
-
-        const chunkResponse = await extract({
-          instruction: chunkInstruction,
-          domElements: chunk,
-          schema: transformedSchema,
-          chunksSeen: i + 1,
-          chunksTotal: chunksToProcess.length,
-          llmClient,
-          requestId: `${requestId}_chunk_${i + 1}`,
-          userProvidedInstructions: this.userProvidedInstructions,
-          logger: this.logger,
-          logInferenceToFile: false,
-        });
-
-        // Add delay between chunks to avoid rate limiting (except for last chunk)
-        if (i < chunksToProcess.length - 1) {
-          this.logger({
-            category: 'extraction',
-            message: 'Waiting 2 seconds to avoid rate limiting',
-            level: 1,
-          });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        // Accumulate tokens and timing
-        totalPromptTokens += chunkResponse.prompt_tokens || 0;
-        totalCompletionTokens += chunkResponse.completion_tokens || 0;
-        totalInferenceTime += chunkResponse.inference_time_ms || 0;
-
-        // Extract the content (exclude metadata and token counts)
-        const chunkResult = Object.fromEntries(
-          Object.entries(chunkResponse).filter(
-            ([key]) =>
-              !['metadata', 'prompt_tokens', 'completion_tokens', 'inference_time_ms'].includes(key)
-          )
-        );
-
-        results.push(chunkResult as unknown as Partial<z.infer<T>>);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // Check if it's a rate limit error
-        if (errorMessage.includes('rate_limit_exceeded') || errorMessage.includes('Rate limit')) {
-          this.logger({
-            category: 'extraction',
-            message: `Rate limit hit on chunk ${i + 1}, waiting 10 seconds before retrying`,
-            level: 1,
-          });
-
-          // Wait longer for rate limit errors
-          await new Promise(resolve => setTimeout(resolve, 10000));
-
-          // Retry this chunk once
-          try {
-            this.logger({
-              category: 'extraction',
-              message: `Retrying chunk ${i + 1}/${chunksToProcess.length} after rate limit`,
-              level: 1,
-            });
-
-            const retryResponse = await extract({
-              instruction: chunkInstruction,
-              domElements: chunk,
-              schema: transformedSchema,
-              chunksSeen: i + 1,
-              chunksTotal: chunksToProcess.length,
-              llmClient,
-              requestId: `${requestId}_chunk_${i + 1}_retry`,
-              userProvidedInstructions: this.userProvidedInstructions,
-              logger: this.logger,
-              logInferenceToFile: false,
-            });
-
-            totalPromptTokens += retryResponse.prompt_tokens || 0;
-            totalCompletionTokens += retryResponse.completion_tokens || 0;
-            totalInferenceTime += retryResponse.inference_time_ms || 0;
-
-            const retryResult = Object.fromEntries(
-              Object.entries(retryResponse).filter(
-                ([key]) =>
-                  !['metadata', 'prompt_tokens', 'completion_tokens', 'inference_time_ms'].includes(
-                    key
-                  )
-              )
-            );
-
-            results.push(retryResult as unknown as Partial<z.infer<T>>);
-          } catch (retryError) {
-            this.logger({
-              category: 'extraction',
-              message: `Failed to retry chunk ${i + 1} after rate limit: ${retryError}`,
-              level: 1,
-            });
-            // Continue with other chunks
-          }
-        } else {
-          this.logger({
-            category: 'extraction',
-            message: `Failed to process chunk ${i + 1}: ${errorMessage}`,
-            level: 1,
-          });
-          // Continue with other chunks
-        }
-      }
-    }
-
-    // Merge results intelligently
-    const mergedResult = this._mergeChunkResults(results, schema);
-
-    this.logger({
-      category: 'extraction',
-      message: `Chunked extraction completed. Processed ${results.length}/${chunks.length} chunks successfully`,
-      level: 1,
-      auxiliary: {
-        successfulChunks: {
-          value: results.length.toString(),
-          type: 'integer',
-        },
-        totalChunks: {
-          value: chunks.length.toString(),
-          type: 'integer',
-        },
-      },
-    });
-
-    return {
-      ...mergedResult,
-      metadata: { completed: results.length > 0 },
-      prompt_tokens: totalPromptTokens,
-      completion_tokens: totalCompletionTokens,
-      inference_time_ms: totalInferenceTime,
-    };
-  }
-
-  /**
-   * Create intelligent chunks by finding natural breakpoints
-   */
-  private _createIntelligentChunks(content: string, maxChunkSize: number): string[] {
-    if (content.length <= maxChunkSize) {
-      return [content];
-    }
-
-    const chunks: string[] = [];
-    let currentPos = 0;
-
-    while (currentPos < content.length) {
-      let chunkEnd = Math.min(currentPos + maxChunkSize, content.length);
-
-      // If not at the end, try to find a natural breakpoint
-      if (chunkEnd < content.length) {
-        // Look for natural breakpoints in order of preference
-        const breakpoints = [
-          '\n\n', // Paragraph breaks
-          '\n', // Line breaks
-          '. ', // Sentence breaks
-          ', ', // Clause breaks
-          ' ', // Word breaks
-        ];
-
-        let bestBreakpoint = chunkEnd;
-
-        for (const breakpoint of breakpoints) {
-          const lastBreakpoint = content.lastIndexOf(breakpoint, chunkEnd);
-          if (lastBreakpoint > currentPos + maxChunkSize * 0.7) {
-            // At least 70% of max size
-            bestBreakpoint = lastBreakpoint + breakpoint.length;
-            break;
-          }
-        }
-
-        chunkEnd = bestBreakpoint;
-      }
-
-      const chunk = content.slice(currentPos, chunkEnd).trim();
-      if (chunk.length > 0) {
-        chunks.push(chunk);
-      }
-
-      currentPos = chunkEnd;
-    }
-
-    return chunks;
-  }
-
-  /**
-   * Merge results from multiple chunks intelligently
-   */
-  private _mergeChunkResults<T extends z.ZodObject<z.ZodRawShape>>(
-    results: Array<Partial<z.infer<T>>>,
-    schema: T
-  ): Partial<z.infer<T>> {
-    if (results.length === 0) {
-      return {};
-    }
-
-    if (results.length === 1) {
-      return results[0];
-    }
-
-    const merged: Record<string, unknown> = {};
-
-    // Get schema shape to understand field types
-    const schemaShape = schema.shape;
-
-    for (const key in schemaShape) {
-      const values = results
-        .map(r => r[key])
-        .filter(v => v !== undefined && v !== null && v !== '');
-
-      if (values.length === 0) {
-        merged[key] = '';
-        continue;
-      }
-
-      // For all fields, try to concatenate unique non-empty values
-      // This works well for string fields and provides reasonable fallback for others
-      if (values.length > 1) {
-        const stringValues = values.map(v => String(v)).filter(v => v.trim().length > 0);
-        const uniqueValues = [...new Set(stringValues)];
-        merged[key] = uniqueValues.join(' ').trim();
-      } else {
-        merged[key] = values[0];
-      }
-    }
-
-    return merged as Partial<z.infer<T>>;
-  }
 
   /**
    * Wait for DOM to settle using Cordyceps
