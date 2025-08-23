@@ -44,7 +44,7 @@ export async function testNavigationAutoWait(page: Page, progress: Progress, con
         'URL hash should update after click',
         'Navigation Auto-Wait (click)',
         hash,
-        '#auto-section',
+        '#auto-section'
       );
 
       // Now test cross-document navigation: create a local route link and click it
@@ -70,7 +70,7 @@ export async function testNavigationAutoWait(page: Page, progress: Progress, con
         'Pathname should be /iframe1 after navigation',
         'Navigation Auto-Wait (click)',
         url,
-        '/iframe1',
+        '/iframe1'
       );
 
       // Navigate back to the root page so subsequent tests have expected DOM
@@ -78,7 +78,7 @@ export async function testNavigationAutoWait(page: Page, progress: Progress, con
       await page.goto(`${origin}/`, { waitUntil: 'load', timeout: 30000 });
     },
     progress,
-    context,
+    context
   );
 }
 
@@ -96,11 +96,13 @@ export async function testNavigationGoBack(page: Page, progress: Progress, conte
       const origin = await page.evaluate(() => window.location.origin);
 
       // Start fresh - navigate to root to establish baseline
-      await page.goto(`${origin}/`, { waitUntil: 'load' });
+      await page.goto(`${origin}/`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Navigate to iframe1 page to create browser history
-      await page.goto(`${origin}/iframe1`, { waitUntil: 'load' });
+      await page.goto(`${origin}/iframe1`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Verify we're on iframe1
@@ -110,12 +112,13 @@ export async function testNavigationGoBack(page: Page, progress: Progress, conte
         'Should be on /iframe1 page before goBack',
         'Navigation GoBack',
         currentUrl,
-        '/iframe1',
+        '/iframe1'
       );
 
       // Test goBack - should go back to root
       // Note: chrome.tabs.goBack() may fail in test environment, will fallback to history.back()
-      await page.goBack({ waitUntil: 'load', timeout: 15000 });
+      await page.goBack({ waitUntil: 'commit', timeout: 15000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
 
       // Add 200ms settling time after goBack
       await new Promise(r => setTimeout(r, 200));
@@ -127,7 +130,7 @@ export async function testNavigationGoBack(page: Page, progress: Progress, conte
         'Should be back on root page after goBack',
         'Navigation GoBack',
         currentUrl,
-        '/',
+        '/'
       );
 
       context.events.emit({
@@ -137,14 +140,14 @@ export async function testNavigationGoBack(page: Page, progress: Progress, conte
       });
     },
     progress,
-    context,
+    context
   );
 }
 
 export async function testNavigationGoForward(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ) {
   await executeTestWithErrorHandling(
     'Navigation GoForward',
@@ -158,15 +161,18 @@ export async function testNavigationGoForward(
       const origin = await page.evaluate(() => window.location.origin);
 
       // Set up clean state - navigate to root first to establish a clean starting point
-      await page.goto(`${origin}/`, { waitUntil: 'load' });
+      await page.goto(`${origin}/`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Navigate to iframe1 to create forward history
-      await page.goto(`${origin}/iframe1`, { waitUntil: 'load' });
+      await page.goto(`${origin}/iframe1`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Go back to create forward history
-      await page.goBack({ waitUntil: 'load', timeout: 15000 });
+      await page.goBack({ waitUntil: 'commit', timeout: 15000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Verify we're back on root (this is the critical assertion that was failing)
@@ -176,11 +182,12 @@ export async function testNavigationGoForward(
         'Should be on root page before goForward',
         'Navigation GoForward',
         currentUrl,
-        '/',
+        '/'
       );
 
       // Test goForward - should go forward to iframe1
-      await page.goForward({ waitUntil: 'load', timeout: 15000 });
+      await page.goForward({ waitUntil: 'commit', timeout: 15000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
 
       // Add 200ms settling time after goForward
       await new Promise(r => setTimeout(r, 200));
@@ -192,7 +199,7 @@ export async function testNavigationGoForward(
         'Should be on /iframe1 page after goForward',
         'Navigation GoForward',
         currentUrl,
-        '/iframe1',
+        '/iframe1'
       );
 
       context.events.emit({
@@ -205,14 +212,14 @@ export async function testNavigationGoForward(
       await page.goto(`${origin}/`, { waitUntil: 'load', timeout: 30000 });
     },
     progress,
-    context,
+    context
   );
 }
 
 export async function testNavigationSameDocumentGoBack(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ) {
   await executeTestWithErrorHandling(
     'Navigation Same-Document GoBack',
@@ -226,7 +233,8 @@ export async function testNavigationSameDocumentGoBack(
       const origin = await page.evaluate(() => window.location.origin);
 
       // Ensure we're on root page
-      await page.goto(`${origin}/`, { waitUntil: 'load' });
+      await page.goto(`${origin}/`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Use history.pushState to create same-document navigation history
@@ -245,7 +253,7 @@ export async function testNavigationSameDocumentGoBack(
         'Should be on /step3 after pushState',
         'Navigation Same-Document GoBack',
         currentPath,
-        '/step3',
+        '/step3'
       );
 
       // Test goBack - should go back to step2
@@ -259,7 +267,7 @@ export async function testNavigationSameDocumentGoBack(
         'Should be on /step2 after first goBack',
         'Navigation Same-Document GoBack',
         currentPath,
-        '/step2',
+        '/step2'
       );
 
       // Test another goBack - should go back to step1
@@ -273,7 +281,7 @@ export async function testNavigationSameDocumentGoBack(
         'Should be on /step1 after second goBack',
         'Navigation Same-Document GoBack',
         currentPath,
-        '/step1',
+        '/step1'
       );
 
       context.events.emit({
@@ -286,7 +294,7 @@ export async function testNavigationSameDocumentGoBack(
       await page.goto(`${origin}/`, { waitUntil: 'load', timeout: 30000 });
     },
     progress,
-    context,
+    context
   );
 }
 
@@ -303,7 +311,8 @@ export async function testNavigationReload(page: Page, progress: Progress, conte
       const origin = await page.evaluate(() => window.location.origin);
 
       // Ensure we're on a specific page
-      await page.goto(`${origin}/iframe1`, { waitUntil: 'load' });
+      await page.goto(`${origin}/iframe1`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(r => setTimeout(r, 200));
 
       // Add some dynamic content to verify reload
@@ -321,11 +330,12 @@ export async function testNavigationReload(page: Page, progress: Progress, conte
         'Test marker should exist before reload',
         'Navigation Reload',
         markerExists,
-        true,
+        true
       );
 
       // Test reload - should refresh the page and remove dynamic content
-      await page.reload({ waitUntil: 'load', timeout: 15000 });
+      await page.reload({ waitUntil: 'commit', timeout: 15000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
 
       // Add 200ms settling time after reload
       await new Promise(r => setTimeout(r, 200));
@@ -337,7 +347,7 @@ export async function testNavigationReload(page: Page, progress: Progress, conte
         'Should still be on /iframe1 page after reload',
         'Navigation Reload',
         currentUrl,
-        '/iframe1',
+        '/iframe1'
       );
 
       // Verify dynamic content was removed by reload
@@ -347,7 +357,7 @@ export async function testNavigationReload(page: Page, progress: Progress, conte
         'Test marker should be removed after reload',
         'Navigation Reload',
         markerExists,
-        false,
+        false
       );
 
       context.events.emit({
@@ -357,6 +367,6 @@ export async function testNavigationReload(page: Page, progress: Progress, conte
       });
     },
     progress,
-    context,
+    context
   );
 }

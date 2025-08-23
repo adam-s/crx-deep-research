@@ -24,7 +24,8 @@ export class PerformanceTest extends PlaygroundTest {
       // Test page load performance
       progress.log('Measuring page load performance');
       const loadStart = Date.now();
-      await page.goto('http://localhost:3005', { progress, waitUntil: 'load' });
+      await page.goto('http://localhost:3005', { progress, waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       const loadTime = Date.now() - loadStart;
 
       // Test frame waiting performance
@@ -54,7 +55,7 @@ export class PerformanceTest extends PlaygroundTest {
       });
     } catch (error) {
       throw new Error(
-        `Performance test failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Performance test failed: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

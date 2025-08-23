@@ -57,6 +57,7 @@ import { parseURL } from './utilities/utils';
 import { FileTransferPortController } from './file-transfer/fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
 import { getNavigationTracker } from './navigation/navigationTracker';
+import { getNetworkObserver } from './navigation/networkObserver';
 import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -185,7 +186,12 @@ class Network {
       this._url = url;
       this._status = status;
       this._statusText = statusText;
-      this._headers = headers;
+      // Normalize header names to lower-case for consistent lookups
+      const normalized: Record<string, string> = {};
+      for (const k of Object.keys(headers)) {
+        normalized[k.toLowerCase()] = headers[k];
+      }
+      this._headers = normalized;
       this._request = request;
     }
 
@@ -751,33 +757,44 @@ export class Frame extends Disposable {
   /**
    * Navigate this frame using a Playwright-style algorithm backed by NavigationTracker.
    * - Initiates navigation via chrome.tabs.update
-   * - Waits for 'commit', then for the requested lifecycle (default 'load')
+   * - Waits for 'commit', then for the requested lifecycle (default 'commit')
    * - Returns null (response plumbing can be added later)
    */
   async goto(
     url: string,
     options?: NavigateOptionsWithProgress
   ): Promise<NavigationResponse | null> {
-    if (this._parentFrame) throw new Error('Child frame navigation not yet implemented');
+    if (this._parentFrame) {
+      throw new Error('Child frame navigation not yet implemented');
+    }
 
-    const waitUntil = options?.waitUntil ?? 'load';
+    // Resolve against current URL (if any) to support relative navigation inputs
+    let absoluteUrl = url;
+    try {
+      // If current frame URL is available, use it as base for relative paths
+      const base = this._url ? new URL(this._url) : undefined;
+      absoluteUrl = base ? new URL(url, base).toString() : new URL(url).toString();
+    } catch {
+      // If URL parsing fails, keep the original string; the subsequent validator will catch it
+      absoluteUrl = url;
+    }
+
+    // Security: block unsupported or dangerous URL schemes early
+    if (!this._isAllowedNavigationUrl(absoluteUrl)) {
+      throw new Error(
+        `Blocked navigation to disallowed URL scheme: ${absoluteUrl}. Only http(s) URLs are permitted.`
+      );
+    }
+
+    const waitUntil = options?.waitUntil ?? 'commit'; // Use 'commit' for better reliability
     const timeoutMs = options?.timeout ?? 30000;
 
     return executeWithProgress(async p => {
       const tracker = getNavigationTracker();
 
-      // Start listening for internal navigation events for this frame
-      const events: Array<{ url: string; frameId: number; documentId?: string }> = [];
-      const disposable = tracker.onInternalNavigation(ev => {
-        if (ev.tabId === this.tabId && ev.frameId === this.frameId) {
-          events.push({ url: ev.url, frameId: ev.frameId, documentId: ev.newDocument?.documentId });
-        }
-      });
-      p.cleanupWhenAborted(() => disposable.dispose());
-
       // Initiate navigation using content script injection to create proper browser history
       // chrome.tabs.update() does NOT create browser history entries, but window.location.assign() does
-      p.log(`Frame ${this.frameId} navigating to "${url}" (with history)`);
+      p.log(`Frame ${this.frameId} navigating to "${absoluteUrl}" (with history)`);
 
       try {
         // Use content script injection to navigate with proper history
@@ -788,7 +805,7 @@ export class Frame extends Disposable {
             // Use window.location.assign() to create a proper history entry
             window.location.assign(targetUrl);
           },
-          args: [url],
+          args: [absoluteUrl],
         });
       } catch (error) {
         // Fallback to chrome.tabs.update if content script injection fails
@@ -796,15 +813,27 @@ export class Frame extends Disposable {
           `Content script navigation failed for tab ${this.tabId}, falling back to chrome.tabs.update:`,
           error
         );
-        chrome.tabs.update(this.tabId, { url });
+        chrome.tabs.update(this.tabId, { url: absoluteUrl });
       }
 
       // Wait for navigation to complete with the requested lifecycle
-      const navEv = await tracker.waitForNavigation(this.tabId, this.frameId, {
-        toUrl: url,
+      p.log(`Waiting for navigation until "${waitUntil}"`);
+
+      const trackerPromise = tracker.waitForNavigation(this.tabId, this.frameId, {
+        // Do not pass toUrl to allow redirects (e.g., path changes) to resolve
         waitUntil,
         timeoutMs,
       });
+
+      let navEv;
+      try {
+        navEv = await trackerPromise;
+        p.log('Navigation tracker completed successfully');
+      } catch (error) {
+        p.log(`Navigation tracker failed: ${String(error)}`);
+        throw error;
+      }
+
       // Update our URL to the committed one (could differ due to redirects)
       this.setUrl(navEv.url);
 
@@ -820,13 +849,32 @@ export class Frame extends Disposable {
           : undefined
       );
 
-      // Create a NavigationResponse for the successful navigation
+      // Create a NavigationResponse using NetworkObserver if available
+      const net = getNetworkObserver();
+      let status = 200;
+      let statusText = 'OK';
+      let headers: Record<string, string> = {};
+      try {
+        // Best effort: wait briefly for the main-frame response to be recorded
+        const resp = await net
+          .waitForMainFrameResponse(this.tabId, this.frameId, navEv.url, 2000)
+          .catch(() => net.getResponse(this.tabId, this.frameId, navEv.url));
+        if (resp) {
+          status = resp.status || status;
+          headers = resp.headers || headers;
+          // Chrome doesn't provide reason phrase; synthesize from status where possible
+          statusText = status >= 200 && status < 300 ? 'OK' : `${status}`;
+        }
+      } catch {
+        // Ignore network observer errors — fallback to defaults
+      }
+
       const navigationResponse = new Network.NavigationResponse(
         navEv.url,
-        200, // Assume success for now - we can enhance this later with actual response tracking
-        'OK',
-        {}, // Empty headers for now - can be enhanced later
-        null // No request object for now - can be enhanced later
+        status,
+        statusText,
+        headers,
+        null
       );
 
       return navigationResponse;
@@ -1405,6 +1453,20 @@ export class Frame extends Disposable {
 
   locator(selector: string, options?: LocatorOptions): Locator {
     return new Locator(this, selector, options);
+  }
+
+  /**
+   * Validate navigation target URL is allowed. Only http and https are permitted.
+   * Chrome internal pages or extension URLs are not navigable via content scripts
+   * and should be handled by callers explicitly.
+   */
+  private _isAllowedNavigationUrl(target: string): boolean {
+    try {
+      const u = new URL(target);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 
   getByTestId(testId: string | RegExp): Locator {

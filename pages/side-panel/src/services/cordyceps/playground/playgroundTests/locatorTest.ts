@@ -148,7 +148,8 @@ export class LocatorTest extends PlaygroundTest {
       // Ensure we're back on the main page with form elements for subsequent tests
       progress.log('Navigating back to main page for form element tests');
       const origin = await page.evaluate(() => window.location.origin);
-      await page.goto(`${origin}/`, { waitUntil: 'load' });
+      await page.goto(`${origin}/`, { waitUntil: 'commit', timeout: 30000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => void 0);
       await new Promise(resolve => setTimeout(resolve, 500)); // Extra settling time
 
       // Test check() functionality

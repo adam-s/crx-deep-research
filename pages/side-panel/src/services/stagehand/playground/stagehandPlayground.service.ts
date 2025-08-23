@@ -88,6 +88,11 @@ import {
   runHandleIntegrationTest,
 } from './playgroundTests/stagehandFallbackContentScriptTests';
 
+// Import Chrome Extension Stagehand tests
+import { testChromeExtensionStagehandContext } from './playgroundTests/chromeExtensionStagehandContextTests';
+import { testChromeExtensionStagehand } from './playgroundTests/chromeExtensionStagehandTests';
+import { testChromeExtensionStagehandPage } from './playgroundTests/chromeExtensionStagehandPageTests';
+
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
   'stagehandPlaygroundService'
 );
@@ -114,6 +119,8 @@ export interface IStagehandPlaygroundService {
   runHandlerTests: () => Promise<void>;
   /** Run fallback content script tests */
   runFallbackContentScriptTests: () => Promise<void>;
+  /** Run Chrome Extension Stagehand tests */
+  runChromeExtensionStagehandTests: () => Promise<void>;
 }
 
 export class StagehandPlaygroundService extends Disposable implements IStagehandPlaygroundService {
@@ -279,6 +286,34 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           timestamp: Date.now(),
           severity: Severity.Warning,
           message: '⚠️ Stagehand fallback integration tests failed',
+          details: { error: String(error) },
+        });
+      }
+
+      console.log('🔍 DEBUG: About to start Phase 8 - Chrome Extension Stagehand tests');
+
+      // Phase 8: Test Chrome Extension Stagehand components
+      try {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Info,
+          message: '🚀 Running Chrome Extension Stagehand component tests...',
+        });
+
+        await this.runChromeExtensionStagehandTests();
+
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ Chrome Extension Stagehand tests completed',
+        });
+        console.log('🔍 DEBUG: Phase 8 completed successfully');
+      } catch (error) {
+        console.log('🔍 DEBUG: Phase 8 failed with error:', error);
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: '⚠️ Chrome Extension Stagehand tests failed',
           details: { error: String(error) },
         });
       }
@@ -1076,6 +1111,151 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
           });
         }
       }
+    }
+  }
+
+  public async runChromeExtensionStagehandTests(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🚀 Testing Chrome Extension Stagehand components...',
+      details: {
+        testComponents: [
+          'ChromeExtensionStagehandContext (Easiest)',
+          'ChromeExtensionStagehand (Medium)',
+          'ChromeExtensionStagehandPage (Most Complex)',
+        ],
+      },
+    });
+
+    const startTime = Date.now();
+    const testContext = { events: this.events, storage: this._storage };
+    let totalTests = 0;
+    let passedTests = 0;
+    let failedTests = 0;
+
+    try {
+      // Test 1: ChromeExtensionStagehandContext (Easiest)
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message:
+          '📝 Testing ChromeExtensionStagehandContext (page management and context orchestration)...',
+      });
+
+      try {
+        await testChromeExtensionStagehandContext(testContext);
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ ChromeExtensionStagehandContext tests passed',
+        });
+        passedTests++;
+      } catch (error) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Error,
+          message: '❌ ChromeExtensionStagehandContext tests failed',
+          details: { error: String(error) },
+        });
+        failedTests++;
+      }
+      totalTests++;
+
+      // Test 2: ChromeExtensionStagehand (Medium complexity)
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '🤖 Testing ChromeExtensionStagehand (main entry point with AI capabilities)...',
+      });
+
+      try {
+        await testChromeExtensionStagehand(testContext);
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ ChromeExtensionStagehand tests passed',
+        });
+        passedTests++;
+      } catch (error) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Error,
+          message: '❌ ChromeExtensionStagehand tests failed',
+          details: { error: String(error) },
+        });
+        failedTests++;
+      }
+      totalTests++;
+
+      // Test 3: ChromeExtensionStagehandPage (Most complex)
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '🎭 Testing ChromeExtensionStagehandPage (AI-enhanced page wrapper)...',
+      });
+
+      try {
+        await testChromeExtensionStagehandPage(testContext);
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '✅ ChromeExtensionStagehandPage tests passed',
+        });
+        passedTests++;
+      } catch (error) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Error,
+          message: '❌ ChromeExtensionStagehandPage tests failed',
+          details: { error: String(error) },
+        });
+        failedTests++;
+      }
+      totalTests++;
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      const successRate = totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : '0';
+
+      // Summary
+      if (failedTests === 0) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Success,
+          message: '🎉 All Chrome Extension Stagehand tests passed!',
+          details: {
+            totalTests,
+            passed: passedTests,
+            failed: failedTests,
+            successRate: `${successRate}%`,
+            duration: `${duration}ms`,
+            category: 'chrome-extension-stagehand-tests',
+          },
+        });
+      } else {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Warning,
+          message: `⚠️ Chrome Extension Stagehand tests completed with ${failedTests} failure(s)`,
+          details: {
+            totalTests,
+            passed: passedTests,
+            failed: failedTests,
+            successRate: `${successRate}%`,
+            duration: `${duration}ms`,
+            category: 'chrome-extension-stagehand-tests',
+          },
+        });
+      }
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Chrome Extension Stagehand test suite failed',
+        details: { error: String(error) },
+      });
+      throw error;
     }
   }
 }

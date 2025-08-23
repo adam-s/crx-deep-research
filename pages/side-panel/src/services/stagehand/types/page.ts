@@ -1,8 +1,5 @@
-import type {
-  Browser as PlaywrightBrowser,
-  BrowserContext as PlaywrightContext,
-  Page as PlaywrightPage,
-} from 'playwright';
+import type { BrowserWindow } from '../../cordyceps/browserWindow';
+import type { Page as CordycepsPage } from '../../cordyceps/page';
 import { z } from 'zod/v3';
 import type {
   ActOptions,
@@ -21,7 +18,17 @@ export const pageTextSchema = z.object({
   page_text: z.string(),
 });
 
-export interface Page extends Omit<PlaywrightPage, 'on'> {
+export interface Page
+  extends Omit<
+    CordycepsPage,
+    | 'onFrameAttached'
+    | 'onFrameDetached'
+    | 'onInternalFrameNavigatedToNewDocument'
+    | 'onDomContentLoaded'
+    | 'onLoad'
+    | 'onDownload'
+    | 'onClose'
+  > {
   act(action: string): Promise<ActResult>;
   act(options: ActOptions): Promise<ActResult>;
   act(observation: ObserveResult): Promise<ActResult>;
@@ -34,13 +41,14 @@ export interface Page extends Omit<PlaywrightPage, 'on'> {
   observe(instruction: string): Promise<ObserveResult[]>;
   observe(options?: ObserveOptions): Promise<ObserveResult[]>;
 
+  // Custom event handling for popup events (Stagehand-specific)
   on: {
     (event: 'popup', listener: (page: Page) => unknown): Page;
-  } & PlaywrightPage['on'];
+  };
 }
 
-// Empty type for now, but will be used in the future
-export type BrowserContext = PlaywrightContext;
+// BrowserContext in Cordyceps is handled by BrowserWindow
+export type BrowserContext = BrowserWindow;
 
-// Empty type for now, but will be used in the future
-export type Browser = PlaywrightBrowser;
+// Browser functionality is provided by BrowserWindow in the Chrome extension context
+export type Browser = BrowserWindow;

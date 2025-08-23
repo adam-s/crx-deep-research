@@ -16,16 +16,22 @@ import {
   ExtractOptions,
   ExtractResult,
 } from '../types/stagehand';
-import { AgentOptions, AgentExecuteOptions, AgentResult } from '../types/agent';
+import { AgentOptions, AgentExecuteOptions, AgentResult, AgentAction } from '../types/agent';
 import { z } from 'zod/v3';
 import { executeWithProgress } from '../../cordyceps/core/progress';
 import type { Locator } from '../../cordyceps/locator';
+import { StagehandActHandler } from './handlers/actHandler';
+import { StagehandExtractHandler } from './handlers/extractHandler';
+import { StagehandObserveHandler } from './handlers/observeHandler';
 
 /**
  * Simple wrapper for Cordyceps Page to provide Stagehand-compatible interface
- * TODO: This will be expanded to include act/observe/extract methods
  */
 class ChromeExtensionStagehandPage {
+  private actHandler: StagehandActHandler | null = null;
+  private extractHandler: StagehandExtractHandler | null = null;
+  private observeHandler: StagehandObserveHandler | null = null;
+
   constructor(
     public readonly page: Page,
     private readonly stagehand: ChromeExtensionStagehand,
@@ -34,19 +40,62 @@ class ChromeExtensionStagehandPage {
   ) {}
 
   async init(): Promise<ChromeExtensionStagehandPage> {
-    // TODO: Initialize handlers for act/observe/extract
+    // Initialize handlers with the Cordyceps browser window
+
+    this.actHandler = new StagehandActHandler({
+      logger: this.stagehand.logger,
+      browserWindow: this.stagehand.browserWindow,
+      selfHeal: this.stagehand.selfHeal,
+      experimental: this.stagehand.experimental,
+    });
+
+    this.extractHandler = new StagehandExtractHandler({
+      stagehand: this.stagehand,
+      logger: message =>
+        this.stagehand.log({
+          category: message.category,
+          message: message.message,
+          level: (message.level === undefined ? 1 : Math.min(2, Math.max(0, message.level))) as
+            | 0
+            | 1
+            | 2,
+          auxiliary: message.auxiliary as
+            | {
+                [key: string]: {
+                  value: string;
+                  type: 'object' | 'string' | 'html' | 'integer' | 'float' | 'boolean';
+                };
+              }
+            | undefined,
+        }),
+      browserWindow: this.stagehand.browserWindow,
+      userProvidedInstructions: this.userProvidedInstructions,
+      experimental: this.stagehand.experimental,
+    });
+
+    this.observeHandler = new StagehandObserveHandler({
+      stagehand: this.stagehand,
+      logger: this.stagehand.logger,
+      browserWindow: this.stagehand.browserWindow,
+      userProvidedInstructions: this.userProvidedInstructions,
+      experimental: this.stagehand.experimental,
+    });
+
     return this;
   }
 
   /**
    * Perform an action on the page using AI
-   * TODO: Implement using Cordyceps-compatible act handler
    */
   async act(actionOrOptions: string | ActOptions | ObserveResult): Promise<ActResult> {
+    if (!this.actHandler || !this.observeHandler) {
+      throw new Error('ChromeExtensionStagehandPage not initialized. Call init() first.');
+    }
+
     this.stagehand.log({
       category: 'act',
-      message: 'ChromeExtensionStagehandPage.act() not yet implemented',
-      level: 0,
+      message: 'Executing action using ChromeExtensionStagehandPage',
+      level: 1,
       auxiliary: {
         action: {
           value: typeof actionOrOptions === 'string' ? actionOrOptions : 'object',
@@ -55,23 +104,57 @@ class ChromeExtensionStagehandPage {
       },
     });
 
-    // TODO: Implement act functionality using Cordyceps
-    return {
-      success: false,
-      message: 'Act functionality not yet implemented in Chrome extension version',
-      action: typeof actionOrOptions === 'string' ? actionOrOptions : 'unknown',
-    };
+    try {
+      // If it's an ObserveResult, use actFromObserveResult
+      if (typeof actionOrOptions === 'object' && 'selector' in actionOrOptions) {
+        return await this.actHandler.actFromObserveResult(actionOrOptions);
+      }
+
+      // Convert string to ActOptions if needed
+      const actOptions: ActOptions =
+        typeof actionOrOptions === 'string' ? { action: actionOrOptions } : actionOrOptions;
+
+      // Generate a request ID for tracking
+      const requestId = `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      return await this.actHandler.observeAct(
+        actOptions,
+        this.observeHandler,
+        this.llmClient,
+        requestId
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.stagehand.log({
+        category: 'act',
+        message: `Failed to execute action: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: 'string' },
+        },
+      });
+
+      return {
+        success: false,
+        message: errorMessage,
+        action: typeof actionOrOptions === 'string' ? actionOrOptions : 'unknown',
+      };
+    }
   }
 
   /**
    * Observe elements on the page using AI
-   * TODO: Implement using Cordyceps-compatible observe handler
    */
   async observe(instructionOrOptions?: string | ObserveOptions): Promise<ObserveResult[]> {
+    if (!this.observeHandler) {
+      throw new Error('ChromeExtensionStagehandPage not initialized. Call init() first.');
+    }
+
     this.stagehand.log({
       category: 'observe',
-      message: 'ChromeExtensionStagehandPage.observe() not yet implemented',
-      level: 0,
+      message: 'Observing page using ChromeExtensionStagehandPage',
+      level: 1,
       auxiliary: {
         instruction: {
           value: typeof instructionOrOptions === 'string' ? instructionOrOptions : 'object',
@@ -80,27 +163,109 @@ class ChromeExtensionStagehandPage {
       },
     });
 
-    // TODO: Implement observe functionality using Cordyceps
-    return [];
+    try {
+      // Generate a request ID for tracking
+      const requestId = `observe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Extract instruction and options
+      let instruction: string;
+      let options: Partial<ObserveOptions> = {};
+
+      if (typeof instructionOrOptions === 'string') {
+        instruction = instructionOrOptions;
+      } else if (
+        instructionOrOptions &&
+        'instruction' in instructionOrOptions &&
+        instructionOrOptions.instruction
+      ) {
+        instruction = instructionOrOptions.instruction;
+        options = instructionOrOptions;
+      } else {
+        instruction = 'Find elements that can be used for any future actions in the page.';
+      }
+
+      return await this.observeHandler.observe({
+        instruction,
+        llmClient: this.llmClient,
+        requestId,
+        domSettleTimeoutMs: this.stagehand.domSettleTimeoutMs,
+        returnAction: options.returnAction,
+        onlyVisible: options.onlyVisible,
+        drawOverlay: options.drawOverlay,
+        fromAct: false, // This is called from observe method, not act
+        iframes: options.iframes,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.stagehand.log({
+        category: 'observe',
+        message: `Failed to observe page: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: 'string' },
+        },
+      });
+
+      // Return empty array on error
+      return [];
+    }
   }
 
   /**
    * Extract data from the page using AI
-   * TODO: Implement using Cordyceps-compatible extract handler
    */
-  async extract<T extends z.AnyZodObject>(_options?: ExtractOptions<T>): Promise<ExtractResult<T>> {
+  async extract<T extends z.AnyZodObject>(options?: ExtractOptions<T>): Promise<ExtractResult<T>> {
+    if (!this.extractHandler) {
+      throw new Error('ChromeExtensionStagehandPage not initialized. Call init() first.');
+    }
+
     this.stagehand.log({
       category: 'extract',
-      message: 'ChromeExtensionStagehandPage.extract() not yet implemented',
-      level: 0,
+      message: 'Extracting data from page using ChromeExtensionStagehandPage',
+      level: 1,
     });
 
-    // TODO: Implement extract functionality using Cordyceps
-    throw new Error('Extract functionality not yet implemented in Chrome extension version');
+    try {
+      return await this.extractHandler.extract(options || {});
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.stagehand.log({
+        category: 'extract',
+        message: `Failed to extract data from page: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: 'string' },
+        },
+      });
+
+      throw error; // Re-throw since extract should fail if it can't extract
+    }
   }
 
   async dispose(): Promise<void> {
-    // TODO: Clean up resources
+    // Clean up overlays if they exist
+    if (this.extractHandler) {
+      try {
+        await this.extractHandler.clearExtractionOverlays();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+
+    if (this.observeHandler) {
+      try {
+        await this.observeHandler.clearObserveOverlays();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+
+    // Reset handlers
+    this.actHandler = null;
+    this.extractHandler = null;
+    this.observeHandler = null;
   }
 }
 
@@ -210,8 +375,8 @@ export interface ChromeExtensionInitResult {
  */
 export class ChromeExtensionStagehand {
   // Core browser integration
-  private _browserWindow!: BrowserWindow;
-  private _currentPage!: ChromeExtensionStagehandPage;
+  private _browserWindow: BrowserWindow | null = null;
+  private _currentPage: ChromeExtensionStagehandPage | null = null;
 
   // LLM and AI functionality (keep - this is the valuable part)
   public llmProvider: LLMProvider;
@@ -254,6 +419,9 @@ export class ChromeExtensionStagehand {
   private _isClosed: boolean = false;
 
   constructor(params: ChromeExtensionStagehandParams = {}) {
+    console.log(
+      `[ChromeExtensionStagehand.constructor] Initializing with params: ${JSON.stringify(params)} ######`
+    );
     // Set default configuration
     this._modelName = params.modelName ?? 'openai/gpt-4o-mini';
     this._modelClientOptions = params.modelClientOptions ?? {};
@@ -264,6 +432,7 @@ export class ChromeExtensionStagehand {
     this.selfHeal = params.selfHeal ?? false;
     this.experimental = params.experimental ?? false;
 
+    console.log(`[ChromeExtensionStagehand.constructor] Initializing logger ######`);
     // Initialize logger for Chrome extension (no Pino, no file system)
     this._stagehandLogger = new StagehandLogger(
       {
@@ -274,16 +443,21 @@ export class ChromeExtensionStagehand {
     );
     this._stagehandLogger.setVerbosity(this.verbose);
 
+    console.log(
+      `[ChromeExtensionStagehand.constructor] Initializing LLM provider and client ######`
+    );
     // Initialize LLM provider and client
     this.llmProvider = params.llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.llmClient =
       params.llmClient || this.llmProvider.getClient(this._modelName, this._modelClientOptions);
 
     if (this.experimental) {
+      console.log(`[ChromeExtensionStagehand.constructor] Experimental mode enabled ######`);
       this._stagehandLogger.warn(
         'Experimental mode is enabled. This is a beta feature and may break at any time.'
       );
     }
+    console.log(`[ChromeExtensionStagehand.constructor] Constructor completed ######`);
   }
 
   /**
@@ -293,7 +467,11 @@ export class ChromeExtensionStagehand {
    * the existing browser context provided by the Cordyceps system.
    */
   async init(browserWindow?: BrowserWindow): Promise<ChromeExtensionInitResult> {
+    console.log(
+      `[ChromeExtensionStagehand.init] Starting initialization with browserWindow: ${browserWindow} ######`
+    );
     if (this._isInitialized) {
+      console.log(`[ChromeExtensionStagehand.init] Already initialized, returning early ######`);
       this.log({
         category: 'init',
         message: 'ChromeExtensionStagehand already initialized',
@@ -306,12 +484,40 @@ export class ChromeExtensionStagehand {
     }
 
     try {
+      this.log({
+        category: 'init',
+        message: 'Starting ChromeExtensionStagehand initialization...',
+        level: 1,
+      });
+
+      console.log(`[ChromeExtensionStagehand.init] Setting up BrowserWindow ######`);
       // Use provided BrowserWindow or create a new one
       this._browserWindow = browserWindow || (await BrowserWindow.create());
 
+      this.log({
+        category: 'init',
+        message: 'BrowserWindow ready, getting current page...',
+        level: 2,
+      });
+
+      console.log(
+        `[ChromeExtensionStagehand.init] Getting current page from browser window ######`
+      );
       // Get the current page from the browser window
       const cordycepsPage = await this._browserWindow.getCurrentPage();
 
+      this.log({
+        category: 'init',
+        message: 'Current page obtained, creating StagehandPage wrapper...',
+        level: 2,
+        auxiliary: {
+          pageUrl: { value: cordycepsPage.url(), type: 'string' },
+        },
+      });
+
+      console.log(
+        `[ChromeExtensionStagehand.init] Creating StagehandPage wrapper for: ${cordycepsPage.url()} ######`
+      );
       // Wrap the Cordyceps page with our enhanced StagehandPage
       this._currentPage = new ChromeExtensionStagehandPage(
         cordycepsPage,
@@ -320,10 +526,27 @@ export class ChromeExtensionStagehand {
         this.userProvidedInstructions
       );
 
+      this.log({
+        category: 'init',
+        message: 'StagehandPage wrapper created, setting initialization flag...',
+        level: 2,
+      });
+
+      console.log(
+        `[ChromeExtensionStagehand.init] Setting initialization flag before page initialization ######`
+      );
+      // Set initialization flag BEFORE initializing the page wrapper to avoid circular dependency
+      this._isInitialized = true;
+
+      console.log(`[ChromeExtensionStagehand.init] Initializing StagehandPage wrapper ######`);
       // Initialize the page wrapper
       await this._currentPage.init();
 
-      this._isInitialized = true;
+      this.log({
+        category: 'init',
+        message: 'StagehandPage initialized successfully',
+        level: 2,
+      });
 
       const currentUrl = cordycepsPage.url();
 
@@ -338,12 +561,16 @@ export class ChromeExtensionStagehand {
         },
       });
 
+      console.log(`[ChromeExtensionStagehand.init] Initialization completed successfully ######`);
       return {
         success: true,
         currentUrl,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(
+        `[ChromeExtensionStagehand.init] ERROR: Initialization failed ${errorMessage} ######`
+      );
 
       this.log({
         category: 'init',
@@ -351,8 +578,15 @@ export class ChromeExtensionStagehand {
         level: 0,
         auxiliary: {
           error: { value: errorMessage, type: 'string' },
+          stack: { value: error instanceof Error ? error.stack || '' : '', type: 'string' },
         },
       });
+
+      console.log(`[ChromeExtensionStagehand.init] Resetting initialization state ######`);
+      // Reset initialization state on failure
+      this._isInitialized = false;
+      this._currentPage = null;
+      this._browserWindow = null;
 
       return {
         success: false,
@@ -366,9 +600,18 @@ export class ChromeExtensionStagehand {
    * Provides compatibility with the original Stagehand API
    */
   public get page(): Page {
+    console.log(
+      `[ChromeExtensionStagehand.page] Getting page, initialized: ${this._isInitialized}, currentPage exists: ${!!this._currentPage} ######`
+    );
     if (!this._isInitialized || !this._currentPage) {
+      console.log(
+        `[ChromeExtensionStagehand.page] ERROR: Not initialized or no current page ######`
+      );
       throw new Error('ChromeExtensionStagehand not initialized. Call init() first.');
     }
+    console.log(
+      `[ChromeExtensionStagehand.page] Returning page: ${this._currentPage.page.url()} ######`
+    );
     return this._currentPage.page;
   }
 
@@ -408,6 +651,16 @@ export class ChromeExtensionStagehand {
    */
   public get isInitialized(): boolean {
     return this._isInitialized;
+  }
+
+  /**
+   * Get the browser window for handlers
+   */
+  public get browserWindow(): BrowserWindow {
+    if (!this._isInitialized || !this._browserWindow) {
+      throw new Error('ChromeExtensionStagehand not initialized. Call init() first.');
+    }
+    return this._browserWindow;
   }
 
   /**
@@ -504,6 +757,10 @@ export class ChromeExtensionStagehand {
    */
   log(logObj: LogLine): void {
     logObj.level = logObj.level ?? 1;
+    // Add console.log for debugging - but only for important messages (level 0 or 1)
+    if (logObj.level <= 1) {
+      console.log(`[ChromeExtensionStagehand.log] ${logObj.category}: ${logObj.message} ######`);
+    }
     this._stagehandLogger.log(logObj);
   }
 
@@ -515,7 +772,11 @@ export class ChromeExtensionStagehand {
     url: string,
     options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }
   ): Promise<void> {
+    console.log(
+      `[ChromeExtensionStagehand.goto] Navigating to: ${url} with options: ${JSON.stringify(options)} ######`
+    );
     if (!this._isInitialized || !this._currentPage) {
+      console.log(`[ChromeExtensionStagehand.goto] ERROR: Not initialized ######`);
       throw new Error('ChromeExtensionStagehand not initialized. Call init() first.');
     }
 
@@ -530,9 +791,11 @@ export class ChromeExtensionStagehand {
     });
 
     try {
+      console.log(`[ChromeExtensionStagehand.goto] Calling page.goto ######`);
       // Use Cordyceps page.goto method
       await this._currentPage.page.goto(url, options);
 
+      console.log(`[ChromeExtensionStagehand.goto] Adding to history ######`);
       this.addToHistory('navigate', { url, options }, { success: true });
 
       this.log({
@@ -540,8 +803,12 @@ export class ChromeExtensionStagehand {
         message: `Successfully navigated to: ${url}`,
         level: 1,
       });
+      console.log(`[ChromeExtensionStagehand.goto] Navigation completed successfully ######`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(
+        `[ChromeExtensionStagehand.goto] ERROR: Navigation failed ${errorMessage} ######`
+      );
 
       this.addToHistory('navigate', { url, options }, { success: false, error: errorMessage });
 
@@ -636,7 +903,7 @@ export class ChromeExtensionStagehand {
 
     // Use Cordyceps screenshot method with progress
     return await executeWithProgress(async progress => {
-      return await this._currentPage.page.screenshot(progress, {
+      return await this._currentPage!.page.screenshot(progress, {
         fullPage: options?.fullPage,
         quality: options?.quality,
       });
@@ -722,7 +989,9 @@ export class ChromeExtensionStagehand {
    * Chrome extension version doesn't need to close browser since it's shared
    */
   async close(): Promise<void> {
+    console.log(`[ChromeExtensionStagehand.close] Starting close process ######`);
     if (this._isClosed) {
+      console.log(`[ChromeExtensionStagehand.close] Already closed, returning early ######`);
       return;
     }
 
@@ -732,11 +1001,13 @@ export class ChromeExtensionStagehand {
       level: 1,
     });
 
+    console.log(`[ChromeExtensionStagehand.close] Disposing current page ######`);
     // Clean up the page wrapper
     if (this._currentPage) {
       await this._currentPage.dispose();
     }
 
+    console.log(`[ChromeExtensionStagehand.close] Setting closed flags ######`);
     this._isClosed = true;
     this._isInitialized = false;
 
@@ -745,6 +1016,7 @@ export class ChromeExtensionStagehand {
       message: 'ChromeExtensionStagehand closed successfully',
       level: 1,
     });
+    console.log(`[ChromeExtensionStagehand.close] Close process completed ######`);
   }
 
   // Private helper methods
@@ -760,22 +1032,91 @@ export class ChromeExtensionStagehand {
   }
 
   private async _executeAgentInstruction(options: AgentExecuteOptions): Promise<AgentResult> {
-    // TODO: Implement agent instruction execution using Cordyceps
-    // This would use the existing act/observe/extract methods from ChromeExtensionStagehandPage
-    // and integrate with the LLM client for AI-powered decision making
+    // Agent instruction execution using the existing act/observe/extract methods
+    // This provides a high-level AI agent that can perform complex multi-step tasks
 
     this.log({
       category: 'agent',
-      message: 'Agent instruction execution not yet implemented',
-      level: 0,
+      message: 'Executing agent instruction',
+      level: 1,
       auxiliary: {
         instruction: { value: options.instruction || 'Unknown', type: 'string' },
       },
     });
 
-    throw new Error(
-      'Agent instruction execution not yet implemented - needs Cordyceps integration'
-    );
+    try {
+      const startTime = Date.now();
+
+      // Step 1: Observe the current page to understand what's available
+      const observeResults = await this.stagehandPage.observe(
+        `Observe the page to understand the current state and identify elements relevant to: "${options.instruction}"`
+      );
+
+      if (observeResults.length === 0) {
+        return {
+          success: false,
+          message: 'No interactive elements found on the page',
+          actions: [],
+          completed: false,
+        };
+      }
+
+      // Step 2: Use the first relevant element to perform the action
+      const primaryElement = observeResults[0];
+      const actResult = await this.stagehandPage.act(primaryElement);
+
+      const endTime = Date.now();
+      const inferenceTime = endTime - startTime;
+
+      // Update agent metrics
+      this.updateMetrics(StagehandFunctionName.AGENT, 0, 0, inferenceTime);
+
+      // Add to history (use 'act' as the method since 'agent' is not allowed)
+      this.addToHistory('act', options, {
+        observations: observeResults,
+        primaryAction: actResult,
+      });
+
+      // Convert ActResult to AgentAction
+      const agentAction: AgentAction = {
+        type: 'act',
+        instruction: options.instruction,
+        result: actResult,
+        success: actResult.success,
+      };
+
+      return {
+        success: actResult.success,
+        message: actResult.success
+          ? `Successfully executed agent instruction: ${options.instruction}`
+          : `Failed to execute agent instruction: ${actResult.message}`,
+        actions: [agentAction],
+        completed: actResult.success,
+        usage: {
+          input_tokens: 0, // TODO: Get from LLM client if available
+          output_tokens: 0, // TODO: Get from LLM client if available
+          inference_time_ms: inferenceTime,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.log({
+        category: 'agent',
+        message: `Failed to execute agent instruction: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: 'string' },
+        },
+      });
+
+      return {
+        success: false,
+        message: errorMessage,
+        actions: [],
+        completed: false,
+      };
+    }
   }
 }
 
