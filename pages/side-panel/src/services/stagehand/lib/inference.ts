@@ -1,4 +1,4 @@
-import { z } from 'zod/v3';
+import { z } from 'zod';
 import { LogLine } from '../types/log';
 import { ChatMessage, LLMClient } from './llm/LLMClient';
 import {
@@ -102,7 +102,7 @@ export async function extract({
   const extractEndTime = Date.now();
 
   const { data: extractedData, usage: extractUsage } =
-    extractionResponse as LLMParsedResponse<ExtractionResponse>;
+    extractionResponse as unknown as LLMParsedResponse<ExtractionResponse>;
 
   let extractResponseFile = '';
   if (logInferenceToFile) {
@@ -229,40 +229,49 @@ export async function observe({
 }) {
   const isGPT5 = llmClient.modelName.includes('gpt-5'); // TODO: remove this as we update support for gpt-5 configuration options
 
+  // Create base element schema
+  const baseElementSchema = z.object({
+    elementId: z
+      .string()
+      .describe(
+        "the ID string associated with the element. This should be the aria-ref identifier (like 'e123', 'f45e67') extracted from the [ref=...] attributes in the accessibility tree. Do not include brackets or 'ref=' prefix - just the identifier itself."
+      ),
+    description: z.string().describe('a description of the accessible element and its purpose'),
+  });
+
+  // Create action element schema with additional fields
+  const actionElementSchema = baseElementSchema.extend({
+    method: z
+      .string()
+      .describe(
+        'the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.'
+      ),
+    arguments: z.array(
+      z
+        .string()
+        .describe(
+          'the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.'
+        )
+    ),
+  });
+
+  // Create observe schema based on returnAction flag
   const observeSchema = z.object({
     elements: z
-      .array(
-        z.object({
-          elementId: z
-            .string()
-            .describe(
-              "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'."
-            ),
-          description: z
-            .string()
-            .describe('a description of the accessible element and its purpose'),
-          ...(returnAction
-            ? {
-                method: z
-                  .string()
-                  .describe(
-                    'the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.'
-                  ),
-                arguments: z.array(
-                  z
-                    .string()
-                    .describe(
-                      'the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.'
-                    )
-                ),
-              }
-            : {}),
-        })
-      )
+      .array(returnAction ? actionElementSchema : baseElementSchema)
       .describe('an array of accessible elements that match the instruction'),
   });
 
   type ObserveResponse = z.infer<typeof observeSchema>;
+
+  // Debug: Log detailed schema information
+  console.log(`[observe] Creating schema with returnAction=${returnAction} ######`);
+  console.log(
+    `[observe] Schema has parse method: ${typeof observeSchema.parse === 'function'} ######`
+  );
+  console.log(
+    `[observe] Elements array schema: ${returnAction ? 'actionElementSchema' : 'baseElementSchema'} ######`
+  );
 
   const messages: ChatMessage[] = [
     buildObserveSystemPrompt(userProvidedInstructions),
@@ -287,6 +296,12 @@ export async function observe({
   }
 
   const start = Date.now();
+  console.log(`[observe] About to call llmClient.createChatCompletion with schema ######`);
+  console.log(`[observe] Response model name: 'Observation' ######`);
+  console.log(
+    `[observe] Schema validation: ${typeof observeSchema === 'object' && observeSchema._def ? 'PASSED' : 'FAILED'} ######`
+  );
+
   const rawResponse = await llmClient.createChatCompletion<ObserveResponse>({
     options: {
       messages,
@@ -304,6 +319,8 @@ export async function observe({
   });
   const end = Date.now();
   const usageTimeMs = end - start;
+
+  console.log(`[observe] LLM call completed in ${usageTimeMs}ms ######`);
 
   const { data: observeData, usage: observeUsage } =
     rawResponse as unknown as LLMParsedResponse<ObserveResponse>;
@@ -341,10 +358,12 @@ export async function observe({
         description: String(el.description),
       };
       if (returnAction) {
+        // Type assertion to access method and arguments when returnAction is true
+        const actionEl = el as typeof el & { method: string; arguments: string[] };
         return {
           ...base,
-          method: String(el.method),
-          arguments: el.arguments,
+          method: String(actionEl.method),
+          arguments: actionEl.arguments,
         };
       }
       return base;

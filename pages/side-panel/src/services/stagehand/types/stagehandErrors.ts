@@ -1,4 +1,4 @@
-import { ZodError } from 'zod/v3';
+import { ZodError } from 'zod';
 
 export class StagehandError extends Error {
   constructor(message: string) {

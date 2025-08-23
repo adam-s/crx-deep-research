@@ -100,8 +100,8 @@ export class StagehandActHandler {
     }
 
     const args = observe.arguments ?? [];
-    // Remove the xpath prefix on the selector - replace() always returns a string
-    const selector: string = observe.selector.replace('xpath=', '');
+    // Keep the full selector format to handle both xpath= and aria-ref= formats
+    const selector: string = observe.selector;
 
     try {
       console.log(`[StagehandActHandler.actFromObserveResult] executing method=${method} ######`);
@@ -191,29 +191,55 @@ export class StagehandActHandler {
     requestId: string
   ): Promise<ActResult> {
     console.log(`[StagehandActHandler.observeAct] starting with requestId=${requestId} ######`);
+    console.log(
+      `[StagehandActHandler.observeAct] actionOrOptions type: ${typeof actionOrOptions} ######`
+    );
+    console.log(
+      `[StagehandActHandler.observeAct] actionOrOptions: ${JSON.stringify(actionOrOptions)} ######`
+    );
+    console.log(
+      `[StagehandActHandler.observeAct] observeHandler exists: ${!!observeHandler} ######`
+    );
+    console.log(`[StagehandActHandler.observeAct] llmClient exists: ${!!llmClient} ######`);
+    console.log(`[StagehandActHandler.observeAct] llmClient type: ${llmClient?.type} ######`);
 
     // Extract the action string
     let action: string;
     const observeOptions: Partial<ObserveOptions> = {};
 
+    console.log(`[StagehandActHandler.observeAct] processing actionOrOptions ######`);
     if (typeof actionOrOptions === 'object' && actionOrOptions !== null) {
+      console.log(`[StagehandActHandler.observeAct] actionOrOptions is object ######`);
       if (!('action' in actionOrOptions)) {
+        console.log(
+          `[StagehandActHandler.observeAct] ERROR: no action field in actionOrOptions ######`
+        );
         throw new StagehandInvalidArgumentError(
           'Invalid argument. Action options must have an `action` field.'
         );
       }
 
       if (typeof actionOrOptions.action !== 'string' || actionOrOptions.action.length === 0) {
+        console.log(`[StagehandActHandler.observeAct] ERROR: invalid action value ######`);
         throw new StagehandInvalidArgumentError('Invalid argument. No action provided.');
       }
 
       action = actionOrOptions.action;
+      console.log(`[StagehandActHandler.observeAct] extracted action: "${action}" ######`);
 
       // Extract options that should be passed to observe
-      if (actionOrOptions.modelName) observeOptions.modelName = actionOrOptions.modelName;
-      if (actionOrOptions.modelClientOptions)
+      if (actionOrOptions.modelName) {
+        observeOptions.modelName = actionOrOptions.modelName;
+        console.log(
+          `[StagehandActHandler.observeAct] extracted modelName: ${actionOrOptions.modelName} ######`
+        );
+      }
+      if (actionOrOptions.modelClientOptions) {
         observeOptions.modelClientOptions = actionOrOptions.modelClientOptions;
+        console.log(`[StagehandActHandler.observeAct] extracted modelClientOptions ######`);
+      }
     } else {
+      console.log(`[StagehandActHandler.observeAct] ERROR: actionOrOptions is not object ######`);
       throw new StagehandInvalidArgumentError(
         'Invalid argument. Valid arguments are: a string, an ActOptions object with an `action` field not empty, or an ObserveResult with a `selector` and `method` field.'
       );
@@ -229,66 +255,119 @@ export class StagehandActHandler {
         Object.values(SupportedPlaywrightAction),
         actionOrOptions.variables
       );
-
-      console.log(`[StagehandActHandler.observeAct] calling observe handler ######`);
-      const observeResults = await observeHandler.observe({
-        instruction,
-        llmClient,
-        requestId,
-        drawOverlay: false,
-        returnAction: true,
-        fromAct: true,
-        iframes: actionOrOptions?.iframes,
-      });
-
-      if (observeResults.length === 0) {
-        console.log(`[StagehandActHandler.observeAct] no observe results found ######`);
-        return {
-          success: false,
-          message: `Failed to perform act: No observe results found for action`,
-          action,
-        };
-      }
-
-      const element: ObserveResult = observeResults[0];
       console.log(
-        `[StagehandActHandler.observeAct] found element with method=${element.method} ######`
+        `[StagehandActHandler.observeAct] instruction built: ${instruction.substring(0, 200)}... ######`
       );
 
-      if (actionOrOptions.variables) {
-        Object.keys(actionOrOptions.variables).forEach(key => {
-          if (element.arguments) {
-            element.arguments = element.arguments.map(arg =>
-              arg.replace(`%${key}%`, actionOrOptions.variables![key])
-            );
-          }
-        });
-      }
+      console.log(`[StagehandActHandler.observeAct] calling observe handler ######`);
+      console.log(
+        `[StagehandActHandler.observeAct] observe parameters - llmClient: ${llmClient.type}, requestId: ${requestId} ######`
+      );
 
-      return this.actFromObserveResult(element, actionOrOptions.domSettleTimeoutMs);
+      try {
+        const observeResults = await observeHandler.observe({
+          instruction,
+          llmClient,
+          requestId,
+          drawOverlay: false,
+          returnAction: true,
+          fromAct: true,
+          iframes: actionOrOptions?.iframes,
+        });
+        console.log(
+          `[StagehandActHandler.observeAct] observe handler completed, results: ${observeResults.length} ######`
+        );
+
+        if (observeResults.length === 0) {
+          console.log(`[StagehandActHandler.observeAct] no observe results found ######`);
+          return {
+            success: false,
+            message: `Failed to perform act: No observe results found for action`,
+            action,
+          };
+        }
+
+        const element: ObserveResult = observeResults[0];
+        console.log(
+          `[StagehandActHandler.observeAct] found element with method=${element.method} ######`
+        );
+
+        if (actionOrOptions.variables) {
+          console.log(
+            `[StagehandActHandler.observeAct] processing variables: ${Object.keys(actionOrOptions.variables)} ######`
+          );
+          Object.keys(actionOrOptions.variables).forEach(key => {
+            if (element.arguments) {
+              element.arguments = element.arguments.map(arg =>
+                arg.replace(`%${key}%`, actionOrOptions.variables![key])
+              );
+            }
+          });
+          console.log(`[StagehandActHandler.observeAct] variables processed ######`);
+        }
+
+        console.log(`[StagehandActHandler.observeAct] calling actFromObserveResult ######`);
+        const result = await this.actFromObserveResult(element, actionOrOptions.domSettleTimeoutMs);
+        console.log(
+          `[StagehandActHandler.observeAct] actFromObserveResult completed with success: ${result.success} ######`
+        );
+        return result;
+      } catch (error) {
+        const err = error as Error;
+        console.log(
+          `[StagehandActHandler.observeAct] ERROR in doObserveAndAct: ${err.message} ######`
+        );
+        console.log(`[StagehandActHandler.observeAct] ERROR stack: ${err.stack} ######`);
+        throw error;
+      }
     };
 
     // If no user defined timeoutMs, just do observeAct + actFromObserveResult with no timeout
     if (!actionOrOptions.timeoutMs) {
-      return doObserveAndAct();
+      console.log(
+        `[StagehandActHandler.observeAct] no timeout specified, calling doObserveAndAct directly ######`
+      );
+      try {
+        const result = await doObserveAndAct();
+        console.log(
+          `[StagehandActHandler.observeAct] doObserveAndAct completed with success: ${result.success} ######`
+        );
+        return result;
+      } catch (error) {
+        const err = error as Error;
+        console.log(
+          `[StagehandActHandler.observeAct] ERROR in direct doObserveAndAct: ${err.message} ######`
+        );
+        throw error;
+      }
     }
 
     // Race observeAct + actFromObserveResult vs. the timeoutMs
     const { timeoutMs } = actionOrOptions;
     console.log(`[StagehandActHandler.observeAct] racing with timeout=${timeoutMs}ms ######`);
-    return await Promise.race([
-      doObserveAndAct(),
-      new Promise<ActResult>(resolve => {
-        setTimeout(() => {
-          console.log(`[StagehandActHandler.observeAct] timeout reached ######`);
-          resolve({
-            success: false,
-            message: `Action timed out after ${timeoutMs}ms`,
-            action,
-          });
-        }, timeoutMs);
-      }),
-    ]);
+    try {
+      const result = await Promise.race([
+        doObserveAndAct(),
+        new Promise<ActResult>(resolve => {
+          setTimeout(() => {
+            console.log(`[StagehandActHandler.observeAct] timeout reached ######`);
+            resolve({
+              success: false,
+              message: `Action timed out after ${timeoutMs}ms`,
+              action,
+            });
+          }, timeoutMs);
+        }),
+      ]);
+      console.log(
+        `[StagehandActHandler.observeAct] race completed with success: ${result.success} ######`
+      );
+      return result;
+    } catch (error) {
+      const err = error as Error;
+      console.log(`[StagehandActHandler.observeAct] ERROR in race: ${err.message} ######`);
+      throw error;
+    }
   }
 
   /**
@@ -297,27 +376,45 @@ export class StagehandActHandler {
   private async _performCordycepsMethod(
     method: string,
     args: unknown[],
-    rawXPath: string,
+    selectorString: string,
     domSettleTimeoutMs: number
   ): Promise<void> {
     console.log(
-      `[StagehandActHandler._performCordycepsMethod] method=${method} xpath=${rawXPath} ######`
+      `[StagehandActHandler._performCordycepsMethod] method=${method} selector=${selectorString} ######`
     );
 
-    const xpath = rawXPath.replace(/^xpath=/i, '').trim();
     const page = await this.browserWindow.getCurrentPage();
 
     let locator;
-    if (this.experimental) {
+    let selectorValue: string; // For logging purposes
+
+    // Handle different selector formats
+    if (selectorString.startsWith('aria-ref=')) {
+      // Handle aria-ref selectors directly with Cordyceps locator
       console.log(
-        `[StagehandActHandler._performCordycepsMethod] using experimental deepLocatorWithShadow ######`
+        `[StagehandActHandler._performCordycepsMethod] using aria-ref selector: ${selectorString} ######`
       );
-      locator = await deepLocatorWithShadow(page, xpath);
+      locator = page.locator(selectorString);
+      selectorValue = selectorString;
     } else {
+      // Handle xpath selectors (strip xpath= prefix if present)
+      const xpath = selectorString.replace(/^xpath=/i, '').trim();
+      selectorValue = xpath;
       console.log(
-        `[StagehandActHandler._performCordycepsMethod] using standard deepLocator ######`
+        `[StagehandActHandler._performCordycepsMethod] using xpath selector: ${xpath} ######`
       );
-      locator = deepLocator(page, xpath);
+
+      if (this.experimental) {
+        console.log(
+          `[StagehandActHandler._performCordycepsMethod] using experimental deepLocatorWithShadow ######`
+        );
+        locator = await deepLocatorWithShadow(page, xpath);
+      } else {
+        console.log(
+          `[StagehandActHandler._performCordycepsMethod] using standard deepLocator ######`
+        );
+        locator = deepLocator(page, xpath);
+      }
     }
 
     const initialUrl = page.url();
@@ -327,7 +424,7 @@ export class StagehandActHandler {
       message: 'performing cordyceps method',
       level: 2,
       auxiliary: {
-        xpath: { value: xpath, type: 'string' },
+        selector: { value: selectorValue, type: 'string' },
         method: { value: method, type: 'string' },
       },
     });
@@ -367,7 +464,8 @@ export class StagehandActHandler {
     const context = {
       method,
       locator,
-      xpath,
+      xpath: selectorValue, // For backward compatibility with MethodHandlerContext
+      selector: selectorValue,
       args: args.map(arg => String(arg)), // Convert unknown[] to string[]
       logger: contextLogger,
       stagehandPage: {
@@ -429,7 +527,7 @@ export class StagehandActHandler {
           error: { value: error.message, type: 'string' },
           trace: { value: error.stack || '', type: 'string' },
           method: { value: method, type: 'string' },
-          xpath: { value: xpath, type: 'string' },
+          selector: { value: selectorValue, type: 'string' },
           args: { value: JSON.stringify(args), type: 'object' },
         },
       });

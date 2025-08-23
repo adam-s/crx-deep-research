@@ -153,18 +153,50 @@ export class StagehandObserveHandler {
 
     // Perform observation using LLM
     console.log(`[StagehandObserveHandler.observe] performing LLM observation ######`);
-    const observationResponse = await observe({
-      instruction,
-      domElements: combinedTreeString,
-      llmClient,
-      requestId,
-      userProvidedInstructions: this.userProvidedInstructions,
-      logger: this.logger,
-      returnAction,
-      logInferenceToFile: false, // Chrome extension doesn't have file logging
-      fromAct: fromAct,
-    });
-    console.log(`[StagehandObserveHandler.observe] LLM observation response received ######`);
+    console.log(
+      `[StagehandObserveHandler.observe] calling observe function with parameters: ######`
+    );
+    console.log(
+      `[StagehandObserveHandler.observe] - instruction length: ${instruction.length} ######`
+    );
+    console.log(
+      `[StagehandObserveHandler.observe] - domElements length: ${combinedTreeString.length} ######`
+    );
+    console.log(`[StagehandObserveHandler.observe] - llmClient type: ${llmClient.type} ######`);
+    console.log(`[StagehandObserveHandler.observe] - requestId: ${requestId} ######`);
+    console.log(`[StagehandObserveHandler.observe] - returnAction: ${returnAction} ######`);
+    console.log(`[StagehandObserveHandler.observe] - fromAct: ${fromAct} ######`);
+
+    let observationResponse: unknown;
+    try {
+      observationResponse = await observe({
+        instruction,
+        domElements: combinedTreeString,
+        llmClient,
+        requestId,
+        userProvidedInstructions: this.userProvidedInstructions,
+        logger: this.logger,
+        returnAction,
+        logInferenceToFile: false, // Chrome extension doesn't have file logging
+        fromAct: fromAct,
+      });
+      console.log(
+        `[StagehandObserveHandler.observe] LLM observation response received successfully ######`
+      );
+      console.log(
+        `[StagehandObserveHandler.observe] response type: ${typeof observationResponse} ######`
+      );
+      console.log(
+        `[StagehandObserveHandler.observe] response has elements: ${!!(observationResponse as Record<string, unknown>)?.elements} ######`
+      );
+    } catch (observeError) {
+      const err = observeError as Error;
+      console.log(
+        `[StagehandObserveHandler.observe] ERROR in observe function: ${err.message} ######`
+      );
+      console.log(`[StagehandObserveHandler.observe] ERROR stack: ${err.stack} ######`);
+      throw observeError;
+    }
 
     // Update metrics
     const {
@@ -735,6 +767,7 @@ export class StagehandObserveHandler {
             });
 
             if (elementId.includes('-')) {
+              // Handle encoded format (frame-element ID)
               const lookUpIndex = elementId as EncodedId;
               const xpath: string | undefined = xpathMap[lookUpIndex];
               const trimmedXpath = trimTrailingTextNode(xpath);
@@ -750,9 +783,20 @@ export class StagehandObserveHandler {
                 ...rest,
                 selector: `xpath=${trimmedXpath}`,
               };
+            } else if (elementId.match(/^[ef]\d+e?\d*$/)) {
+              // Handle aria-ref format (like 'e123', 'f45e67')
+              console.log(
+                `[StagehandObserveHandler._processObservationElements] processing aria-ref elementId=${elementId} ######`
+              );
+
+              // Use the correct aria-ref selector format that Cordyceps understands
+              return {
+                ...rest,
+                selector: `aria-ref=${elementId}`,
+              };
             } else {
               console.warn(
-                `[StagehandObserveHandler._processObservationElements] elementId=${elementId} does not contain a frame separator, this may be an issue ######`
+                `[StagehandObserveHandler._processObservationElements] elementId=${elementId} does not match expected format (frame-element or aria-ref) ######`
               );
               return undefined;
             }

@@ -692,7 +692,18 @@ export class ChromeExtensionStagehandPage {
           : instructionOrOptions || {};
 
       console.log(`[ChromeExtensionStagehandPage.extract] Calling extractHandler.extract ######`);
-      return await this.extractHandler.extract(options);
+      // Convert ExtractOptions to the format expected by extractHandler
+      const extractHandlerOptions = {
+        instruction: options.instruction,
+        schema: options.schema,
+        domSettleTimeoutMs: options.domSettleTimeoutMs,
+        useTextExtract: options.useTextExtract,
+        selector: options.selector,
+        iframes: options.iframes,
+        llmClient: this.stagehand.llmClient,
+      } as Parameters<typeof this.extractHandler.extract>[0];
+
+      return await this.extractHandler.extract(extractHandlerOptions);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.log(

@@ -12,7 +12,7 @@ import {
   CombinedA11yResult,
   EncodedId,
 } from '../../types/context';
-import { StagehandPage } from '../StagehandPage';
+import { ChromeExtensionStagehandPage } from '../ChromeExtensionStagehandPage';
 import { LogLine } from '../../types/log';
 import { Frame } from '../../../cordyceps/frame';
 
@@ -85,7 +85,7 @@ export function formatSimplifiedTree(
  */
 export async function buildBackendIdMaps(
   experimental: boolean,
-  sp: StagehandPage,
+  sp: ChromeExtensionStagehandPage,
   _targetFrame?: Frame
 ): Promise<BackendIdMaps> {
   try {
@@ -319,7 +319,10 @@ export async function buildHierarchicalTree(
  * Resolve the frame identifier for a Chrome extension Frame.
  * Chrome extension implementation - simplified version.
  */
-export async function getCDPFrameId(sp: StagehandPage, frame?: Frame): Promise<string | undefined> {
+export async function getCDPFrameId(
+  sp: ChromeExtensionStagehandPage,
+  frame?: Frame
+): Promise<string | undefined> {
   if (!frame) return undefined;
 
   // For Chrome extension, we use a simplified approach
@@ -349,17 +352,17 @@ export async function getCDPFrameId(sp: StagehandPage, frame?: Frame): Promise<s
  */
 export async function getAccessibilityTree(
   experimental: boolean,
-  stagehandPage: StagehandPage,
-  logger: (log: LogLine) => void,
+  stagehandPage: ChromeExtensionStagehandPage,
+  logger?: (logLine: LogLine) => void,
   selector?: string,
-  targetFrame?: Frame
+  _shouldScreenshot?: boolean
 ): Promise<TreeResult> {
   try {
     // 0. DOM helpers (maps, xpath)
     const { tagNameMap, xpathMap } = await buildBackendIdMaps(
       experimental,
       stagehandPage,
-      targetFrame
+      undefined // targetFrame not used in Chrome extension implementation
     );
 
     // 1. Use page.evaluate to get accessibility tree from browser
@@ -530,7 +533,7 @@ export async function getAccessibilityTree(
     const start = Date.now();
     const tree = await buildHierarchicalTree(nodes, tagNameMap, logger, xpathMap);
 
-    logger({
+    logger?.({
       category: 'observation',
       message: `got accessibility tree in ${Date.now() - start} ms`,
       level: 1,
@@ -538,7 +541,7 @@ export async function getAccessibilityTree(
 
     return tree;
   } catch (error) {
-    logger({
+    logger?.({
       category: 'observation',
       message: `Error getting accessibility tree: ${error}`,
       level: 1,
@@ -578,7 +581,7 @@ export async function getFrameRootXpathWithShadow(frame: Frame | undefined): Pro
  */
 export async function getAccessibilityTreeWithFrames(
   experimental: boolean,
-  stagehandPage: StagehandPage,
+  stagehandPage: ChromeExtensionStagehandPage,
   logger: (l: LogLine) => void,
   rootXPath?: string
 ): Promise<CombinedA11yResult> {
@@ -685,7 +688,7 @@ export function injectSubtrees(tree: string, _idToTree: Map<EncodedId, string>):
  * Chrome extension implementation.
  */
 export async function resolveFrameChain(
-  sp: StagehandPage,
+  sp: ChromeExtensionStagehandPage,
   absPath: string
 ): Promise<{ frames: Frame[]; rest: string }> {
   // Simplified implementation for Chrome extension

@@ -32,4 +32,5 @@ export interface TestContext {
     }) => void;
   };
   storage?: ILocalAsyncStorage<SidePanelAppStorageSchema>;
+  apiKey?: string; // OpenAI API key passed from service
 }

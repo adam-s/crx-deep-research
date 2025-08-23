@@ -1,4 +1,4 @@
-import { z, type ZodTypeAny } from 'zod/v3';
+import { z } from 'zod';
 import { LogLine } from '../../types/log';
 import { ZodPathSegments } from '../../types/stagehand';
 import { extract } from '../inference';
@@ -63,10 +63,10 @@ export class StagehandExtractHandler {
     this.experimental = experimental;
   }
 
-  public async extract<T extends z.AnyZodObject>({
+  public async extract<T extends z.ZodObject<z.ZodRawShape>>({
     instruction,
     schema,
-    content = {},
+    content = {} as z.infer<T>,
     llmClient,
     requestId,
     domSettleTimeoutMs,
@@ -92,7 +92,7 @@ export class StagehandExtractHandler {
         message: 'Extracting the entire page text.',
         level: 1,
       });
-      return this.extractPageText();
+      return this.extractPageText() as z.infer<T>;
     }
 
     if (useTextExtract !== undefined) {
@@ -138,7 +138,7 @@ export class StagehandExtractHandler {
   /**
    * Extract structured data using DOM and LLM inference
    */
-  private async domExtract<T extends z.AnyZodObject>({
+  private async domExtract<T extends z.ZodObject<z.ZodRawShape>>({
     instruction,
     schema,
     llmClient,
@@ -591,13 +591,13 @@ export class StagehandExtractHandler {
 export function transformUrlStringsToNumericIds<T extends z.ZodObject<z.ZodRawShape>>(
   schema: T
 ): [T, ZodPathSegments[]] {
-  const shape = schema._def.shape();
-  const newShape: Record<string, ZodTypeAny> = {};
+  const shape = schema._def.shape as Record<string, z.ZodTypeAny>;
+  const newShape: Record<string, z.ZodTypeAny> = {};
   const urlPaths: ZodPathSegments[] = [];
   let changed = false;
 
   for (const [key, value] of Object.entries(shape)) {
-    const [childTransformed, childPaths] = transformSchema(value, [key]);
+    const [childTransformed, childPaths] = transformSchema(value as z.ZodTypeAny, [key]);
     newShape[key] = childTransformed;
     if (childTransformed !== value) {
       changed = true;

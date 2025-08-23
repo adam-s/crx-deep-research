@@ -1,4 +1,4 @@
-import { ZodType } from 'zod/v3';
+import { ZodType } from 'zod';
 import { LLMTool } from '../../types/llm';
 import { LogLine } from '../../types/log';
 import { AvailableModel, ClientOptions } from '../../types/model';

@@ -227,7 +227,20 @@ class ChromeExtensionStagehandPage {
     });
 
     try {
-      return await this.extractHandler.extract(options || {});
+      // Call extractHandler.extract with individual parameters to avoid type compatibility issues
+      if (!options) {
+        return await this.extractHandler.extract();
+      }
+
+      return await this.extractHandler.extract({
+        instruction: options.instruction,
+        schema: options.schema,
+        domSettleTimeoutMs: options.domSettleTimeoutMs,
+        useTextExtract: options.useTextExtract,
+        selector: options.selector,
+        iframes: options.iframes,
+        llmClient: this.stagehand.llmClient,
+      } as Parameters<typeof this.extractHandler.extract>[0]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -448,8 +461,11 @@ export class ChromeExtensionStagehand {
     );
     // Initialize LLM provider and client
     this.llmProvider = params.llmProvider || new LLMProvider(this.logger, this.enableCaching);
+
+    // Sanitize client options to match expected type (filter out null values)
+    const sanitizedClientOptions = this._sanitizeClientOptions(this._modelClientOptions);
     this.llmClient =
-      params.llmClient || this.llmProvider.getClient(this._modelName, this._modelClientOptions);
+      params.llmClient || this.llmProvider.getClient(this._modelName, sanitizedClientOptions);
 
     if (this.experimental) {
       console.log(`[ChromeExtensionStagehand.constructor] Experimental mode enabled ######`);
@@ -1029,6 +1045,40 @@ export class ChromeExtensionStagehand {
     this.stagehandMetrics.totalPromptTokens += promptTokens;
     this.stagehandMetrics.totalCompletionTokens += completionTokens;
     this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
+  }
+
+  /**
+   * Sanitize client options to match LLMProvider.getClient expected type
+   * Filters out null values and ensures compatibility
+   */
+  private _sanitizeClientOptions(clientOptions: ClientOptions):
+    | {
+        apiKey?: string;
+        baseURL?: string;
+      }
+    | undefined {
+    if (!clientOptions || typeof clientOptions !== 'object') {
+      return undefined;
+    }
+
+    const sanitized: { apiKey?: string; baseURL?: string } = {};
+
+    // Extract apiKey if it's a string
+    if ('apiKey' in clientOptions && typeof clientOptions.apiKey === 'string') {
+      sanitized.apiKey = clientOptions.apiKey;
+    }
+
+    // Extract baseURL if it's a string (filter out null)
+    if (
+      'baseURL' in clientOptions &&
+      typeof clientOptions.baseURL === 'string' &&
+      clientOptions.baseURL !== null
+    ) {
+      sanitized.baseURL = clientOptions.baseURL;
+    }
+
+    // Return undefined if no valid options found
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
   }
 
   private async _executeAgentInstruction(options: AgentExecuteOptions): Promise<AgentResult> {

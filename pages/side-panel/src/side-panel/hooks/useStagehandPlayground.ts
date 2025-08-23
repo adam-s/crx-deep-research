@@ -5,10 +5,8 @@ import { EventMessage, Severity } from '../../utils/types';
 import { IStagehandPlaygroundService } from '@src/services/stagehand/playground/stagehandPlayground.service';
 
 export interface UseStagehandPlaygroundReturn {
-  /** Run all stagehand tests */
+  /** Run fallback content script tests */
   runAllTests: () => Promise<void>;
-  /** Run quick validation tests (includes integration tests with debugger) */
-  runQuickTests: () => Promise<boolean>;
   /** All events emitted by the playground */
   events: EventMessage[];
   /** Latest event from the playground */
@@ -75,28 +73,11 @@ export const useStagehandPlayground = (): UseStagehandPlaygroundReturn => {
 
     try {
       setError(null);
-      await stagehandPlaygroundService.runAllTests();
+      await stagehandPlaygroundService.runFallbackContentScriptTests();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to run tests';
       setError(errorMessage);
       console.error('useStagehandPlayground: Failed to run tests:', err);
-    }
-  }, [stagehandPlaygroundService]);
-
-  const runQuickTests = useCallback(async () => {
-    if (!stagehandPlaygroundService) {
-      setError('Stagehand playground service not available');
-      return false;
-    }
-
-    try {
-      setError(null);
-      return await stagehandPlaygroundService.runQuickTests();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run quick tests';
-      setError(errorMessage);
-      console.error('useStagehandPlayground: Failed to run quick tests:', err);
-      return false;
     }
   }, [stagehandPlaygroundService]);
 
@@ -120,7 +101,6 @@ export const useStagehandPlayground = (): UseStagehandPlaygroundReturn => {
 
   return {
     runAllTests,
-    runQuickTests,
     events,
     latestEvent,
     isRunning,

@@ -1,7 +1,7 @@
 import { LLMClient } from '../lib/llm/LLMClient';
 import { Locator } from '../../cordyceps/locator';
 import { Logger } from './log';
-import { StagehandPage } from '../lib/StagehandPage';
+import { ChromeExtensionStagehandPage } from '../lib/ChromeExtensionStagehandPage';
 
 // WARNING: This is NOT to be confused with the ActParams type used in `page.act()`.
 // This is the type for the parameters passed to the `act` command in `inference.ts`.
@@ -52,7 +52,7 @@ export interface MethodHandlerContext {
   xpath: string;
   args: unknown[];
   logger: Logger;
-  stagehandPage: StagehandPage;
+  stagehandPage: ChromeExtensionStagehandPage;
   initialUrl: string;
   domSettleTimeoutMs?: number;
 }

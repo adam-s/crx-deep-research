@@ -6,6 +6,7 @@
  * Chrome extension security constraints.
  */
 
+import { z } from 'zod';
 import { AgentAction, AgentExecuteOptions, AgentResult } from '../../types/agent';
 import { LogLine, LogLevel } from '../../types/log';
 import {
@@ -354,7 +355,7 @@ export class StagehandOperatorHandler {
         messages: this.messages,
         response_model: {
           name: 'operatorResponseSchema',
-          schema: operatorResponseSchema,
+          schema: operatorResponseSchema as unknown as z.ZodType<OperatorResponse>,
         },
         requestId: `operator-step-${currentStep}`,
       },
@@ -385,7 +386,7 @@ export class StagehandOperatorHandler {
         ],
         response_model: {
           name: 'operatorSummarySchema',
-          schema: operatorSummarySchema,
+          schema: operatorSummarySchema as unknown as z.ZodType<OperatorSummary>,
         },
         requestId: 'operator-summary',
       },
