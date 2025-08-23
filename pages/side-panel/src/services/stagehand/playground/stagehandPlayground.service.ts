@@ -22,6 +22,7 @@ import { testAriaRefProcessing, AriaRefProgress } from './playgroundTests/ariaRe
 
 // Import example tests
 import { testExampleBasicSteps } from './exampleTests/exampleBasicTests';
+import { testElephantResearchSteps } from './exampleTests/exampleElephantResearch';
 
 export const IStagehandPlaygroundService = createDecorator<IStagehandPlaygroundService>(
   'stagehandPlaygroundService'
@@ -35,6 +36,8 @@ export interface IStagehandPlaygroundService {
   runFallbackContentScriptTests: () => Promise<void>;
   /** Run example basic steps test */
   runExampleBasicStepsTest: () => Promise<void>;
+  /** Run elephant research test */
+  runElephantResearchTest: () => Promise<void>;
   /** Run ARIA reference processing tests */
   runAriaRefProcessingTest: () => Promise<void>;
 }
@@ -62,6 +65,9 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
 
     // Then run example basic steps test
     await this.runExampleBasicStepsTest();
+
+    // Then run elephant research test
+    await this.runElephantResearchTest();
   }
 
   private async runFallbackTests(): Promise<void> {
@@ -339,6 +345,62 @@ export class StagehandPlaygroundService extends Disposable implements IStagehand
         timestamp: Date.now(),
         severity: Severity.Error,
         message: '❌ Example basic steps test failed',
+        details: { error: String(error) },
+      });
+      throw error;
+    }
+  }
+
+  public async runElephantResearchTest(): Promise<void> {
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '🐘 Starting Elephant Research Test (Multi-Step AI Research)...',
+      details: {
+        testType: 'Live Integration Test',
+        task: 'Multi-step elephant behavior research',
+        description:
+          'Navigate to Google, search for Wikipedia elephants, extract behavior information, and generate comprehensive report',
+        llm: 'OpenAI GPT-4o',
+      },
+    });
+
+    try {
+      // Get OpenAI API key from storage (same pattern as other tests)
+      const apiKey = (await this._storage.get(StorageKeys.OPEN_AI_API_KEY)) as string | undefined;
+      if (!apiKey) {
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Error,
+          message: '❌ OpenAI API key not found in storage. Please configure it in the settings.',
+        });
+        throw new Error(
+          'OpenAI API key not found in storage. Please configure it in the settings.'
+        );
+      }
+
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: '🔑 OpenAI API key retrieved from storage',
+        details: {
+          keyLength: apiKey.length,
+          source: 'local-async-storage',
+        },
+      });
+
+      const context = {
+        events: this.events,
+        storage: this._storage,
+        apiKey: apiKey, // Pass API key as context parameter
+      };
+
+      await testElephantResearchSteps(context);
+    } catch (error) {
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: '❌ Elephant research test failed',
         details: { error: String(error) },
       });
       throw error;
