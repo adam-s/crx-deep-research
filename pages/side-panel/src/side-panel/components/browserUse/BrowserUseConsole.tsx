@@ -1,42 +1,18 @@
 import React from 'react';
-import { DarkScrollContainer } from '../common/DarkScrollContainer';
+import { useBrowserUse } from '@src/side-panel/hooks/useBrowserBaseUse';
+import { ConsoleComponent } from '../common/ConsoleComponent';
 
 export const BrowserUseConsole: React.FC = () => {
-  return (
-    <div
-      style={{
-        padding: '0 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        height: '100%',
-        minHeight: 0,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>Browser Use Console</h3>
-      </div>
+  const { events, clearEvents } = useBrowserUse();
 
-      {/* Console Output */}
-      <DarkScrollContainer
-        style={{
-          flex: 1,
-          background: '#1e1e1e',
-          color: '#d4d4d4',
-          padding: '12px',
-          borderRadius: '4px',
-          fontFamily: 'Consolas, "Courier New", monospace',
-          fontSize: '13px',
-          lineHeight: '1.4',
-          overflow: 'auto',
-          minHeight: '0',
-          border: '1px solid #333',
-        }}
-      >
-        <div style={{ color: '#6c757d', fontStyle: 'italic' }}>
-          Browser Use console output will appear here when the example runs...
-        </div>
-      </DarkScrollContainer>
-    </div>
+  return (
+    <ConsoleComponent
+      title="Browser Use Console"
+      serviceName="browser-use"
+      events={events}
+      onClearEvents={clearEvents}
+      emptyStateMessage="Browser Use console ready"
+      emptyStateSubtitle="Waiting for example execution..."
+    />
   );
 };

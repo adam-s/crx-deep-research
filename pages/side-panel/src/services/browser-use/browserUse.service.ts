@@ -1,4 +1,6 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { BrowserWindow } from '../cordyceps/browserWindow';
 import { ILogService } from '@shared/services/log.service';
 import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsyncStorage.service';
@@ -12,18 +14,25 @@ import {
   ConversationType,
   MessageRole,
 } from '@shared/features/conversation/ConversationDataAccessObject';
+import { SimpleEventEmitter } from '@src/utils/SimpleEventEmitter';
+import { EventMessage, Severity } from '@src/utils/types';
 
 export const IBrowserUseService = createDecorator<IBrowserUseService>('browserUseService');
 
 export interface IBrowserUseService {
   readonly _serviceBrand: undefined;
+  /** Event that fires when browser use events occur. */
+  readonly onEvent: Event<EventMessage>;
   readonly getBrowser: () => Promise<BrowserWindow>;
   readonly runExample: () => Promise<void>;
   readonly runExampleWithTests: () => Promise<void>;
 }
 
-export class BrowserUseService implements IBrowserUseService {
+export class BrowserUseService extends Disposable implements IBrowserUseService {
   public readonly _serviceBrand: undefined;
+
+  readonly events = this._register(new SimpleEventEmitter<EventMessage>('BrowserUse'));
+  public readonly onEvent: Event<EventMessage> = this.events.event;
   // Promise-based lazy initialization pattern - similar to FrameManager._mainFramePromise
   // See: pages/side-panel/src/services/cordyceps/frameManager.ts for reference implementation
   private _browser?: BrowserWindow;
@@ -35,6 +44,7 @@ export class BrowserUseService implements IBrowserUseService {
     @ILocalAsyncStorage private readonly _storage: ILocalAsyncStorage<SidePanelAppStorageSchema>,
     @IConversationServiceToken private readonly _conversationService: IConversationService
   ) {
+    super();
     this._logService.info('BrowserUseService is running');
     // Initialize promise before async initialization - follows FrameManager pattern
     this._browserPromise = new Promise(resolve => (this._browserResolve = resolve));
@@ -68,6 +78,13 @@ export class BrowserUseService implements IBrowserUseService {
   }
 
   async runExampleWithTests(): Promise<void> {
+    const startTime = Date.now();
+    this.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: 'Starting Browser Use example',
+    });
+
     this._logService.info('Starting browser use example with conversation tests');
 
     try {
@@ -75,6 +92,12 @@ export class BrowserUseService implements IBrowserUseService {
       // await this._testConversationService();
 
       // Then run the main example using the example runner and OpenAI key from storage
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Initializing browser and checking API key',
+      });
+
       this._logService.info('Running browser use agent...');
       // Get the initialized BrowserWindow
       const browser = await this.getBrowser();
@@ -87,14 +110,47 @@ export class BrowserUseService implements IBrowserUseService {
         this._logService.error(
           'OpenAI API key not found in storage. Cannot run browser-use example.'
         );
+        this.events.emit({
+          timestamp: Date.now(),
+          severity: Severity.Error,
+          message: 'OpenAI API key not found in storage',
+          error: new Error('OpenAI API key missing in storage'),
+        });
         throw new Error('OpenAI API key missing in storage');
       }
 
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Info,
+        message: 'Running Browser Use agent',
+      });
+
       // Run the example runner with the browser and API key
-      await runBrowserUseExample(browser, openAiKey as string);
+      await runBrowserUseExample(browser, openAiKey as string, this.events);
+
+      const totalDuration = Date.now() - startTime;
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Success,
+        message: 'Browser Use example completed successfully',
+        details: {
+          duration: totalDuration,
+        },
+      });
 
       this._logService.info('Browser use example completed successfully');
     } catch (error) {
+      const totalDuration = Date.now() - startTime;
+      this.events.emit({
+        timestamp: Date.now(),
+        severity: Severity.Error,
+        message: 'Browser Use example failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+        details: {
+          duration: totalDuration,
+        },
+      });
+
       this._logService.error('Browser use example failed:', error);
       throw error;
     }

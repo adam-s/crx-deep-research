@@ -3,6 +3,11 @@ import { BrowserWindow } from '../cordyceps/browserWindow';
 import { ChatOpenAI } from '@langchain/openai';
 import { Agent } from './agent/service';
 import { BrowserContext } from './browser/context';
+import { EventMessage, Severity } from '@src/utils/types';
+
+type EventEmitter = {
+  emit: (event: EventMessage) => void;
+};
 
 // export const run = async (browser: BrowserWindow, apiKey: string): Promise<void> => {
 //   console.log('Browser initialized, running example with API key:', apiKey.slice(0, 8) + '...');
@@ -42,8 +47,23 @@ import { BrowserContext } from './browser/context';
 //   }
 // };
 
-export const run = async (browser: BrowserWindow, apiKey: string): Promise<void> => {
-  console.log(
+export const run = async (
+  browser: BrowserWindow,
+  apiKey: string,
+  eventEmitter?: EventEmitter
+): Promise<void> => {
+  const logMessage = (message: string, severity: Severity = Severity.Info) => {
+    console.log(message);
+    if (eventEmitter) {
+      eventEmitter.emit({
+        timestamp: Date.now(),
+        severity,
+        message,
+      });
+    }
+  };
+
+  logMessage(
     '🔬 Running enhanced research task with ARIA snapshot for AI (no screenshots, no highlights)...'
   );
 
@@ -83,10 +103,10 @@ export const run = async (browser: BrowserWindow, apiKey: string): Promise<void>
 
     // Register progress callbacks with enhanced logging
     agent.registerNewStepCallback = async (state, modelOutput, step) => {
-      console.log('🔄 === NEW STEP CALLBACK ===');
-      console.log(`🤖 Step ${step}: ${modelOutput.currentState?.nextGoal || 'Processing...'}`);
-      console.log(`📍 Current URL: ${state.url}`);
-      console.log(
+      logMessage('🔄 === NEW STEP CALLBACK ===');
+      logMessage(`🤖 Step ${step}: ${modelOutput.currentState?.nextGoal || 'Processing...'}`);
+      logMessage(`📍 Current URL: ${state.url}`);
+      logMessage(
         `🧠 Memory: ${modelOutput.currentState?.memory?.substring(0, 100) || 'No memory'}...`
       );
 
@@ -94,43 +114,44 @@ export const run = async (browser: BrowserWindow, apiKey: string): Promise<void>
       if (modelOutput.action && modelOutput.action.length > 0) {
         const firstAction = modelOutput.action[0];
         const actionType = Object.keys(firstAction)[0];
-        console.log(`🔧 Action: ${actionType}`);
-        console.log(`📋 Action details:`, firstAction);
+        logMessage(`🔧 Action: ${actionType}`);
+        logMessage(`📋 Action details: ${JSON.stringify(firstAction).substring(0, 200)}...`);
       }
-      console.log('='.repeat(50));
+      logMessage('='.repeat(50));
     };
 
     agent.registerDoneCallback = async history => {
-      console.log('🎉 === DONE CALLBACK ===');
-      console.log('✅ Agent completed elephant research task with ARIA snapshot!');
-      console.log(`📊 Total steps: ${history.history.length}`);
-      console.log(`⏱️ Total duration: ${history.totalDurationSeconds()}s`);
+      logMessage('🎉 === DONE CALLBACK ===');
+      logMessage('✅ Agent completed elephant research task with ARIA snapshot!', Severity.Success);
+      logMessage(`📊 Total steps: ${history.history.length}`);
+      logMessage(`⏱️ Total duration: ${history.totalDurationSeconds()}s`);
 
       // Try to extract the final report from the last step
       const lastStep = history.history[history.history.length - 1];
       if (lastStep?.result && lastStep.result.length > 0) {
         const report = lastStep.result.find(r => r.extractedContent);
         if (report?.extractedContent) {
-          console.log('🐘 ELEPHANT BEHAVIOR RESEARCH REPORT:');
-          console.log('='.repeat(80));
-          console.log(report.extractedContent);
-          console.log('='.repeat(80));
+          logMessage('🐘 ELEPHANT BEHAVIOR RESEARCH REPORT:');
+          logMessage('='.repeat(80));
+          logMessage(report.extractedContent);
+          logMessage('='.repeat(80));
         }
       }
 
       // Log history summary
-      console.log('📊 Research Step Summary:');
+      logMessage('📊 Research Step Summary:');
       history.history.forEach((step, index) => {
-        console.log(
+        logMessage(
           `  Step ${index + 1}: ${step.modelOutput?.currentState?.nextGoal || 'Unknown goal'}`
         );
       });
-      console.log('🎯 === END RESEARCH CALLBACK ===');
+      logMessage('🎯 === END RESEARCH CALLBACK ===');
     };
 
     await agent.run(15); // Allow up to 15 steps for the research task
   } catch (error) {
-    console.error('❌ Failed to run elephant research with ARIA snapshot:', error);
+    const errorMessage = `❌ Failed to run elephant research with ARIA snapshot: ${error instanceof Error ? error.message : String(error)}`;
+    logMessage(errorMessage, Severity.Error);
     throw error;
   }
 };

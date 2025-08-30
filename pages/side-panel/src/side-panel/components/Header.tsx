@@ -122,9 +122,9 @@ export const Header: React.FC = () => {
     <div className={classes.root}>
       <div className={classes.headerRightRegion}>
         <TabList selectedValue={currentPage as TabValue} onTabSelect={onTabSelect}>
+          <Tab value="cordyceps">Cordyceps</Tab>
           <Tab value="stagehand">Stagehand</Tab>
           <Tab value="browseruse">Browser Use</Tab>
-          <Tab value="cordyceps">Cordyceps</Tab>
         </TabList>
       </div>
       <div className={classes.headerLeftRegion}>
