@@ -33,7 +33,7 @@ const SidePanel: React.FC = () => {
 
   return (
     <FluentProvider theme={webDarkTheme}>
-      <TabNavigationProvider initialPage="stagehand">
+      <TabNavigationProvider initialPage="cordyceps">
         <div className={styles.root}>
           <div className={styles.header}>
             <Header />

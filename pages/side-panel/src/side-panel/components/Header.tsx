@@ -109,7 +109,7 @@ export const Header: React.FC = () => {
     // For now, let's assume initialPage from provider is sufficient.
     // If you still need to default to 'browseruse' under certain conditions:
     if (!currentPage) {
-      navigateTo('stagehand');
+      navigateTo('cordyceps'); // Default to Cordyceps if no page is set
     }
   }, [currentPage, navigateTo]);
 
