@@ -5,14 +5,6 @@ import { EventMessage, Severity } from '../../utils/types';
 import { ICordycepsPlaygroundService } from '@src/services/cordyceps/playground/cordycepsPlayground.service';
 
 export interface UseCordycepsPlaygroundReturn {
-  /** Run all playground tests */
-  runAllTests: () => Promise<void>;
-  /** Run basic navigation test */
-  runNavigationTest: () => Promise<void>;
-  /** Run DOM interaction test */
-  runDOMInteractionTest: () => Promise<void>;
-  /** Run performance test */
-  runPerformanceTest: () => Promise<void>;
   /** Run locator test */
   runLocatorTest: () => Promise<void>;
   /** All events emitted by the playground */
@@ -53,7 +45,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
           event.severity === Severity.Info &&
           (event.message === 'Playground starting' ||
             event.message.includes('Starting') ||
-            event.message === 'Starting all playground tests')
+            event.message === 'Starting locator test')
         ) {
           setIsRunning(true);
           setError(null);
@@ -61,7 +53,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
           event.severity === Severity.Success &&
           (event.message === 'Playground complete' ||
             event.message.includes('completed') ||
-            event.message === 'All playground tests completed successfully')
+            event.message === 'Locator test completed successfully')
         ) {
           setIsRunning(false);
         } else if (event.severity === Severity.Error) {
@@ -74,55 +66,6 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
     return () => {
       disposables.forEach(disposable => disposable.dispose());
     };
-  }, [cordycepsPlaygroundService]);
-
-  const runAllTests = useCallback(async (): Promise<void> => {
-    if (!cordycepsPlaygroundService) {
-      setError('Cordyceps playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await cordycepsPlaygroundService.runAllTests();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run all tests';
-      setError(errorMessage);
-      console.error('useCordycepsPlayground: Failed to run all tests:', err);
-    }
-  }, [cordycepsPlaygroundService]);
-
-  const runNavigationTest = useCallback(async (): Promise<void> => {
-    if (!cordycepsPlaygroundService) {
-      setError('Cordyceps playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await cordycepsPlaygroundService.runNavigationTest();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run navigation test';
-      setError(errorMessage);
-      console.error('useCordycepsPlayground: Failed to run navigation test:', err);
-    }
-  }, [cordycepsPlaygroundService]);
-
-  const runDOMInteractionTest = useCallback(async (): Promise<void> => {
-    if (!cordycepsPlaygroundService) {
-      setError('Cordyceps playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await cordycepsPlaygroundService.runDOMInteractionTest();
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to run DOM interaction test';
-      setError(errorMessage);
-      console.error('useCordycepsPlayground: Failed to run DOM interaction test:', err);
-    }
   }, [cordycepsPlaygroundService]);
 
   const runLocatorTest = useCallback(async (): Promise<void> => {
@@ -138,22 +81,6 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
       const errorMessage = err instanceof Error ? err.message : 'Failed to run locator test';
       setError(errorMessage);
       console.error('useCordycepsPlayground: Failed to run locator test:', err);
-    }
-  }, [cordycepsPlaygroundService]);
-
-  const runPerformanceTest = useCallback(async (): Promise<void> => {
-    if (!cordycepsPlaygroundService) {
-      setError('Cordyceps playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await cordycepsPlaygroundService.runPerformanceTest();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run performance test';
-      setError(errorMessage);
-      console.error('useCordycepsPlayground: Failed to run performance test:', err);
     }
   }, [cordycepsPlaygroundService]);
 
@@ -175,11 +102,7 @@ export const useCordycepsPlayground = (): UseCordycepsPlaygroundReturn => {
   );
 
   return {
-    runAllTests,
-    runNavigationTest,
-    runDOMInteractionTest,
     runLocatorTest,
-    runPerformanceTest,
     events,
     latestEvent,
     isRunning,

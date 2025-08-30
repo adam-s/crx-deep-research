@@ -4,17 +4,7 @@ import { useCordycepsPlayground } from '../../hooks/useCordycepsPlayground';
 import { DarkScrollContainer } from '../common/DarkScrollContainer';
 
 export const CordycepsTestRunner: React.FC = () => {
-  const {
-    runAllTests,
-    runNavigationTest,
-    runDOMInteractionTest,
-    runPerformanceTest,
-    runLocatorTest,
-    isRunning,
-    error,
-    clearEvents,
-    clearError,
-  } = useCordycepsPlayground();
+  const { runLocatorTest, isRunning, error, clearEvents, clearError } = useCordycepsPlayground();
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -66,27 +56,9 @@ export const CordycepsTestRunner: React.FC = () => {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <Button appearance="primary" disabled={isRunning} onClick={runAllTests}>
-          {isRunning ? 'Running Tests...' : 'Run All Tests'}
+        <Button appearance="primary" disabled={isRunning} onClick={runLocatorTest}>
+          {isRunning ? 'Running Test...' : 'Run Locator Test'}
         </Button>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <Button appearance="secondary" disabled={isRunning} onClick={runNavigationTest}>
-            Navigation Test
-          </Button>
-
-          <Button appearance="secondary" disabled={isRunning} onClick={runDOMInteractionTest}>
-            DOM Interaction Test
-          </Button>
-
-          <Button appearance="secondary" disabled={isRunning} onClick={runPerformanceTest}>
-            Performance Test
-          </Button>
-
-          <Button appearance="secondary" disabled={isRunning} onClick={runLocatorTest}>
-            Locator Test
-          </Button>
-        </div>
 
         <Button appearance="outline" onClick={clearEvents} disabled={isRunning}>
           Clear Events
