@@ -37,10 +37,6 @@ import {
   CordycepsPlaygroundService,
   ICordycepsPlaygroundService,
 } from '@src/services/cordyceps/playground/cordycepsPlayground.service';
-import {
-  BrowserUsePlaygroundService,
-  IBrowserUsePlaygroundService,
-} from '@src/services/browser-use/playground/browserUsePlayground.service';
 import { IStagehandService, StagehandService } from '@src/services/stagehand/stagehand.service';
 import {
   IStagehandPlaygroundService,
@@ -150,11 +146,6 @@ export class SidePanelApp extends Disposable {
       instantiationService.createInstance(CordycepsPlaygroundService)
     );
     serviceCollection.set(ICordycepsPlaygroundService, cordycepsPlaygroundService);
-
-    const browserUsePlaygroundService = this._register(
-      instantiationService.createInstance(BrowserUsePlaygroundService)
-    );
-    serviceCollection.set(IBrowserUsePlaygroundService, browserUsePlaygroundService);
 
     const stagehandService = this._register(instantiationService.createInstance(StagehandService));
     serviceCollection.set(IStagehandService, stagehandService);
