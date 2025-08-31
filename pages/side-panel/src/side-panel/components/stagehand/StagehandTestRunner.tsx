@@ -4,7 +4,8 @@ import { useStagehandPlayground } from '@src/side-panel/hooks/useStagehandPlaygr
 import { DarkScrollContainer } from '../common/DarkScrollContainer';
 
 export const StagehandTestRunner: React.FC = () => {
-  const { runAllTests, isRunning, error, clearError } = useStagehandPlayground();
+  const { runAllTests, runElephantResearchTest, isRunning, error, clearError } =
+    useStagehandPlayground();
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -57,8 +58,14 @@ export const StagehandTestRunner: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <Button appearance="primary" disabled={isRunning} onClick={runAllTests}>
-          {isRunning ? 'Running Tests...' : 'Run Stagehand Tests'}
+          {isRunning ? 'Running Tests...' : 'Run All Stagehand Tests'}
         </Button>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <Button appearance="secondary" disabled={isRunning} onClick={runElephantResearchTest}>
+            🐘 Elephant Research Test
+          </Button>
+        </div>
       </div>
 
       {isRunning && (

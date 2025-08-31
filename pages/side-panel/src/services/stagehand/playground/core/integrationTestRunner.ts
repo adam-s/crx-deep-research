@@ -13,9 +13,9 @@ import { ILocalAsyncStorage } from '@shared/storage/localAsyncStorage/localAsync
 import { SidePanelAppStorageSchema } from '@shared/storage/types/storage.types';
 import { EventMessage } from '@src/utils/types';
 
-// Import test functions (DISABLED: OpenAI quota preservation)
-// import { testExampleBasicSteps } from '../exampleTests/exampleBasicTests';
-// import { testElephantResearchSteps } from '../exampleTests/exampleElephantResearch';
+// Import test functions
+import { testExampleBasicSteps } from '../exampleTests/exampleBasicTests';
+import { testElephantResearchSteps } from '../exampleTests/exampleElephantResearch';
 
 export class IntegrationTestRunner extends BaseTestRunner {
   public readonly name = 'Integration Tests';
@@ -30,31 +30,26 @@ export class IntegrationTestRunner extends BaseTestRunner {
 
   public async run(): Promise<void> {
     await this.executeTest('Complete Integration Test Suite', async () => {
-      this.emitInfo(
-        '⚠️ Integration tests are currently disabled to avoid OpenAI quota consumption',
-        {
-          reason: 'OpenAI quota preservation',
-          disabledTests: ['Example Basic Steps Test', 'Elephant Research Test'],
-          note: 'These tests can be re-enabled when quota is available',
-        }
-      );
+      this.emitInfo('🚀 Running integration tests with live AI/LLM services', {
+        note: 'These tests consume OpenAI quota',
+        enabledTests: ['Example Basic Steps Test', 'Elephant Research Test'],
+      });
 
-      // DISABLED: OpenAI quota preservation
       // Get API key once for all tests
-      // const apiKey = await this.getApiKey();
+      const apiKey = await this.getApiKey();
 
-      // DISABLED: Run example basic steps test
-      // await this.runExampleBasicStepsTest(apiKey);
+      // Run example basic steps test
+      await this.runExampleBasicStepsTest(apiKey);
 
-      // DISABLED: Run elephant research test
-      // await this.runElephantResearchTest(apiKey);
+      // Run elephant research test
+      await this.runElephantResearchTest(apiKey);
     });
   }
 
   /**
    * Run the example basic steps test (docs.stagehand.dev navigation)
    */
-  public async runExampleBasicStepsTest(_apiKey?: string): Promise<void> {
+  public async runExampleBasicStepsTest(apiKey?: string): Promise<void> {
     await this.executeTest('Example Basic Steps Test', async () => {
       this.emitInfo('🚀 Starting Example Basic Steps Test (example.ts)...', {
         testType: 'Live Integration Test',
@@ -62,20 +57,19 @@ export class IntegrationTestRunner extends BaseTestRunner {
         description: 'Navigate to docs.stagehand.dev and click quickstart button using AI',
       });
 
-      // DISABLED: Get API key if not provided (OpenAI quota preservation)
-      // const resolvedApiKey = apiKey || (await this.getApiKey());
+      // Get API key if not provided
+      const resolvedApiKey = apiKey || (await this.getApiKey());
 
-      // DISABLED: Create test context (OpenAI quota preservation)
-      // const context = this.createTestContext(resolvedApiKey);
+      // Create test context
+      const context = this.createTestContext(resolvedApiKey);
 
-      // DISABLED: Run the test (OpenAI quota preservation)
-      // await testExampleBasicSteps(context);
+      // Run the test
+      await testExampleBasicSteps(context);
 
-      this.emitInfo('⚠️ Example basic steps test disabled to preserve OpenAI quota', {
+      this.emitInfo('✅ Example basic steps test completed successfully', {
         category: 'live-integration-test',
         example: 'example.ts',
-        status: 'disabled',
-        reason: 'OpenAI quota preservation',
+        status: 'completed',
       });
     });
   }
@@ -83,7 +77,7 @@ export class IntegrationTestRunner extends BaseTestRunner {
   /**
    * Run the elephant research test (multi-step AI research)
    */
-  public async runElephantResearchTest(_apiKey?: string): Promise<void> {
+  public async runElephantResearchTest(apiKey?: string): Promise<void> {
     await this.executeTest('Elephant Research Test', async () => {
       this.emitInfo('🐘 Starting Elephant Research Test (Multi-Step AI Research)...', {
         testType: 'Live Integration Test',
@@ -93,20 +87,19 @@ export class IntegrationTestRunner extends BaseTestRunner {
         llm: 'OpenAI GPT-4o',
       });
 
-      // DISABLED: Get API key if not provided (OpenAI quota preservation)
-      // const resolvedApiKey = apiKey || (await this.getApiKey());
+      // Get API key if not provided
+      const resolvedApiKey = apiKey || (await this.getApiKey());
 
-      // DISABLED: Create test context (OpenAI quota preservation)
-      // const context = this.createTestContext(resolvedApiKey);
+      // Create test context
+      const context = this.createTestContext(resolvedApiKey);
 
-      // DISABLED: Run the test (OpenAI quota preservation)
-      // await testElephantResearchSteps(context);
+      // Run the test
+      await testElephantResearchSteps(context);
 
-      this.emitInfo('⚠️ Elephant research test disabled to preserve OpenAI quota', {
+      this.emitInfo('✅ Elephant research test completed successfully', {
         category: 'multi-step-research-test',
         task: 'elephant-behavior-research',
-        status: 'disabled',
-        reason: 'OpenAI quota preservation',
+        status: 'completed',
       });
     });
   }
