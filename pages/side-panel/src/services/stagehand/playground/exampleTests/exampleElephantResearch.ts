@@ -10,6 +10,7 @@ import { Severity } from '@src/utils/types';
 import { ChromeExtensionStagehand } from '../../lib/index';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { z } from 'zod';
+import { LogLine } from '../../types/log';
 
 /**
  * Run the elephant research task using Stagehand with the same steps as browser-use example
@@ -187,6 +188,115 @@ export async function testElephantResearchSteps(context: TestContext): Promise<v
       },
     });
 
+    // Step 4.1: Extract markdown from the page
+    progress.log('Step 4.1: Extracting markdown from Wikipedia page...');
+
+    const { MarkdownExtractor } = await import('../../lib/utils/markdownExtractor');
+    const { chunkSnapshotText, findMostRelevantChunk } = await import(
+      '../../lib/utils/textChunker'
+    );
+
+    // Get current page from Stagehand
+    const currentPage = await stagehand.browserWindow.getCurrentPage();
+
+    // Extract markdown with optimized settings for content extraction
+    const markdownExtractor = new MarkdownExtractor({
+      maxContentSize: 50000, // Increase limit for comprehensive extraction
+      removeImages: true,
+      removeLinks: false, // Keep links for reference context
+      preserveCodeBlocks: true,
+      preserveTables: true,
+    });
+
+    const markdownResult = await markdownExtractor.extractFromPage(currentPage);
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: '📄 Markdown extracted from Wikipedia page',
+      details: {
+        originalLength: markdownResult.originalLength,
+        markdownLength: markdownResult.markdownLength,
+        wasTruncated: markdownResult.wasTruncated,
+        stats: markdownResult.stats,
+      },
+    });
+
+    progress.log(`Extracted ${markdownResult.markdownLength} characters of markdown content`);
+
+    // Step 4.2: Create manageable chunks
+    progress.log('Step 4.2: Creating manageable text chunks...');
+
+    const chunks = chunkSnapshotText(markdownResult.markdown, {
+      maxTokens: 4000, // Smaller chunks for better analysis
+      overlap: 300,
+      preserveStructure: true,
+      smartSnapshotChunking: true,
+    });
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Info,
+      message: `📋 Created ${chunks.length} text chunks`,
+      details: {
+        totalChunks: chunks.length,
+        avgTokenCount: chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / chunks.length,
+        chunkSizes: chunks.map(chunk => chunk.tokenCount),
+      },
+    });
+
+    progress.log(`Created ${chunks.length} chunks for analysis`);
+
+    // Step 4.3: Find the most relevant chunk
+    progress.log('Step 4.3: Finding most relevant chunk for elephant behavior...');
+
+    const behaviorQuery =
+      'elephant behavior social structure intelligence communication emotions memory family groups cognitive abilities';
+
+    const mostRelevantChunk = findMostRelevantChunk(chunks, behaviorQuery);
+
+    if (!mostRelevantChunk) {
+      throw new Error('No relevant chunk found for elephant behavior analysis');
+    }
+
+    // Get the relevance score - findMostRelevantChunk may not always return the score
+    let relevanceScore: number;
+    if (chunks.length === 1) {
+      // If there's only one chunk, calculate its score manually
+      const { scoreChunks } = await import('../../lib/utils/textChunker');
+      const scoredChunks = scoreChunks([mostRelevantChunk], behaviorQuery);
+      relevanceScore = scoredChunks[0]?.relevanceScore ?? 0;
+    } else {
+      // For multiple chunks, the returned chunk should have the score
+      relevanceScore =
+        (mostRelevantChunk as typeof mostRelevantChunk & { relevanceScore: number })
+          .relevanceScore ?? 0;
+    }
+
+    context.events.emit({
+      timestamp: Date.now(),
+      severity: Severity.Success,
+      message: '🎯 Most relevant chunk identified',
+      details: {
+        chunkIndex: mostRelevantChunk.index,
+        tokenCount: mostRelevantChunk.tokenCount,
+        relevanceScore: relevanceScore,
+        structureType: mostRelevantChunk.structureType,
+        semanticPath: mostRelevantChunk.semanticPath,
+        contentPreview: mostRelevantChunk.content.substring(0, 200) + '...',
+      },
+    });
+
+    progress.log(
+      `Selected chunk ${mostRelevantChunk.index} with relevance score ${relevanceScore}`
+    );
+
+    // Step 4.4: Analyze chunk with OpenAI
+    progress.log('Step 4.4: Analyzing chunk with OpenAI GPT-4o...');
+
+    // Use the existing LLM client from Stagehand (already properly configured)
+    const llmClient = stagehand.llmClient;
+
     // Use a more specific schema for extraction
     const elephantBehaviorSchema = z.object({
       socialStructure: z
@@ -203,12 +313,49 @@ export async function testElephantResearchSteps(context: TestContext): Promise<v
       summary: z.string().describe('Comprehensive summary of elephant behavior'),
     });
 
-    const behaviorInfo = await stagehand.stagehandPage.extract({
-      instruction:
-        'From this Wikipedia page about elephants, extract detailed information about elephant behavior. Focus on: 1) Social structure and family groups, 2) Intelligence and problem-solving abilities, 3) Communication methods (sounds, gestures, touch), 4) Emotional behaviors and bonds, 5) Memory and learning. Provide specific facts and examples from the article.',
-      schema: elephantBehaviorSchema as unknown as import('zod/v3').ZodObject<
-        import('zod/v3').ZodRawShape
-      >,
+    // Define the expected response type
+    type ElephantBehaviorInfo = z.infer<typeof elephantBehaviorSchema>;
+
+    // AI SDK sometimes wraps responses in a 'data' property
+    type AISDKResponse = ElephantBehaviorInfo | { data: ElephantBehaviorInfo };
+
+    // Analyze the most relevant chunk using the existing LLM client
+    const analysisPrompt = `
+You are an expert zoologist analyzing Wikipedia content about elephants. Extract detailed information about elephant behavior from the provided text chunk.
+
+Focus on these specific aspects:
+1. Social structure and family groups
+2. Intelligence and problem-solving abilities  
+3. Communication methods (sounds, gestures, touch)
+4. Emotional behaviors and family bonds
+5. Memory and learning abilities
+
+Provide specific facts and examples from the text. Be comprehensive but accurate.
+
+TEXT TO ANALYZE:
+${mostRelevantChunk.content}
+`;
+
+    const behaviorInfo = await llmClient.createChatCompletion<AISDKResponse>({
+      options: {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an expert zoologist. Extract detailed elephant behavior information from the provided Wikipedia content. Return only valid JSON matching the provided schema.',
+          },
+          {
+            role: 'user',
+            content: analysisPrompt,
+          },
+        ],
+        response_model: {
+          name: 'ElephantBehaviorExtraction',
+          schema: elephantBehaviorSchema,
+        },
+        temperature: 0.1, // Lower temperature for more consistent extraction
+      },
+      logger: (logLine: LogLine) => progress.log(`OpenAI Analysis: ${logLine.message}`),
     });
 
     context.events.emit({
@@ -232,27 +379,30 @@ export async function testElephantResearchSteps(context: TestContext): Promise<v
     // Create a comprehensive report from the extracted data
     let comprehensiveReport = '';
     if (behaviorInfo) {
+      // Check if data is nested under a 'data' property (common with AI SDK responses)
+      const data = 'data' in behaviorInfo ? behaviorInfo.data : behaviorInfo;
+
       comprehensiveReport = `
 🐘 COMPREHENSIVE ELEPHANT BEHAVIOR RESEARCH REPORT
 ===============================================
 
 SOCIAL STRUCTURE:
-${behaviorInfo.socialStructure || 'Information not extracted'}
+${data.socialStructure || 'Information not extracted'}
 
 INTELLIGENCE & COGNITIVE ABILITIES:
-${behaviorInfo.intelligence || 'Information not extracted'}
+${data.intelligence || 'Information not extracted'}
 
 COMMUNICATION METHODS:
-${behaviorInfo.communication || 'Information not extracted'}
+${data.communication || 'Information not extracted'}
 
 EMOTIONAL BEHAVIORS & FAMILY BONDS:
-${behaviorInfo.emotions || 'Information not extracted'}
+${data.emotions || 'Information not extracted'}
 
 MEMORY & LEARNING:
-${behaviorInfo.memory || 'Information not extracted'}
+${data.memory || 'Information not extracted'}
 
 EXECUTIVE SUMMARY:
-${behaviorInfo.summary || 'Information not extracted'}
+${data.summary || 'Information not extracted'}
 ===============================================
       `.trim();
     } else {

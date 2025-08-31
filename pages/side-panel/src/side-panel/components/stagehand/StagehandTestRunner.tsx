@@ -61,11 +61,9 @@ export const StagehandTestRunner: React.FC = () => {
           {isRunning ? 'Running Tests...' : 'Run All Stagehand Tests'}
         </Button>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <Button appearance="secondary" disabled={isRunning} onClick={runElephantResearchTest}>
-            🐘 Elephant Research Test
-          </Button>
-        </div>
+        <Button appearance="secondary" disabled={isRunning} onClick={runElephantResearchTest}>
+          🐘 Elephant Research Test
+        </Button>
       </div>
 
       {isRunning && (
