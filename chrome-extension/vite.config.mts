@@ -17,10 +17,6 @@ const isProduction = !isDev;
 const outDir = resolve(rootDir, '..', 'dist');
 
 export default defineConfig({
-  test: {
-    globals: true,
-    restoreMocks: true,
-  },
   resolve: {
     alias: {
       '@root': rootDir,
