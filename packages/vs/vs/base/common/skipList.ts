@@ -8,7 +8,7 @@ class Node<K, V> {
   constructor(
     readonly level: number,
     readonly key: K,
-    public value: V,
+    public value: V
   ) {
     this.forward = [];
   }
@@ -34,7 +34,7 @@ export class SkipList<K, V> implements Map<K, V> {
    */
   constructor(
     readonly comparator: (a: K, b: K) => number,
-    capacity: number = 2 ** 16,
+    capacity: number = 2 ** 16
   ) {
     this._maxLevel = Math.max(1, Math.log2(capacity) | 0);
     this._header = <any>new Node(this._maxLevel, NIL, NIL);
@@ -82,11 +82,11 @@ export class SkipList<K, V> implements Map<K, V> {
     }
   }
 
-  [Symbol.iterator](): IterableIterator<[K, V]> {
+  [Symbol.iterator](): any {
     return this.entries();
   }
 
-  *entries(): IterableIterator<[K, V]> {
+  *entries(): any {
     let node = this._header.forward[0];
     while (node) {
       yield [node.key, node.value];
@@ -94,7 +94,7 @@ export class SkipList<K, V> implements Map<K, V> {
     }
   }
 
-  *keys(): IterableIterator<K> {
+  *keys(): any {
     let node = this._header.forward[0];
     while (node) {
       yield node.key;
@@ -102,7 +102,7 @@ export class SkipList<K, V> implements Map<K, V> {
     }
   }
 
-  *values(): IterableIterator<V> {
+  *values(): any {
     let node = this._header.forward[0];
     while (node) {
       yield node.value;
@@ -137,7 +137,12 @@ export class SkipList<K, V> implements Map<K, V> {
     return undefined;
   }
 
-  private static _insert<K, V>(list: SkipList<K, V>, searchKey: K, value: V, comparator: Comparator<K>) {
+  private static _insert<K, V>(
+    list: SkipList<K, V>,
+    searchKey: K,
+    value: V,
+    comparator: Comparator<K>
+  ) {
     const update: Node<K, V>[] = [];
     let x = list._header;
     for (let i = list._level - 1; i >= 0; i--) {

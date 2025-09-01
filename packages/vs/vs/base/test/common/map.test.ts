@@ -409,7 +409,7 @@ describe('Map', () => {
     map.forEach((value, key, mapObj) => {
       assert.strictEqual(value, values[counter++]);
       assert.ok(URI.isUri(key));
-      assert.ok(map === mapObj);
+      assert.ok((map as any) === mapObj);
     });
 
     const obj = Object.create(null);

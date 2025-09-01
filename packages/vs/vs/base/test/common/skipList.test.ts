@@ -24,7 +24,7 @@ describe('SkipList', function () {
 
     let i = 0;
     list.forEach((value, _key, map) => {
-      assert.ok(map === list);
+      assert.ok((map as any) === list);
       assert.deepStrictEqual(value, expected[i++]);
     });
   }
@@ -41,7 +41,7 @@ describe('SkipList', function () {
 
     let i = 0;
     list.forEach((_value, key, map) => {
-      assert.ok(map === list);
+      assert.ok((map as any) === list);
       assert.deepStrictEqual(key, expected[i++]);
     });
   }
@@ -185,7 +185,9 @@ describe('SkipList', function () {
       list.get(-key); // miss
     });
     sw.stop();
-    console.log(`[LIST] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+    console.log(
+      `[LIST] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`
+    );
     sw = new StopWatch();
     someValues.forEach(key => {
       const idx = binarySearch(array, key, cmp); // find
@@ -193,7 +195,9 @@ describe('SkipList', function () {
       binarySearch(array, -key, cmp); // miss
     });
     sw.stop();
-    console.log(`[ARRAY] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+    console.log(
+      `[ARRAY] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`
+    );
 
     // insert
     sw = new StopWatch();
@@ -201,13 +205,17 @@ describe('SkipList', function () {
       list.set(-key, false);
     });
     sw.stop();
-    console.log(`[LIST] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
+    console.log(
+      `[LIST] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`
+    );
     sw = new StopWatch();
     someValues.forEach(key => {
       array = insertArraySorted(array, -key);
     });
     sw.stop();
-    console.log(`[ARRAY] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
+    console.log(
+      `[ARRAY] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`
+    );
 
     // delete
     sw = new StopWatch();
@@ -216,13 +224,17 @@ describe('SkipList', function () {
       list.delete(-key); // miss
     });
     sw.stop();
-    console.log(`[LIST] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+    console.log(
+      `[LIST] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`
+    );
     sw = new StopWatch();
     someValues.forEach(key => {
       array = delArraySorted(array, key); // find
       array = delArraySorted(array, -key); // miss
     });
     sw.stop();
-    console.log(`[ARRAY] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+    console.log(
+      `[ARRAY] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`
+    );
   });
 });

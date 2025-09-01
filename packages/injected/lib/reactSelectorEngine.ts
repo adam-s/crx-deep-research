@@ -159,7 +159,7 @@ function buildComponentsTree(reactElement: ReactVNode): ComponentNode {
 function filterComponentsTree(
   treeNode: ComponentNode,
   searchFn: (node: ComponentNode) => boolean,
-  result: ComponentNode[] = [],
+  result: ComponentNode[] = []
 ) {
   if (searchFn(treeNode)) {
     result.push(treeNode);
@@ -172,7 +172,7 @@ function filterComponentsTree(
 
 function findReactRoots(root: Document | ShadowRoot, roots: ReactVNode[] = []): ReactVNode[] {
   const document = root.ownerDocument || root;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  const walker = (document as Document).createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
   do {
     const node = walker.currentNode;
 
@@ -181,7 +181,7 @@ function findReactRoots(root: Document | ShadowRoot, roots: ReactVNode[] = []): 
     // React sets rootKey when mounting
     // @see https://github.com/facebook/react/blob/a724a3b578dce77d427bef313102a4d0e978d9b4/packages/react-dom/src/client/ReactDOMComponentTree.js#L62-L64
     const rootKey = Object.keys(reactNode).find(
-      key => key.startsWith('__reactContainer') && reactNode[key] !== null,
+      key => key.startsWith('__reactContainer') && reactNode[key] !== null
     );
     if (rootKey) {
       roots.push(reactNode[rootKey].stateNode.current);
@@ -217,7 +217,7 @@ export const createReactEngine = (): SelectorEngine => ({
   queryAll(scope: SelectorRoot, selector: string): Element[] {
     const { name, attributes } = parseAttributeSelector(selector, false);
 
-    const reactRoots = findReactRoots(scope.ownerDocument || scope);
+    const reactRoots = findReactRoots((scope.ownerDocument || scope) as Document | ShadowRoot);
     const trees = reactRoots.map(reactRoot => buildComponentsTree(reactRoot));
     const treeNodes = trees
       .map(tree =>
@@ -240,7 +240,7 @@ export const createReactEngine = (): SelectorEngine => ({
             }
           }
           return true;
-        }),
+        })
       )
       .flat();
     const allRootElements: Set<Element> = new Set();

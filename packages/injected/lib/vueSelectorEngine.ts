@@ -230,7 +230,7 @@ function buildComponentsTreeVue2(instance: VueVNode): ComponentNode {
 function filterComponentsTree(
   treeNode: ComponentNode,
   searchFn: (node: ComponentNode) => boolean,
-  result: ComponentNode[] = [],
+  result: ComponentNode[] = []
 ): ComponentNode[] {
   if (searchFn(treeNode)) {
     result.push(treeNode);
@@ -244,7 +244,7 @@ function filterComponentsTree(
 type VueRoot = { version: number; root: VueVNode };
 function findVueRoots(root: Document | ShadowRoot, roots: VueRoot[] = []): VueRoot[] {
   const document = root.ownerDocument || root;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  const walker = (document as Document).createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
   // Vue2 roots are referred to from elements.
   const vue2Roots = new Set<VueVNode>();
   do {
@@ -274,11 +274,11 @@ export const createVueEngine = (): SelectorEngine => ({
   queryAll(scope: SelectorRoot, selector: string): Element[] {
     const document = scope.ownerDocument || scope;
     const { name, attributes } = parseAttributeSelector(selector, false);
-    const vueRoots = findVueRoots(document);
+    const vueRoots = findVueRoots(document as Document | ShadowRoot);
     const trees = vueRoots.map(vueRoot =>
       vueRoot.version === 3
         ? buildComponentsTreeVue3(vueRoot.root)
-        : buildComponentsTreeVue2(vueRoot.root),
+        : buildComponentsTreeVue2(vueRoot.root)
     );
     const treeNodes = trees
       .map(tree =>
@@ -295,7 +295,7 @@ export const createVueEngine = (): SelectorEngine => ({
             }
           }
           return true;
-        }),
+        })
       )
       .flat();
     const allRootElements = new Set<Element>();

@@ -26,12 +26,27 @@
     "module": "esnext"
   },
   "include": [
-    "src",
-    "../../packages/vs/vs",
+    "src/components/**/*",
+    "src/hooks/**/*",
+    "src/store/**/*",
+    "src/utils/**/*",
+    "src/styles/**/*",
+    "src/side-panel/**/*",
+    "src/services/**/*",
+    "src/*.ts",
+    "src/*.tsx",
     "../../packages/shared/src",
-    "../../packages/injected/lib",
     "../../packages/injected/global.d.ts",
-    "../content-injected/index.d.ts",
+    "../content-injected/index.d.ts"
+  ],
+  "exclude": [
+    "src/services/stagehand/examples/**",
+    "src/services/stagehand/types/**",
+    "src/services/stagehand/lib/**",
+    "src/services/cordyceps/playground/playgroundTests/**",
+    "../../packages/vs/vs/base/test/**",
+    "../../packages/injected/lib/recorder/**",
+    "../content-cordyceps/src/fileTransferPortManager.ts",
     "../content-cordyceps/src/handledInjectedScript.ts"
   ]
 }

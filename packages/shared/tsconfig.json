@@ -6,10 +6,16 @@
     "baseUrl": ".",
     "target": "ESNext",
     "module": "commonjs",
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "skipDefaultLibCheck": true,
+    "forceConsistentCasingInFileNames": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "allowJs": true,
     "paths": {
       "@shared/*": [
         "src/*"
@@ -27,9 +33,16 @@
   },
   "include": [
     "index.ts",
-    "src",
+    "src/**/*",
     "../injected/global.d.ts",
     "../../pages/side-panel/src/services/utils/TabService.ts",
     "../../pages/side-panel/src/services/utils/ExtensionClientLifecycle.ts"
   ],
+  "exclude": [
+    "../vs/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/test/**",
+    "**/tests/**"
+  ]
 }

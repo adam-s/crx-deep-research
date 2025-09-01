@@ -79,7 +79,7 @@ import { Builtins, UtilityScript } from './utilityScript';
 import { CSSComplexSelectorList } from './isomorphic/cssParser';
 import { SelectorRoot, SelectorEngine } from './selectorEngine';
 import { asLocator, Language } from './isomorphic/locatorGenerators';
-import { ExpectedTextValue, SerializedArgument } from 'channels';
+import { ExpectedTextValue, SerializedArgument } from '../channels';
 
 export type FrameExpectParams = {
   selector?: string;

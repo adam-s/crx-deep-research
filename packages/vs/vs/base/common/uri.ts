@@ -16,7 +16,7 @@ function _validateUri(ret: URI, _strict?: boolean): void {
   // scheme, must be set
   if (!ret.scheme && _strict) {
     throw new Error(
-      `[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`,
+      `[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`
     );
   }
 
@@ -35,13 +35,13 @@ function _validateUri(ret: URI, _strict?: boolean): void {
     if (ret.authority) {
       if (!_singleSlashStart.test(ret.path)) {
         throw new Error(
-          '[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character',
+          '[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character'
         );
       }
     } else {
       if (_doubleSlashStart.test(ret.path)) {
         throw new Error(
-          '[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")',
+          '[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")'
         );
       }
     }
@@ -155,7 +155,7 @@ export class URI implements UriComponents {
     path?: string,
     query?: string,
     fragment?: string,
-    _strict?: boolean,
+    _strict?: boolean
   );
 
   /**
@@ -172,7 +172,7 @@ export class URI implements UriComponents {
     path?: string,
     query?: string,
     fragment?: string,
-    _strict: boolean = false,
+    _strict: boolean = false
   ) {
     if (typeof schemeOrData === 'object') {
       this.scheme = schemeOrData.scheme || _empty;
@@ -299,7 +299,7 @@ export class URI implements UriComponents {
       percentDecode(match[5] || _empty),
       percentDecode(match[7] || _empty),
       percentDecode(match[9] || _empty),
-      _strict,
+      _strict
     );
   }
 
@@ -364,7 +364,7 @@ export class URI implements UriComponents {
       components.path,
       components.query,
       components.fragment,
-      strict,
+      strict
     );
     return result;
   }
@@ -426,14 +426,15 @@ export class URI implements UriComponents {
   static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
   static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
     if (!data) {
-      return data;
+      return data as URI | undefined | null;
     } else if (data instanceof URI) {
-      return data;
+      return data as URI;
     } else {
       const result = new Uri(data);
       result._formatted = (<UriState>data).external ?? null;
-      result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath ?? null : null;
-      return result;
+      result._fsPath =
+        (<UriState>data)._sep === _pathSepMarker ? ((<UriState>data).fsPath ?? null) : null;
+      return result as URI;
     }
   }
 }
@@ -452,10 +453,14 @@ export function isUriComponents(thing: any): thing is UriComponents {
   }
   return (
     typeof (<UriComponents>thing).scheme === 'string' &&
-    (typeof (<UriComponents>thing).authority === 'string' || typeof (<UriComponents>thing).authority === 'undefined') &&
-    (typeof (<UriComponents>thing).path === 'string' || typeof (<UriComponents>thing).path === 'undefined') &&
-    (typeof (<UriComponents>thing).query === 'string' || typeof (<UriComponents>thing).query === 'undefined') &&
-    (typeof (<UriComponents>thing).fragment === 'string' || typeof (<UriComponents>thing).fragment === 'undefined')
+    (typeof (<UriComponents>thing).authority === 'string' ||
+      typeof (<UriComponents>thing).authority === 'undefined') &&
+    (typeof (<UriComponents>thing).path === 'string' ||
+      typeof (<UriComponents>thing).path === 'undefined') &&
+    (typeof (<UriComponents>thing).query === 'string' ||
+      typeof (<UriComponents>thing).query === 'undefined') &&
+    (typeof (<UriComponents>thing).fragment === 'string' ||
+      typeof (<UriComponents>thing).fragment === 'undefined')
   );
 }
 
@@ -553,7 +558,11 @@ const encodeTable: { [ch: number]: string } = {
   [CharCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, isPath: boolean, isAuthority: boolean): string {
+function encodeURIComponentFast(
+  uriComponent: string,
+  isPath: boolean,
+  isAuthority: boolean
+): string {
   let res: string | undefined = undefined;
   let nativeEncodePos = -1;
 
@@ -707,7 +716,11 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
   }
   if (path) {
     // lower-case windows drive letters in /C:/fff or C:/fff
-    if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
+    if (
+      path.length >= 3 &&
+      path.charCodeAt(0) === CharCode.Slash &&
+      path.charCodeAt(2) === CharCode.Colon
+    ) {
       const code = path.charCodeAt(1);
       if (code >= CharCode.A && code <= CharCode.Z) {
         path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
