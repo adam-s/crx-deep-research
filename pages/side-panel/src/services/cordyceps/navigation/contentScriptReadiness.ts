@@ -41,6 +41,28 @@ export class ContentScriptReadinessBarrier extends Disposable {
   }
 
   /**
+   * Reset barrier to not-ready state for new navigation
+   * CRITICAL: Fixes barrier reuse race condition
+   */
+  reset(): void {
+    try {
+      this._isReady = false;
+      if (this._readyPromise) {
+        try {
+          this._readyPromise.reject(new Error('Barrier reset for new navigation'));
+        } catch (error) {
+          // Promise might already be resolved/rejected - this is safe to ignore
+        }
+      }
+      this._readyPromise = new ManualPromise<void>();
+    } catch (error) {
+      // Force fresh state even if error occurred
+      this._isReady = false;
+      this._readyPromise = new ManualPromise<void>();
+    }
+  }
+
+  /**
    * Wait for the frame to be ready with optional timeout via Progress
    */
   async waitForReady(progress?: Progress): Promise<void> {
@@ -105,6 +127,19 @@ export class ContentScriptReadinessManager extends Disposable {
     }
 
     return barrier;
+  }
+
+  /**
+   * Reset a barrier to not-ready state for new navigation
+   * CRITICAL: Fixes barrier reuse race condition
+   */
+  resetBarrier(tabId: number, frameId: number): void {
+    const key = `${tabId}:${frameId}`;
+
+    const barrier = this._barriers.get(key);
+    if (barrier) {
+      barrier.reset();
+    }
   }
 
   /**
@@ -209,16 +244,29 @@ export class ContentScriptReadinessManager extends Disposable {
    * Start periodic cleanup of stale barriers
    */
   private _startPeriodicCleanup(): void {
-    const CLEANUP_INTERVAL = 30000; // 30 seconds
-    const STALE_THRESHOLD = 60000; // 1 minute
+    const CLEANUP_INTERVAL = 15000; // 15 seconds (more aggressive)
+    const STALE_THRESHOLD = 45000; // 45 seconds (tighter threshold)
+    const MAX_BARRIERS = 200; // Memory safety limit
 
     this._cleanupInterval = setInterval(() => {
       const now = Date.now();
       const staleFrames: string[] = [];
+      const barrierCount = this._barriers.size;
 
       // Find stale frames
       for (const [key, lifecycle] of this._frameLifecycle) {
         if (now - lifecycle.lastSeen > STALE_THRESHOLD) {
+          staleFrames.push(key);
+        }
+      }
+
+      // Emergency cleanup if too many barriers exist
+      if (barrierCount > MAX_BARRIERS) {
+        const sortedFrames = Array.from(this._frameLifecycle.entries())
+          .sort(([, a], [, b]) => a.lastSeen - b.lastSeen)
+          .slice(0, barrierCount - MAX_BARRIERS + 20); // Remove oldest + buffer
+
+        for (const [key] of sortedFrames) {
           staleFrames.push(key);
         }
       }

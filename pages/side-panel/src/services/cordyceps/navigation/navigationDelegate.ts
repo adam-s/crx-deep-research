@@ -22,7 +22,8 @@ export class NavigationDelegate {
       // This is expected behavior - fallback to history.back() for document-level history
 
       // Fallback to history.back() via script injection
-      return executeHistoryBack(this._tabId);
+      const result = executeHistoryBack(this._tabId);
+      return result;
     }
   }
 
@@ -37,7 +38,8 @@ export class NavigationDelegate {
       return true;
     } catch (error) {
       // Fallback to history.forward() via script injection
-      return executeHistoryForward(this._tabId);
+      const result = executeHistoryForward(this._tabId);
+      return result;
     }
   }
 }

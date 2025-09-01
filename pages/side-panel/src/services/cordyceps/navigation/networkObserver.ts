@@ -111,7 +111,9 @@ export class NetworkObserver {
   ): Promise<ResponseInfo> {
     const key = this._routeKey(tabId, frameId, url);
     const existing = this.responsesByRoute.get(key);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
 
     return new Promise<ResponseInfo>((resolve, reject) => {
       const start = Date.now();

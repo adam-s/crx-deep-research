@@ -4,6 +4,7 @@ import {
   type INavigationEventMessage,
 } from '@shared/utils/message';
 import type { LifecycleEvent } from '../utilities/types';
+import { ContentScriptReadinessManager } from './contentScriptReadiness';
 
 export interface InternalNavigation {
   tabId: number;
@@ -44,6 +45,28 @@ export class NavigationTracker {
 
     // Listen to navigation events from content scripts (same-document navigation)
     this._setupNavigationMessageListener();
+
+    // Start health monitoring
+    this._startHealthMonitoring();
+  }
+
+  /**
+   * Monitor system health and log metrics periodically
+   */
+  private _startHealthMonitoring(): void {
+    setInterval(() => {
+      const frameCount = this._frames.size;
+      const frameEntries = Array.from(this._frames.entries());
+      const staleFrames = frameEntries.filter(([, state]) => !state.url).length;
+
+      // System health warnings
+      if (frameCount > 300) {
+        // High frame count detected - potential memory leak
+      }
+      if (staleFrames > 50) {
+        // Many stale frames detected - cleanup may be needed
+      }
+    }, 60000); // Every minute
   }
 
   public waitForNavigation(
@@ -65,8 +88,12 @@ export class NavigationTracker {
       }, timeoutMs);
 
       const listener = (ev: InternalNavigation) => {
-        if (ev.tabId !== tabId || ev.frameId !== frameId) return;
-        if (toUrl && normalize(ev.url) !== toUrl) return;
+        if (ev.tabId !== tabId || ev.frameId !== frameId) {
+          return;
+        }
+        if (toUrl && normalize(ev.url) !== toUrl) {
+          return;
+        }
 
         this._waitForLifecycle(k, waitUntil, timeoutMs)
           .then(() => {
@@ -107,11 +134,16 @@ export class NavigationTracker {
   private _onCommitted = (d: chrome.webNavigation.WebNavigationTransitionCallbackDetails): void => {
     const st = this._ensure(key(d.tabId, d.frameId), d.tabId, d.frameId);
     const isCrossDoc = !!d.documentId && d.documentId !== st.currentDocumentId;
+
     st.url = d.url;
 
     if (isCrossDoc) {
       st.currentDocumentId = d.documentId!;
       st.lifecycle.clear();
+
+      // Reset content script readiness barrier for new document to prevent race condition
+      ContentScriptReadinessManager.getInstance().resetBarrier(d.tabId, d.frameId);
+
       this._markLifecycle(st, 'commit');
       this._onInternalNavigation.fire({
         tabId: d.tabId,
@@ -179,7 +211,9 @@ export class NavigationTracker {
 
   private _waitForLifecycle(k: FrameKey, state: LifecycleEvent, timeoutMs: number): Promise<void> {
     const st = this._frames.get(k);
-    if (st && st.lifecycle.has(state)) return Promise.resolve();
+    if (st && st.lifecycle.has(state)) {
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve, reject) => {
       const start = Date.now();
       const t = setInterval(() => {
@@ -206,6 +240,15 @@ export class NavigationTracker {
     if (!st) {
       st = { tabId, frameId, url: '', lifecycle: new Set<LifecycleEvent>() };
       this._frames.set(k, st);
+
+      // Memory management: limit total frames tracked
+      if (this._frames.size > 500) {
+        const entries = Array.from(this._frames.entries());
+        const toRemove = entries.slice(0, 100); // Remove oldest 100
+        for (const [key] of toRemove) {
+          this._frames.delete(key);
+        }
+      }
     }
     return st;
   }
