@@ -81,6 +81,10 @@ export async function testDragToFunctionality(
     const sourceLocator = page.locator('[data-testid="drag-item-1"]');
     const targetLocator = page.locator('[data-testid="drop-zone-1"]');
 
+    // Scroll both source and target into view before drag operation
+    await sourceLocator.scrollIntoViewIfNeeded();
+    await targetLocator.scrollIntoViewIfNeeded();
+
     await sourceLocator.dragTo(targetLocator);
 
     // Verify drag and drop events were fired
@@ -123,6 +127,10 @@ export async function testDragToFunctionality(
 
     const sourceLocator2 = page.locator('[data-testid="drag-item-2"]');
     const targetLocator2 = page.locator('[data-testid="drop-zone-2"]');
+
+    // Scroll both source and target into view before drag operation
+    await sourceLocator2.scrollIntoViewIfNeeded();
+    await targetLocator2.scrollIntoViewIfNeeded();
 
     await sourceLocator2.dragTo(targetLocator2, {
       sourcePosition: { x: 10, y: 10 },
@@ -203,6 +211,10 @@ export async function testDragToFunctionality(
     const sortItemA = page.locator('[data-testid="sort-item-a"]');
     const sortItemD = page.locator('[data-testid="sort-item-d"]');
 
+    // Scroll both sortable items into view before drag operation
+    await sortItemA.scrollIntoViewIfNeeded();
+    await sortItemD.scrollIntoViewIfNeeded();
+
     await sortItemA.dragTo(sortItemD);
 
     // Verify sortable drag and drop with better debugging
@@ -243,6 +255,10 @@ export async function testDragToFunctionality(
       // Use a fresh, more specific source locator that targets the original element in the source container
       const errorTestSourceLocator = page.locator('#drag-source [data-testid="drag-item-1"]');
       const invalidTargetLocator = page.locator('#non-existent-element');
+
+      // Scroll source into view before attempting drag operation
+      await errorTestSourceLocator.scrollIntoViewIfNeeded();
+
       // Use a shorter timeout for invalid element tests to fail quickly
       await errorTestSourceLocator.dragTo(invalidTargetLocator, { timeout: 5000 });
       throw new Error('Expected error for invalid target, but operation succeeded');
@@ -269,6 +285,10 @@ export async function testDragToFunctionality(
     const timeoutSourceLocator = page.locator('[data-testid="drag-item-3"]');
     const timeoutTargetLocator = page.locator('[data-testid="target-a"]');
 
+    // Scroll both elements into view before drag operation with timeout
+    await timeoutSourceLocator.scrollIntoViewIfNeeded();
+    await timeoutTargetLocator.scrollIntoViewIfNeeded();
+
     await timeoutSourceLocator.dragTo(timeoutTargetLocator, {
       timeout: 15000,
     });
@@ -281,6 +301,10 @@ export async function testDragToFunctionality(
     // This test verifies that the Locator.dragTo method properly delegates to Frame.dragAndDrop
     const gridTargetA = page.locator('[data-testid="target-a"]');
     const gridTargetB = page.locator('[data-testid="target-b"]');
+
+    // Scroll both grid targets into view before delegation test
+    await gridTargetA.scrollIntoViewIfNeeded();
+    await gridTargetB.scrollIntoViewIfNeeded();
 
     await gridTargetA.dragTo(gridTargetB);
 
@@ -325,6 +349,10 @@ export async function testDragToAdvanced(
       const itemLocator = page.locator(`#drag-source [data-testid="${items[i]}"]`);
       const targetLocator = page.locator(`[data-testid="${targets[i]}"]`);
 
+      // Scroll both elements into view before each drag operation
+      await itemLocator.scrollIntoViewIfNeeded();
+      await targetLocator.scrollIntoViewIfNeeded();
+
       await itemLocator.dragTo(targetLocator);
       progress.log(`✓ Dragged ${items[i]} to ${targets[i]}`);
     }
@@ -336,6 +364,10 @@ export async function testDragToAdvanced(
 
     const resilientSource = page.locator('[data-testid="sort-item-b"]');
     const resilientTarget = page.locator('[data-testid="sort-item-c"]');
+
+    // Scroll elements into view before resilience testing
+    await resilientSource.scrollIntoViewIfNeeded();
+    await resilientTarget.scrollIntoViewIfNeeded();
 
     // Test multiple rapid drag operations
     await resilientSource.dragTo(resilientTarget);
@@ -353,6 +385,10 @@ export async function testDragToAdvanced(
     // Perform drag and drop using more specific selector to avoid duplicates
     const stateTestSource = page.locator('#drag-source [data-testid="drag-item-1"]');
     const stateTestTarget = page.locator('[data-testid="drop-zone-1"]');
+
+    // Scroll elements into view before state verification test
+    await stateTestSource.scrollIntoViewIfNeeded();
+    await stateTestTarget.scrollIntoViewIfNeeded();
 
     await stateTestSource.dragTo(stateTestTarget);
 
