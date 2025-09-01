@@ -90,13 +90,13 @@ export const Settings: React.FC = () => {
   // Handles changes to the input fields and updates local storage
   const handleOpenAiInputChange = (
     _event: React.ChangeEvent<HTMLInputElement>,
-    data: InputOnChangeData,
+    data: InputOnChangeData
   ) => {
     setStoredOpenAiApiKey(data.value);
   };
   const handleGoogleGeminiInputChange = (
     _event: React.ChangeEvent<HTMLInputElement>,
-    data: InputOnChangeData,
+    data: InputOnChangeData
   ) => {
     setStoredGoogleGeminiApiKey(data.value);
   };
@@ -110,12 +110,14 @@ export const Settings: React.FC = () => {
     <Dialog
       open={dialogOpen}
       onOpenChange={(_e, data) => setDialogOpen(data.open)}
-      modalType="modal">
+      modalType="modal"
+    >
       <DialogTrigger disableButtonEnhancement>
         <div className={dialogOpen ? styles.menuNavContainerActive : styles.menuNavContainer}>
           <Button
             className={dialogOpen ? styles.menuNavButtonActive : styles.menuNavButton}
-            appearance="transparent">
+            appearance="transparent"
+          >
             <SettingsRegular className={styles.menuIcon} />
           </Button>
         </div>
@@ -137,6 +139,7 @@ export const Settings: React.FC = () => {
               <Input
                 id="google-gemini-api-key-input"
                 type="password"
+                disabled
                 value={storedGoogleGeminiApiKey || ''}
                 onChange={handleGoogleGeminiInputChange}
                 placeholder="Gemini key for Google AI features"

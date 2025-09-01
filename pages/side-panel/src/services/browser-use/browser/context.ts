@@ -13,6 +13,7 @@ import { DOMService } from '../dom/service';
 import { DOMElementNode, SelectorMap } from '../dom/views';
 import { ElementForSelector, ElementNode } from '../dom/types';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ContentScriptReadinessManager } from '../../cordyceps/navigation/contentScriptReadiness';
 
 // Configuration class for browser-use context (instantiable with sane defaults)
 export class BrowserContextConfig {
@@ -525,9 +526,6 @@ export class BrowserContext {
 
       // Clean up ContentScriptReadinessManager
       try {
-        const { ContentScriptReadinessManager } = await import(
-          '../../cordyceps/navigation/contentScriptReadiness'
-        );
         const instance = ContentScriptReadinessManager.getInstance();
         if (instance) {
           console.log('🧹 Disposing ContentScriptReadinessManager');

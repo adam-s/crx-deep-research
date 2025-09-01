@@ -11,6 +11,8 @@ import { ChromeExtensionStagehand } from '../../lib/index';
 import { BrowserWindow } from '@src/services/cordyceps/browserWindow';
 import { z } from 'zod';
 import { LogLine } from '../../types/log';
+import { MarkdownExtractor } from '../../lib/utils/markdownExtractor';
+import { chunkSnapshotText, findMostRelevantChunk, scoreChunks } from '../../lib/utils/textChunker';
 
 /**
  * Run the elephant research task using Stagehand with the same steps as browser-use example
@@ -191,11 +193,6 @@ export async function testElephantResearchSteps(context: TestContext): Promise<v
     // Step 4.1: Extract markdown from the page
     progress.log('Step 4.1: Extracting markdown from Wikipedia page...');
 
-    const { MarkdownExtractor } = await import('../../lib/utils/markdownExtractor');
-    const { chunkSnapshotText, findMostRelevantChunk } = await import(
-      '../../lib/utils/textChunker'
-    );
-
     // Get current page from Stagehand
     const currentPage = await stagehand.browserWindow.getCurrentPage();
 
@@ -263,7 +260,6 @@ export async function testElephantResearchSteps(context: TestContext): Promise<v
     let relevanceScore: number;
     if (chunks.length === 1) {
       // If there's only one chunk, calculate its score manually
-      const { scoreChunks } = await import('../../lib/utils/textChunker');
       const scoredChunks = scoreChunks([mostRelevantChunk], behaviorQuery);
       relevanceScore = scoredChunks[0]?.relevanceScore ?? 0;
     } else {

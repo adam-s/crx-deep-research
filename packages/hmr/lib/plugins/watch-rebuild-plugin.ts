@@ -1,9 +1,10 @@
 import type { PluginOption } from 'vite';
 import { WebSocket } from 'ws';
-import MessageInterpreter from '../interpreter';
-import { LOCAL_RELOAD_SOCKET_URL } from '../constant';
+import MessageInterpreter from '../interpreter/index.js';
+import { LOCAL_RELOAD_SOCKET_URL } from '../constant.js';
 import * as fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 type PluginConfig = {
   onStart?: () => void;
@@ -11,6 +12,8 @@ type PluginConfig = {
   refresh?: boolean;
 };
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const injectionsPath = path.resolve(__dirname, '..', '..', '..', 'build', 'injections');
 
 const refreshCode = fs.readFileSync(path.resolve(injectionsPath, 'refresh.js'), 'utf-8');

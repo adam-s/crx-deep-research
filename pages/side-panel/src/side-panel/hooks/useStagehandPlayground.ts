@@ -5,8 +5,6 @@ import { EventMessage, Severity } from '../../utils/types';
 import { IStagehandPlaygroundService } from '@src/services/stagehand/playground/stagehandPlayground.service';
 
 export interface UseStagehandPlaygroundReturn {
-  /** Run all tests */
-  runAllTests: () => Promise<void>;
   /** Run elephant research test */
   runElephantResearchTest: () => Promise<void>;
   /** All events emitted by the playground */
@@ -67,22 +65,6 @@ export const useStagehandPlayground = (): UseStagehandPlaygroundReturn => {
     };
   }, [stagehandPlaygroundService]);
 
-  const runAllTests = useCallback(async () => {
-    if (!stagehandPlaygroundService) {
-      setError('Stagehand playground service not available');
-      return;
-    }
-
-    try {
-      setError(null);
-      await stagehandPlaygroundService.runAllTests();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run tests';
-      setError(errorMessage);
-      console.error('useStagehandPlayground: Failed to run tests:', err);
-    }
-  }, [stagehandPlaygroundService]);
-
   const runElephantResearchTest = useCallback(async () => {
     if (!stagehandPlaygroundService) {
       setError('Stagehand playground service not available');
@@ -119,7 +101,6 @@ export const useStagehandPlayground = (): UseStagehandPlaygroundReturn => {
   );
 
   return {
-    runAllTests,
     runElephantResearchTest,
     events,
     latestEvent,

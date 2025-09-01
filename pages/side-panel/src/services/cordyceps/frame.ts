@@ -23,6 +23,7 @@ import type {
   TimeoutOptions,
 } from './utilities/types';
 import { verifyLifecycle } from './utilities/types';
+import { ContentScriptReadinessManager } from './navigation/contentScriptReadiness';
 import { FrameSelectors } from './operations/frameSelectors';
 import {
   getByTestIdSelector,
@@ -2213,8 +2214,6 @@ export class Frame extends Disposable {
    * Replaces waitForLoadState('networkidle')
    */
   async waitForContentScriptReady(progress?: Progress): Promise<void> {
-    const { ContentScriptReadinessManager } = await import('./navigation/contentScriptReadiness');
-
     const barrier = ContentScriptReadinessManager.getInstance().getBarrier(
       this.tabId,
       this.frameId

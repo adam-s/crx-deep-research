@@ -5,6 +5,9 @@
 
 import { Severity } from '@src/utils/types';
 import { TestContext } from './types';
+import { StagehandActHandler } from '../../lib/handlers/actHandler';
+import { StagehandObserveHandler } from '../../lib/handlers/observeHandler';
+import { StagehandExtractHandler } from '../../lib/handlers/extractHandler';
 
 // Simple logger for testing
 class SimpleLogger {
@@ -26,10 +29,6 @@ export async function testHandlerInitialization(context: TestContext): Promise<b
   try {
     // Test 1: Check if handlers can be imported without errors
     console.log('Test 1: Handler imports');
-
-    const { StagehandActHandler } = await import('../../lib/handlers/actHandler');
-    const { StagehandObserveHandler } = await import('../../lib/handlers/observeHandler');
-    const { StagehandExtractHandler } = await import('../../lib/handlers/extractHandler');
 
     console.log('✅ Handler imports: Success');
     console.log(`✅ StagehandActHandler: ${typeof StagehandActHandler}`);
@@ -66,10 +65,6 @@ export async function testBasicHandlerFunctionality(context: TestContext): Promi
 
   try {
     const simpleLogger = new SimpleLogger();
-
-    // Import handlers
-    const { StagehandActHandler } = await import('../../lib/handlers/actHandler');
-    const { StagehandObserveHandler } = await import('../../lib/handlers/observeHandler');
 
     // Test 1: Check if handlers can be instantiated (without browserWindow)
     console.log('Test 1: Handler instantiation readiness');

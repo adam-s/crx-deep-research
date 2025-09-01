@@ -1,5 +1,5 @@
-import { LOCAL_RELOAD_SOCKET_URL } from './constant';
-import MessageInterpreter from './interpreter';
+import { LOCAL_RELOAD_SOCKET_URL } from './constant.js';
+import MessageInterpreter from './interpreter/index.js';
 
 export default function initReloadClient({ id, onUpdate }: { id: string; onUpdate: () => void }) {
   let ws: WebSocket | null = null;
@@ -21,7 +21,7 @@ export default function initReloadClient({ id, onUpdate }: { id: string; onUpdat
 
     ws.onclose = () => {
       console.log(
-        `Reload server disconnected.\nPlease check if the WebSocket server is running properly on ${LOCAL_RELOAD_SOCKET_URL}. This feature detects changes in the code and helps the browser to reload the extension or refresh the current tab.`,
+        `Reload server disconnected.\nPlease check if the WebSocket server is running properly on ${LOCAL_RELOAD_SOCKET_URL}. This feature detects changes in the code and helps the browser to reload the extension or refresh the current tab.`
       );
       setTimeout(() => {
         initReloadClient({ onUpdate, id });

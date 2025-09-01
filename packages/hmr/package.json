@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "chrome extension hot module reload or refresh",
   "private": true,
+  "type": "module",
   "sideEffects": true,
   "files": [
     "dist/**"
