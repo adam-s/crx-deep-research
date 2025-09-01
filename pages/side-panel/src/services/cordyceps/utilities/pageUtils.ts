@@ -268,8 +268,9 @@ export async function snapshotFrameForAI(
   );
 
   const lines = snapshot.split('\n');
-  const result = [];
+  const result: string[] = [];
 
+  // Process each line, handling iframes with improved resolution strategy
   for (const line of lines) {
     const iframeInfo = parseIframeLine(line);
     if (!iframeInfo) {
@@ -277,55 +278,108 @@ export async function snapshotFrameForAI(
       continue;
     }
 
-    const { ref } = iframeInfo;
-    const { frameBodySelector } = generateFrameSelectors(ref);
-
-    let child;
+    // Use the new intelligent iframe resolution
     try {
-      // Use a shorter timeout for iframe resolution to prevent long delays
-      // Create a race condition with a 5-second timeout specifically for iframe resolution
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Iframe resolution timeout after 5000ms`)), 5000);
-      });
-
-      child = await Promise.race([
-        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
-        timeoutPromise,
-      ]);
-    } catch (error) {
-      console.warn(
-        `⚠️  Failed to resolve iframe reference ${ref}:`,
-        error instanceof Error ? error.message : String(error)
-      );
-      console.warn(`   Skipping iframe expansion and keeping original line`);
-      result.push(line);
-      continue;
-    }
-
-    if (!child) {
-      console.warn(`⚠️  No child frame found for reference ${ref}, keeping original line`);
-      result.push(line);
-      continue;
-    }
-
-    const newFrameOrdinal = frameIds.length + 1;
-    frameIds.push(child.frame.frameId);
-
-    try {
-      const childSnapshot = await snapshotFrameForAI(
-        progress,
-        child.frame,
-        newFrameOrdinal,
-        frameIds
-      );
-      const processedLines = processIframeLine(line, childSnapshot);
+      const iframeContent = await resolveIframeContent(progress, frame, iframeInfo, frameIds);
+      const processedLines = processIframeLine(line, iframeContent);
       result.push(...processedLines);
-    } catch {
-      result.push(line);
+    } catch (error) {
+      // Final fallback: keep original line if everything fails
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      result.push(`${line} [resolution error: ${errorMsg}]`);
     }
   }
 
   return result;
+}
+
+/**
+ * Check if an iframe is available and accessible before attempting resolution
+ * This provides a fast check to avoid expensive resolution attempts on non-existent iframes
+ */
+async function isIframeAccessible(
+  frame: Frame,
+  frameBodySelector: string,
+  timeoutMs: number = 1000
+): Promise<boolean> {
+  try {
+    // Quick check: does the iframe element exist in the DOM?
+    const exists = await Promise.race([
+      frame.evaluate(selector => {
+        const element = document.querySelector(
+          selector.replace(' >> internal:control=enter-frame', '')
+        );
+        return element !== null && element.tagName === 'IFRAME';
+      }, frameBodySelector),
+      new Promise<boolean>((_, reject) =>
+        setTimeout(() => reject(new Error('Availability check timeout')), timeoutMs)
+      ),
+    ]);
+
+    return exists;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve iframe content with intelligent fallback
+ * Uses lazy resolution with availability checking for better performance
+ */
+async function resolveIframeContent(
+  progress: Progress,
+  frame: Frame,
+  iframeInfo: { ref: string },
+  frameIds: number[]
+): Promise<string[]> {
+  const { ref } = iframeInfo;
+  const { frameBodySelector } = generateFrameSelectors(ref);
+
+  // Step 1: Quick availability check (1 second max)
+  const isAccessible = await isIframeAccessible(frame, frameBodySelector, 1000);
+  if (!isAccessible) {
+    // Graceful degradation: return placeholder indicating iframe not expanded
+    return [`  [iframe ${ref} - not accessible or not ready]`];
+  }
+
+  // Step 2: Attempt resolution with reasonable timeout (3 seconds max)
+  let child;
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`Iframe resolution timeout after 3000ms`)), 3000);
+    });
+
+    child = await Promise.race([
+      frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
+      timeoutPromise,
+    ]);
+  } catch (error) {
+    // Graceful degradation: return placeholder with error info
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return [`  [iframe ${ref} - resolution failed: ${errorMsg}]`];
+  }
+
+  if (!child) {
+    return [`  [iframe ${ref} - no child frame found]`];
+  }
+
+  // Step 3: Attempt to get iframe content
+  const newFrameOrdinal = frameIds.length + 1;
+  frameIds.push(child.frame.frameId);
+
+  try {
+    const childSnapshot = await snapshotFrameForAI(
+      progress,
+      child.frame,
+      newFrameOrdinal,
+      frameIds
+    );
+    return formatChildSnapshotLines(childSnapshot, '  ');
+  } catch (error) {
+    // Graceful degradation: return placeholder with error info
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return [`  [iframe ${ref} - content extraction failed: ${errorMsg}]`];
+  }
 }
 
 // #endregion
