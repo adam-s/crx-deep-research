@@ -421,15 +421,24 @@ export async function waitForCondition(
 ): Promise<void> {
   const { pollInterval = 100, timeout = 30000, description = 'condition' } = options;
 
+  console.log(
+    `[waitForCondition] Starting wait for ${description} pollInterval:${pollInterval}ms timeout:${timeout}ms ######`
+  );
   progress.log(`Waiting for ${description} (polling: ${pollInterval}ms, timeout: ${timeout}ms)`);
 
   const conditionPromise = new Promise<void>((resolve, reject) => {
     let pollId: ReturnType<typeof setTimeout> | undefined;
+    let pollCount = 0;
 
     const checkCondition = async () => {
+      pollCount++;
       try {
+        console.log(`[waitForCondition] ${description} check #${pollCount} ######`);
         const result = await condition();
         if (result) {
+          console.log(
+            `[waitForCondition] ${description} condition met after ${pollCount} polls ######`
+          );
           progress.log(`${description} met`);
           if (pollId) {
             clearTimeout(pollId);
@@ -437,7 +446,13 @@ export async function waitForCondition(
           resolve();
           return;
         }
+        console.log(
+          `[waitForCondition] ${description} condition not met, scheduling next check ######`
+        );
       } catch (error) {
+        console.log(
+          `[waitForCondition] ${description} error on check #${pollCount}: ${error} ######`
+        );
         progress.log(`Error checking ${description}: ${error}`);
         if (pollId) {
           clearTimeout(pollId);
@@ -452,12 +467,14 @@ export async function waitForCondition(
 
     // Set up cleanup
     progress.cleanupWhenAborted(() => {
+      console.log(`[waitForCondition] ${description} cleanup on progress abort ######`);
       if (pollId) {
         clearTimeout(pollId);
       }
     });
 
     // Start checking
+    console.log(`[waitForCondition] ${description} starting initial condition check ######`);
     checkCondition();
   });
 
@@ -474,6 +491,9 @@ export async function waitForCondition(
       const timeoutId = setTimeout(() => {
         if (isComplete) return;
         isComplete = true;
+        console.log(
+          `[waitForCondition.withTimeout] ${label} timeout triggered after ${timeoutMs}ms ######`
+        );
         onCancel();
         reject(new Error(`${label} timeout after ${timeoutMs}ms`));
       }, timeoutMs);

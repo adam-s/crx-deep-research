@@ -514,13 +514,17 @@ export async function executeScriptInMainWorld<T>(
  * @returns true if navigation was attempted, false if no history available
  */
 export async function executeHistoryBack(tabId: number): Promise<boolean> {
+  console.log(`[executeHistoryBack] tabId:${tabId} executing history.back() in main world ######`);
   const result = await executeScriptInMainWorld(tabId, () => {
     if (history.length > 1) {
+      console.log('executeHistoryBack: history.length > 1, calling history.back()');
       history.back();
       return true;
     }
+    console.log('executeHistoryBack: history.length <= 1, no navigation possible');
     return false;
   });
+  console.log(`[executeHistoryBack] tabId:${tabId} result:${result} ######`);
   return result ?? false;
 }
 
@@ -529,10 +533,15 @@ export async function executeHistoryBack(tabId: number): Promise<boolean> {
  * @returns true if navigation was attempted
  */
 export async function executeHistoryForward(tabId: number): Promise<boolean> {
+  console.log(
+    `[executeHistoryForward] tabId:${tabId} executing history.forward() in main world ######`
+  );
   const result = await executeScriptInMainWorld(tabId, () => {
+    console.log('executeHistoryForward: calling history.forward()');
     history.forward();
     return true;
   });
+  console.log(`[executeHistoryForward] tabId:${tabId} result:${result} ######`);
   return result ?? false;
 }
 

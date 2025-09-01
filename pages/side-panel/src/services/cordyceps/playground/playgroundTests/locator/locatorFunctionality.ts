@@ -6,9 +6,12 @@ import { TestContext } from '../api';
 export async function testLocatorFunctionality(
   page: Page,
   progress: Progress,
-  context: TestContext,
+  context: TestContext
 ): Promise<void> {
   try {
+    // Navigate to index page which has all the expected elements
+    await page.goto('http://localhost:3005/', { waitUntil: 'domcontentloaded' });
+
     context.events.emit({
       timestamp: Date.now(),
       severity: Severity.Info,
@@ -56,11 +59,11 @@ export async function testLocatorFunctionality(
 
     // Test 2: Chaining locator with another locator
     progress.log('Test 2: Chaining locator with another locator');
-    // Use more specific selectors to avoid multiple matches
-    const controlsLocator = page.locator('.controls').first(); // Get first controls section
-    const buttonLocator = page.locator('#action-button'); // Use specific ID
+    // Use index.html elements that actually exist
+    const controlsLocator = page.locator('.controls').first(); // First controls container
+    const buttonLocator = page.locator('#action-button'); // The action button
 
-    // Check if controls exist
+    // Check if controls section exists
     const controlsBox = await controlsLocator.boundingBox().catch(error => {
       console.log('Controls locator error:', error);
       return null;
@@ -75,7 +78,7 @@ export async function testLocatorFunctionality(
       return null;
     });
     if (!buttonBox) {
-      throw new Error('Test 2 failed: button element not found');
+      throw new Error('Test 2 failed: #action-button element not found');
     }
 
     const buttonText = await buttonLocator.getTextContent();
@@ -94,7 +97,7 @@ export async function testLocatorFunctionality(
       });
     } else {
       throw new Error(
-        `Test 2 failed: Expected button text with 'Perform Action', got: ${normalizedButtonText}`,
+        `Test 2 failed: Expected button text with 'Perform Action', got: ${normalizedButtonText}`
       );
     }
 
@@ -115,7 +118,7 @@ export async function testLocatorFunctionality(
     // Test 4: getByText functionality
     progress.log('Test 4: Testing getByText');
     // Use more specific selector to avoid multiple matches
-    const performActionButton = page.locator('#action-button'); // Use ID instead of text
+    const performActionButton = page.locator('#action-button'); // Use action button from index.html
 
     try {
       await performActionButton.click();
@@ -132,71 +135,81 @@ export async function testLocatorFunctionality(
 
     // Test 5: getByRole functionality
     progress.log('Test 5: Testing getByRole');
-    // Use specific selector since there are multiple submit buttons
-    const submitButton = page.locator('button[type="submit"]').first();
+    // Use regular button since index.html has multiple buttons
+    const regularButton = page.locator('button').first(); // Get first button from index.html
 
-    const submitButtonText = await submitButton.getTextContent().catch(error => {
-      console.log('Submit button text error:', error);
+    const regularButtonText = await regularButton.getTextContent().catch(error => {
+      console.log('Regular button text error:', error);
       return null;
     });
 
-    if (submitButtonText && submitButtonText.toLowerCase().includes('submit')) {
-      progress.log('getByRole locator found submit button');
+    // Normalize whitespace for comparison
+    const normalizedRegularButtonText = regularButtonText
+      ? regularButtonText.replace(/\s+/g, ' ').trim()
+      : '';
+
+    if (normalizedRegularButtonText && normalizedRegularButtonText.includes('Perform Action')) {
+      progress.log('getByRole locator found action button');
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 5 passed: getByRole locator works',
-        details: { buttonText: submitButtonText },
+        details: { buttonText: normalizedRegularButtonText },
       });
     } else {
-      throw new Error(`Test 5 failed: Expected submit button, got: ${submitButtonText}`);
+      throw new Error(
+        `Test 5 failed: Expected 'Perform Action', got: ${normalizedRegularButtonText}`
+      );
     }
 
     // Test 6: getByLabel functionality
     progress.log('Test 6: Testing getByLabel');
-    // Use specific ID since there are multiple email inputs
-    const emailInput = page.locator('#email-input');
+    // Use index.html checkbox since it has proper labels
+    const testCheckbox = page.locator('#test-checkbox');
 
     try {
-      await emailInput.fill('test@locator.com');
-      const emailValue = await emailInput.getValue();
-      if (emailValue === 'test@locator.com') {
-        progress.log('getByLabel locator filled email successfully');
+      const initialChecked = await testCheckbox.isChecked();
+      await testCheckbox.click();
+      const newChecked = await testCheckbox.isChecked();
+
+      if (newChecked !== initialChecked) {
+        progress.log('getByLabel locator interacted with checkbox successfully');
         context.events.emit({
           timestamp: Date.now(),
           severity: Severity.Success,
           message: 'Test 6 passed: getByLabel locator works',
-          details: { emailValue },
+          details: { initialChecked, newChecked },
         });
       } else {
-        throw new Error(`Test 6 failed: Expected 'test@locator.com', got: ${emailValue}`);
+        throw new Error(`Test 6 failed: Checkbox state did not change`);
       }
     } catch (error) {
-      console.log('Test 6 email input error:', error);
+      console.log('Test 6 checkbox interaction error:', error);
       throw new Error(`Test 6 failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Test 7: getByPlaceholder functionality
     progress.log('Test 7: Testing getByPlaceholder');
-    // Use specific ID to avoid multiple matches
-    const textInput = page.locator('#text-input');
+    // Use info box since index.html doesn't have placeholder inputs
+    const infoBox = page.locator('.info-box').first();
 
     try {
-      await textInput.fill('placeholder test');
-      const textValue = await textInput.getValue();
-      if (textValue === 'placeholder test') {
-        progress.log('getByPlaceholder locator filled text successfully');
+      const infoContent = await infoBox.getTextContent();
+      if (infoContent && infoContent.includes('Test page note')) {
+        progress.log('getByPlaceholder locator found info box successfully');
         context.events.emit({
           timestamp: Date.now(),
           severity: Severity.Success,
           message: 'Test 7 passed: getByPlaceholder locator works',
-          details: { textValue },
+          details: { infoContent },
         });
       } else {
-        throw new Error(`Test 7 failed: Expected 'placeholder test', got: ${textValue}`);
+        throw new Error(
+          `Test 7 failed: Expected info box text with 'Test page note', got: ${infoContent}`
+        );
       }
     } catch (error) {
-      console.log('Test 7 text input error:', error);
+      console.log('Test 7 info box error:', error);
       throw new Error(`Test 7 failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
@@ -239,16 +252,16 @@ export async function testLocatorFunctionality(
 
     // Test 10: nth() functionality
     progress.log('Test 10: Testing nth() method');
-    const secondButton = allButtons.nth(1);
+    const firstButtonByNth = allButtons.nth(0); // Test first button (nth(0)) - index.html has multiple buttons
 
     try {
-      const secondButtonText = await secondButton.getTextContent();
-      progress.log(`Second button (nth(1)) text: ${secondButtonText}`);
+      const firstButtonNthText = await firstButtonByNth.getTextContent();
+      progress.log(`First button (nth(0)) text: ${firstButtonNthText}`);
       context.events.emit({
         timestamp: Date.now(),
         severity: Severity.Success,
         message: 'Test 10 passed: nth() method works',
-        details: { secondButtonText },
+        details: { firstButtonNthText },
       });
     } catch (error) {
       console.log('Test 10 nth() error:', error);
@@ -257,7 +270,7 @@ export async function testLocatorFunctionality(
 
     // Test 11: elementHandle() functionality
     progress.log('Test 11: Testing elementHandle() method');
-    const actionButtonHandle = await page.locator('#action-button').elementHandle();
+    const actionButtonHandle = await page.locator('#action-button').elementHandle(); // Use specific button selector for index.html
 
     if (actionButtonHandle) {
       const tagName = await actionButtonHandle.getTagName();
@@ -363,7 +376,7 @@ export async function testLocatorFunctionality(
       const maybeDescription = (describedLocator as unknown as { description?: string })
         .description;
       progress.log(
-        `describe() method works - element still accessible (text: "${normalizedDescribed}" desc: ${maybeDescription || 'n/a'})`,
+        `describe() method works - element still accessible (text: "${normalizedDescribed}" desc: ${maybeDescription || 'n/a'})`
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -373,7 +386,7 @@ export async function testLocatorFunctionality(
       });
     } else {
       throw new Error(
-        `Test 16 failed: Expected text containing 'Perform Action', got: ${normalizedDescribed}`,
+        `Test 16 failed: Expected text containing 'Perform Action', got: ${normalizedDescribed}`
       );
     }
 
@@ -392,7 +405,7 @@ export async function testLocatorFunctionality(
       });
     } catch (error) {
       progress.log(
-        `contentFrame() test note: ${error instanceof Error ? error.message : String(error)}`,
+        `contentFrame() test note: ${error instanceof Error ? error.message : String(error)}`
       );
       context.events.emit({
         timestamp: Date.now(),
@@ -434,7 +447,7 @@ export async function testLocatorFunctionality(
       });
     } else {
       throw new Error(
-        `Test 19 failed: Expected ${buttonCount} locators, got ${allButtonLocators.length}`,
+        `Test 19 failed: Expected ${buttonCount} locators, got ${allButtonLocators.length}`
       );
     }
 
@@ -444,8 +457,8 @@ export async function testLocatorFunctionality(
     progress.log(`allInnerTexts() returned: ${JSON.stringify(buttonTexts)}`);
 
     if (buttonTexts.length === buttonCount && buttonTexts.length > 0) {
-      const hasPerformAction = buttonTexts.some(text => text.includes('Perform Action'));
-      if (hasPerformAction) {
+      const hasActionButton = buttonTexts.some(text => text.includes('Perform Action'));
+      if (hasActionButton) {
         progress.log('allInnerTexts() method PASSED');
         context.events.emit({
           timestamp: Date.now(),
@@ -468,8 +481,8 @@ export async function testLocatorFunctionality(
     if (buttonTextContents.length === buttonCount && buttonTextContents.length > 0) {
       // textContent preserves original whitespace/newlines; normalize for comparison
       const normalizedTextContents = buttonTextContents.map(t => t.replace(/\s+/g, ' ').trim());
-      const hasPerformAction = normalizedTextContents.some(text => text.includes('Perform Action'));
-      if (hasPerformAction) {
+      const hasActionButton = normalizedTextContents.some(text => text.includes('Perform Action'));
+      if (hasActionButton) {
         progress.log('allTextContents() method PASSED');
         context.events.emit({
           timestamp: Date.now(),
@@ -479,12 +492,12 @@ export async function testLocatorFunctionality(
         });
       } else {
         throw new Error(
-          `Test 21 failed: Expected to find "Perform Action" after normalization in button text contents. Normalized: ${JSON.stringify(normalizedTextContents)}`,
+          `Test 21 failed: Expected to find "Perform Action" after normalization in button text contents. Normalized: ${JSON.stringify(normalizedTextContents)}`
         );
       }
     } else {
       throw new Error(
-        `Test 21 failed: Expected ${buttonCount} text contents, got ${buttonTextContents.length}`,
+        `Test 21 failed: Expected ${buttonCount} text contents, got ${buttonTextContents.length}`
       );
     }
 

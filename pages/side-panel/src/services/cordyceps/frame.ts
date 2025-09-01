@@ -570,6 +570,7 @@ export class Frame extends Disposable {
    */
   async _waitForLoadState(progress: Progress, state: LifecycleEvent): Promise<void> {
     const waitUntil = verifyLifecycle('state', state);
+
     // Check if the requested lifecycle event is already satisfied or implied
     const isAlreadySatisfied = this._firedLifecycleEvents.has(waitUntil);
     const isImpliedByLaterEvents = this._isLifecycleEventImplied(waitUntil);
@@ -583,6 +584,37 @@ export class Frame extends Disposable {
       this._firedLifecycleEvents.add(waitUntil);
       this._fireAddLifecycle(waitUntil);
       return;
+    }
+
+    // For cases where we might be on an already-loaded page, check document readyState
+    if (waitUntil === 'load' || waitUntil === 'domcontentloaded') {
+      try {
+        const readyState = await this.evaluate(() => document.readyState);
+
+        if (
+          readyState === 'complete' &&
+          (waitUntil === 'load' || waitUntil === 'domcontentloaded')
+        ) {
+          this._firedLifecycleEvents.add(waitUntil);
+          this._fireAddLifecycle(waitUntil);
+          if (waitUntil === 'load') {
+            // Also mark domcontentloaded as satisfied since load implies it
+            if (!this._firedLifecycleEvents.has('domcontentloaded')) {
+              this._firedLifecycleEvents.add('domcontentloaded');
+              this._fireAddLifecycle('domcontentloaded');
+            }
+          }
+          return;
+        }
+
+        if (readyState === 'interactive' && waitUntil === 'domcontentloaded') {
+          this._firedLifecycleEvents.add('domcontentloaded');
+          this._fireAddLifecycle('domcontentloaded');
+          return;
+        }
+      } catch (error) {
+        // Could not check readyState, continue with normal waiting
+      }
     }
     // Use progress.race to respect the timeout from executeWithProgress instead of hardcoded 30s
     await progress.race(

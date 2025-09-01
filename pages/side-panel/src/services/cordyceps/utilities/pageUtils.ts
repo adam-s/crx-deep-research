@@ -282,9 +282,16 @@ export async function snapshotFrameForAI(
 
     let child;
     try {
-      child = await progress.race(
-        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true })
-      );
+      // Use a shorter timeout for iframe resolution to prevent long delays
+      // Create a race condition with a 5-second timeout specifically for iframe resolution
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Iframe resolution timeout after 5000ms`)), 5000);
+      });
+
+      child = await Promise.race([
+        frame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }),
+        timeoutPromise,
+      ]);
     } catch (error) {
       console.warn(
         `⚠️  Failed to resolve iframe reference ${ref}:`,
