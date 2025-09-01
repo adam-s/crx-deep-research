@@ -56,7 +56,7 @@ import {
 import { parseURL } from './utilities/utils';
 import { FileTransferPortController } from './file-transfer/fileTransferPortController';
 import { ParsedSelector } from '@injected/isomorphic/selectorParser';
-import { getNavigationTracker } from './navigation/navigationTracker';
+import { getNavigationTracker, InternalNavigation } from './navigation/navigationTracker';
 import { getNetworkObserver } from './navigation/networkObserver';
 import { LongStandingScope, ManualPromise } from '@injected/isomorphic/manualPromise';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -857,7 +857,7 @@ export class Frame extends Disposable {
         timeoutMs,
       });
 
-      let navEv;
+      let navEv: InternalNavigation;
       try {
         navEv = await trackerPromise;
         p.log('Navigation tracker completed successfully');

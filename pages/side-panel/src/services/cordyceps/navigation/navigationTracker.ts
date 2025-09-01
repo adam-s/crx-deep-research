@@ -110,7 +110,12 @@ export class NavigationTracker {
 
       // Fast-path: already at URL and lifecycle achieved
       const nowUrl = st.url ? normalize(st.url) : undefined;
-      if ((!toUrl || nowUrl === toUrl) && st.lifecycle.has(waitUntil)) {
+
+      // Only use fast-path if we have a specific toUrl requirement that matches current URL
+      // This prevents resolving with stale state when a new navigation is pending
+      const shouldUseFastPath = toUrl && nowUrl === toUrl && st.lifecycle.has(waitUntil);
+
+      if (shouldUseFastPath) {
         clearTimeout(timer);
         disposable.dispose();
         resolve({
@@ -223,7 +228,8 @@ export class NavigationTracker {
           resolve();
           return;
         }
-        if (Date.now() - start > timeoutMs) {
+        const elapsed = Date.now() - start;
+        if (elapsed > timeoutMs) {
           clearInterval(t);
           reject(new Error(`Timeout waiting for lifecycle "${state}"`));
         }

@@ -14,7 +14,6 @@ export async function testNavigationAutoWait(page: Page, progress: Progress, con
         severity: Severity.Info,
         message: 'Starting navigation auto-wait test',
       });
-
       // Add an anchor that triggers a same-document hash navigation and click it
       await page.evaluate(() => {
         const id = 'autoWait-hash-link';
@@ -33,7 +32,6 @@ export async function testNavigationAutoWait(page: Page, progress: Progress, con
           document.body.appendChild(target);
         }
       });
-
       const link = page.locator('#autoWait-hash-link');
       await link.click(); // should auto-wait for commit (same-document)
 
