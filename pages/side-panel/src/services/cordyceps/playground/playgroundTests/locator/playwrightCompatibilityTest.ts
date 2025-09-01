@@ -23,7 +23,8 @@ export async function testPlaywrightCompatibility(
     progress.log('Test 1: Locator.click() with advanced Playwright options');
 
     // Setup test element and event tracking
-    await page.mainFrame().context.executeScript(() => {
+    const mainFrameContext = await page.mainFrame().getContext();
+    await mainFrameContext.executeScript(() => {
       (window as unknown as Record<string, unknown>).locatorTestResults = {
         basicClick: 0,
         noWaitAfterClick: 0,
@@ -71,12 +72,12 @@ export async function testPlaywrightCompatibility(
     const actionButtonLocator = page.locator('#action-button');
     await actionButtonLocator.click({ timeout: 5000 });
 
-    let results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    let results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.basicClick !== 1) {
       throw new Error(`Expected 1 basic click, got ${results.basicClick}`);
@@ -93,12 +94,12 @@ export async function testPlaywrightCompatibility(
     });
     const noWaitAfterTime = Date.now() - startTime;
 
-    results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.noWaitAfterClick !== 1) {
       throw new Error(`Expected 1 noWaitAfter click, got ${results.noWaitAfterClick}`);
@@ -113,12 +114,12 @@ export async function testPlaywrightCompatibility(
       timeout: 5000,
     });
 
-    results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.modifierClick !== 1) {
       throw new Error(`Expected 1 modifier click, got ${results.modifierClick}`);
@@ -136,7 +137,9 @@ export async function testPlaywrightCompatibility(
     progress.log('Test 2: Frame.click() with advanced Playwright options');
 
     // Reset counters
-    await page.mainFrame().context.executeScript(() => {
+    await (
+      await page.mainFrame().getContext()
+    ).executeScript(() => {
       const results = (window as unknown as Record<string, unknown>).locatorTestResults as Record<
         string,
         unknown
@@ -156,12 +159,12 @@ export async function testPlaywrightCompatibility(
       timeout: 5000,
     });
 
-    results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.noWaitAfterClick !== 1) {
       throw new Error(`Expected 1 frame noWaitAfter click, got ${results.noWaitAfterClick}`);
@@ -175,12 +178,12 @@ export async function testPlaywrightCompatibility(
       timeout: 5000,
     });
 
-    results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.modifierClick !== 1) {
       throw new Error(`Expected 1 frame modifier click, got ${results.modifierClick}`);
@@ -198,7 +201,9 @@ export async function testPlaywrightCompatibility(
     progress.log('Test 3: ElementHandle.click() with all advanced options');
 
     // Reset counters
-    await page.mainFrame().context.executeScript(() => {
+    await (
+      await page.mainFrame().getContext()
+    ).executeScript(() => {
       const results = (window as unknown as Record<string, unknown>).locatorTestResults as Record<
         string,
         unknown
@@ -225,12 +230,12 @@ export async function testPlaywrightCompatibility(
       trial: false, // Note: trial mode may not be fully implemented
     });
 
-    results = (await page
-      .mainFrame()
-      .context.executeScript(
-        () => (window as unknown as Record<string, unknown>).locatorTestResults,
-        'MAIN'
-      )) as Record<string, unknown>;
+    results = (await (
+      await page.mainFrame().getContext()
+    ).executeScript(
+      () => (window as unknown as Record<string, unknown>).locatorTestResults,
+      'MAIN'
+    )) as Record<string, unknown>;
 
     if (results.basicClick !== 1) {
       throw new Error(`Expected 1 element handle click, got ${results.basicClick}`);
@@ -248,7 +253,9 @@ export async function testPlaywrightCompatibility(
     progress.log('Test 4: Testing trial mode behavior');
 
     // Reset counter
-    await page.mainFrame().context.executeScript(() => {
+    await (
+      await page.mainFrame().getContext()
+    ).executeScript(() => {
       const results = (window as unknown as Record<string, unknown>).locatorTestResults as Record<
         string,
         unknown
@@ -263,12 +270,12 @@ export async function testPlaywrightCompatibility(
         timeout: 5000,
       });
 
-      results = (await page
-        .mainFrame()
-        .context.executeScript(
-          () => (window as unknown as Record<string, unknown>).locatorTestResults,
-          'MAIN'
-        )) as Record<string, unknown>;
+      results = (await (
+        await page.mainFrame().getContext()
+      ).executeScript(
+        () => (window as unknown as Record<string, unknown>).locatorTestResults,
+        'MAIN'
+      )) as Record<string, unknown>;
 
       if (results.basicClick === 0) {
         progress.log('✓ Trial mode correctly prevented actual click');
@@ -296,7 +303,9 @@ export async function testPlaywrightCompatibility(
 
     // Cleanup
     progress.log('Cleaning up Playwright compatibility test handlers');
-    await page.mainFrame().context.executeScript(() => {
+    await (
+      await page.mainFrame().getContext()
+    ).executeScript(() => {
       const handler = (window as unknown as Record<string, unknown>)
         .locatorTestHandler as EventListener;
 

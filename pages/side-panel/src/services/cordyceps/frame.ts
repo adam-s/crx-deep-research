@@ -1219,7 +1219,7 @@ export class Frame extends Disposable {
           return continuePolling;
         }
 
-        const context = resolved.frame.context;
+        const context = await resolved.frame.getContext();
 
         const result = await progress.race(
           context.waitForSelectorEvaluation(
@@ -1264,7 +1264,8 @@ export class Frame extends Disposable {
 
         // Step 6: Return ElementHandle for attached/visible states
         if (elementHandle) {
-          return new ElementHandle(resolved.frame.context, elementHandle);
+          const context = await resolved.frame.getContext();
+          return new ElementHandle(context, elementHandle);
         }
 
         return null;
@@ -1428,7 +1429,8 @@ export class Frame extends Disposable {
       return;
     }
     // Execute double RAF directly without progress.race wrapper
-    const rafPromise = this.context
+    const context = await this.getContext();
+    const rafPromise = context
       .executeScript(() => {
         return new Promise<void>(resolve => {
           requestAnimationFrame(() => {

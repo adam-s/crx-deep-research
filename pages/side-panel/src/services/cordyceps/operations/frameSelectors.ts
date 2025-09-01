@@ -86,7 +86,7 @@ export class FrameSelectors {
       // info to a frame aria-ref selector.
       // @see https://chatgpt.com/share/68894910-90f8-8004-9173-1fcbf62d9913
       frame = this._jumpToAriaRefFrameIfNeeded(selector, info, frame);
-      const context = frame.context;
+      const context = await frame.getContext();
       const frameChunk = stringifySelector(frameChunks[i]);
 
       const handleId = await context.frameSelectorEvaluation(

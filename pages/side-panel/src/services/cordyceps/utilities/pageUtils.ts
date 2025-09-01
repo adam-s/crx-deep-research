@@ -254,7 +254,7 @@ export async function snapshotFrameForAI(
     [1000, 2000, 4000, 8000],
     async continuePolling => {
       try {
-        const context = frame.context;
+        const context = await frame.getContext();
         const refPrefix = generateFrameRefPrefix(frameOrdinal);
         const forAI = true;
         const snapshotOrRetry = await progress.race(context.ariaSnapshot(forAI, refPrefix, 'MAIN'));
