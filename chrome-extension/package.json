@@ -34,6 +34,6 @@
     "fake-indexeddb": "^6.0.0",
     "magic-string": "^0.30.10",
     "ts-loader": "^9.5.1",
-    "vitest": "^2.0.0"
+    "vitest": "^4.0.4"
   }
 }
